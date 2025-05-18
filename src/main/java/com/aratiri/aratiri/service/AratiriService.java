@@ -1,4 +1,8 @@
 package com.aratiri.aratiri.service;
 
-public class AratiriService {
+import com.aratiri.aratiri.dto.response.WalletBalanceResponse;
+
+public interface AratiriService {
+    WalletBalanceResponse getWalletBalance();
+    String createInvoice(long sats, String memo);
 }
