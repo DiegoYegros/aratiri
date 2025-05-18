@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: aratiri
+grpc:
+  client:
+    lnd:
+      address: "localhost:10009"
+      negotiation-type: TLS
