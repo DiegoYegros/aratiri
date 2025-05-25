@@ -32,5 +32,4 @@ build/
 ### VS Code ###
 .vscode/
 
-# Macaroon
-src/main/resources/admin.macaroon
+.env
