@@ -2,15 +2,16 @@ CREATE TABLE USERS
 (
     id         CHAR(36) PRIMARY KEY,
     name       VARCHAR(100)        NOT NULL,
+    password   VARCHAR(100)        NOT NULL,
     email      VARCHAR(100) UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE ACCOUNTS
 (
-    id      CHAR(36) PRIMARY KEY,
+    id              CHAR(36) PRIMARY KEY,
     bitcoin_address VARCHAR(100) NOT NULL,
-    balance BIGINT NOT NULL DEFAULT 0
+    balance         BIGINT       NOT NULL DEFAULT 0
 );
 CREATE TABLE LIGHTNING_INVOICES
 (

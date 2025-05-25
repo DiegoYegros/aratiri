@@ -4,6 +4,8 @@ import com.aratiri.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.aratiri.dto.invoices.GenerateInvoiceRequest;
 import com.aratiri.aratiri.service.InvoiceService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,8 +21,8 @@ public class InvoicesController {
     }
 
     @PostMapping
-    public GenerateInvoiceDTO generateInvoice(@Valid @RequestBody  GenerateInvoiceRequest request) {
-        return invoiceService.generateInvoice(request.getSatsAmount(), request.getMemo());
+    public ResponseEntity<GenerateInvoiceDTO> generateInvoice(@Valid @RequestBody GenerateInvoiceRequest request) {
+        return new ResponseEntity<>(invoiceService.generateInvoice(request.getSatsAmount(), request.getMemo()), HttpStatus.CREATED);
     }
 
 }

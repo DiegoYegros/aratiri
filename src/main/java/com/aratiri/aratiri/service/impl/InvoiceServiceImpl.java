@@ -2,9 +2,11 @@ package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.aratiri.dto.invoices.PayInvoiceDTO;
-import com.aratiri.aratiri.entity.LightningInvoice;
+import com.aratiri.aratiri.dto.users.UserDTO;
+import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
+import com.aratiri.aratiri.service.AuthService;
 import com.aratiri.aratiri.service.InvoiceService;
 import com.aratiri.aratiri.utils.InvoiceUtils;
 import com.google.protobuf.ByteString;
@@ -22,13 +24,15 @@ import java.util.Base64;
 public class InvoiceServiceImpl implements InvoiceService {
 
     private final Logger logger = LoggerFactory.getLogger(InvoiceServiceImpl.class);
-    private final LightningInvoiceRepository lightningInvoiceRepository;
 
+    private final LightningInvoiceRepository lightningInvoiceRepository;
+    private final AuthService authService;
     private final LightningGrpc.LightningBlockingStub lightningStub;
 
-    public InvoiceServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, LightningInvoiceRepository lightningInvoiceRepository) {
+    public InvoiceServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, LightningInvoiceRepository lightningInvoiceRepository, AuthService authService) {
         this.lightningStub = lightningStub;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
+        this.authService = authService;
     }
 
     @Override
@@ -44,12 +48,12 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .setValue(satsAmount).build();
 
             AddInvoiceResponse addInvoiceResponse = lightningStub.addInvoice(request);
-
-            LightningInvoice lightningInvoice = LightningInvoice.builder()
-                    .userId("123e4567-e89b-12d3-a456-426614174003")
+            UserDTO currentUser = authService.getCurrentUser();
+            LightningInvoiceEntity lightningInvoice = LightningInvoiceEntity.builder()
+                    .userId(currentUser.getId())
                     .amountSats(satsAmount)
                     .preimage(Base64.getEncoder().encodeToString(preImage))
-                    .invoiceState(LightningInvoice.InvoiceState.OPEN)
+                    .invoiceState(LightningInvoiceEntity.InvoiceState.OPEN)
                     .createdAt(LocalDateTime.now())
                     // i can decode the payment req to get expiry
                     .expiry(86440)

@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class LightningInvoice {
+public class LightningInvoiceEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -49,7 +49,7 @@ public class LightningInvoice {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "id", insertable = false, updatable = false)
-    private User user;
+    private UserEntity user;
 
     public enum InvoiceState {
         OPEN,

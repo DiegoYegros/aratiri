@@ -39,3 +39,7 @@ lnd:
       cert: ${LND_TLS_CERT_PATH}
     macaroon:
       admin: ${ADMIN_MACAROON_PATH}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 8400

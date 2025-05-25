@@ -9,7 +9,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "USERS")
 @Data
-public class User {
+public class UserEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -21,6 +21,9 @@ public class User {
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
+    @Column(nullable = false)
+    private String password;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -29,7 +32,7 @@ public class User {
         createdAt = LocalDateTime.now();
     }
 
-    public User() {
+    public UserEntity() {
         this.id = UUID.randomUUID().toString();
     }
 }

@@ -8,7 +8,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "ACCOUNTS")
 @Data
-public class Account {
+public class AccountEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -22,9 +22,9 @@ public class Account {
 
     @OneToOne
     @JoinColumn(name = "user_id", nullable = false, unique = true)
-    private User user;
+    private UserEntity user;
 
-    public Account() {
+    public AccountEntity() {
         this.id = UUID.randomUUID().toString();
     }
 }

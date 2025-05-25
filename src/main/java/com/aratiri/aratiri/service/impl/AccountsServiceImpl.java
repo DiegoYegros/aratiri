@@ -1,8 +1,9 @@
 package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.dto.accounts.AccountDTO;
-import com.aratiri.aratiri.entity.Account;
-import com.aratiri.aratiri.entity.User;
+import com.aratiri.aratiri.entity.AccountEntity;
+import com.aratiri.aratiri.entity.UserEntity;
+import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.AccountRepository;
 import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.AccountsService;
@@ -21,18 +22,18 @@ public class AccountsServiceImpl implements AccountsService {
 
     @Override
     public AccountDTO getAccount(String id) {
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Account not found for user"));
+        AccountEntity account = accountRepository.findById(id)
+                .orElseThrow(() -> new AratiriException("Account not found for user"));
         return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId());
     }
 
     @Override
     public AccountDTO getAccountByUserId(String userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new AratiriException("User not found"));
 
-        Account account = accountRepository.findByUser(user)
-                .orElseThrow(() -> new RuntimeException("Account not found for user"));
+        AccountEntity account = accountRepository.findByUser(user)
+                .orElseThrow(() -> new AratiriException("Account not found for user"));
 
         return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId());
     }

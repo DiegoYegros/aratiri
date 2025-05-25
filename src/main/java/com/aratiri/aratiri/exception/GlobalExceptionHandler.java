@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -47,6 +48,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
         logger.error("HttpMessageNotReadableException occured: {}", ex.getMessage());
         ErrorResponse errorResponse = new ErrorResponse("Request body is missing or malformed. Please provide a valid request body.", HttpStatus.BAD_REQUEST.value());
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleBadCredentialsException(BadCredentialsException ex) {
+        logger.error("BadCredentialsException occured: {}", ex.getMessage());
+        ErrorResponse errorResponse = new ErrorResponse(ex.getMessage(), HttpStatus.BAD_REQUEST.value());
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
     }
 
