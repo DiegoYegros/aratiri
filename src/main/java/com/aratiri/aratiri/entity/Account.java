@@ -15,6 +15,9 @@ public class Account {
     private String id;
 
     @Column(nullable = false)
+    private String bitcoinAddress;
+
+    @Column(nullable = false)
     private long balance = 0L;
 
     @OneToOne

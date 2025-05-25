@@ -30,4 +30,12 @@ spring:
 grpc:
   client:
     lnd:
-      address: "localhost:10009"
+      name: localhost
+      port: 10009
+
+lnd:
+  path:
+    tls:
+      cert: ${LND_TLS_CERT_PATH}
+    macaroon:
+      admin: ${ADMIN_MACAROON_PATH}

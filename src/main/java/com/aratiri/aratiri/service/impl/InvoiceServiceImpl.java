@@ -15,9 +15,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.Base64;
 
 @Service
 public class InvoiceServiceImpl implements InvoiceService {
@@ -37,11 +36,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         logger.info("Generating invoice for sats amount [{}] and with memo [{}]", satsAmount, memo);
         try {
             byte[] preImage = InvoiceUtils.generatePreimage();
-
             byte[] hash = InvoiceUtils.sha256(preImage);
-
-            LightningInvoice lightningInvoice = new LightningInvoice();
-
             Invoice request = Invoice.newBuilder()
                     .setRHash(ByteString.copyFrom(hash))
                     .setMemo(memo)
@@ -50,12 +45,14 @@ public class InvoiceServiceImpl implements InvoiceService {
 
             AddInvoiceResponse addInvoiceResponse = lightningStub.addInvoice(request);
 
-            LightningInvoice.builder()
-                    .userId(UUID.randomUUID().toString())
+            LightningInvoice lightningInvoice = LightningInvoice.builder()
+                    .userId("123e4567-e89b-12d3-a456-426614174003")
                     .amountSats(satsAmount)
+                    .preimage(Base64.getEncoder().encodeToString(preImage))
                     .invoiceState(LightningInvoice.InvoiceState.OPEN)
                     .createdAt(LocalDateTime.now())
-                    .expiry(1) // ?
+                    // i can decode the payment req to get expiry
+                    .expiry(86440)
                     .paymentRequest(addInvoiceResponse.getPaymentRequest())
                     .paymentHash(addInvoiceResponse.getRHash().toStringUtf8())
                     .build();

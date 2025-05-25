@@ -23,7 +23,7 @@ public class AccountsServiceImpl implements AccountsService {
     public AccountDTO getAccount(String id) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Account not found for user"));
-        return new AccountDTO(account.getId(), account.getBalance(), account.getUser().getId());
+        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId());
     }
 
     @Override
@@ -34,6 +34,6 @@ public class AccountsServiceImpl implements AccountsService {
         Account account = accountRepository.findByUser(user)
                 .orElseThrow(() -> new RuntimeException("Account not found for user"));
 
-        return new AccountDTO(account.getId(), account.getBalance(), account.getUser().getId());
+        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId());
     }
 }
