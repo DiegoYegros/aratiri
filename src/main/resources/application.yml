@@ -2,6 +2,7 @@ server:
   port: 2100
 
 spring:
+
   application:
     name: aratiri
 
@@ -26,6 +27,17 @@ spring:
       mode: always
       schema-locations: classpath:schema.sql
       data-locations: classpath:data.sql
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: invoice-listener-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
 grpc:
   client:
