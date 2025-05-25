@@ -45,7 +45,7 @@ public class LightningInvoiceEntity {
     private LocalDateTime createdAt;
 
     @Column(name = "expiry", nullable = false)
-    private Integer expiry;
+    private long expiry;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "id", insertable = false, updatable = false)

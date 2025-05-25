@@ -1,15 +1,13 @@
 package com.aratiri.aratiri.controller;
 
+import com.aratiri.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.aratiri.dto.invoices.GenerateInvoiceRequest;
 import com.aratiri.aratiri.service.InvoiceService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/v1/invoices")
@@ -25,4 +23,8 @@ public class InvoicesController {
         return new ResponseEntity<>(invoiceService.generateInvoice(request.getSatsAmount(), request.getMemo()), HttpStatus.CREATED);
     }
 
+    @GetMapping("/invoice/decode/{paymentRequest}")
+    public ResponseEntity<DecodedInvoicetDTO> getDecodedInvoice(@PathVariable String paymentRequest) {
+        return new ResponseEntity<>(invoiceService.decodePaymentRequest(paymentRequest), HttpStatus.OK);
+    }
 }
