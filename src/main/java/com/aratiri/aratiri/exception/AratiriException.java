@@ -16,4 +16,8 @@ public class AratiriException extends RuntimeException {
     public AratiriException(String message){
         this.message = message;
     }
+    public AratiriException(String message, HttpStatus httpStatus){
+        this.message = message;
+        this.httpStatus = httpStatus;
+    }
 }
