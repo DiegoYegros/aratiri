@@ -7,10 +7,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@ControllerAdvice
+@RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
@@ -23,8 +23,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex)
-    {
+    public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex) {
         logger.error("Exception occured: {}", ex.getMessage());
         ErrorResponse errorResponse = new ErrorResponse("An error occured. We are working on it.", HttpStatus.INTERNAL_SERVER_ERROR.value());
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -55,7 +54,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAratiriException(AratiriException ex) {
         logger.error("AratiriException occured: {}", ex.getMessage());
         HttpStatus status;
-        if (ex.getHttpStatus() == null){
+        if (ex.getHttpStatus() == null) {
             status = HttpStatus.INTERNAL_SERVER_ERROR;
         } else {
             status = ex.getHttpStatus();

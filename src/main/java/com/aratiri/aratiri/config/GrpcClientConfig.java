@@ -1,8 +1,5 @@
 package com.aratiri.aratiri.config;
 
-import com.aratiri.aratiri.interceptor.LoggingInterceptor;
-import io.grpc.Channel;
-import io.grpc.ClientInterceptors;
 import io.grpc.ManagedChannel;
 import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
@@ -24,15 +21,14 @@ public class GrpcClientConfig {
 
     @Bean
     public LightningGrpc.LightningBlockingStub lightningBlockingStub(ManagedChannel channel) {
-        Channel withInterceptors = ClientInterceptors.intercept(channel, new LoggingInterceptor());
-        return LightningGrpc.newBlockingStub(withInterceptors)
+        return LightningGrpc.newBlockingStub(channel)
                 .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroon()));
     }
 
     @Bean
     public ManagedChannel lndChannel() throws SSLException {
         File cert = new File(properties.getLndTlsCertPath());
-        return NettyChannelBuilder.forAddress("localhost", 10009)
+        return NettyChannelBuilder.forAddress(properties.getGrpcClientLndName(), properties.getGrpcClientLndPort())
                 .sslContext(GrpcSslContexts.forClient().trustManager(cert).build())
                 .build();
     }
