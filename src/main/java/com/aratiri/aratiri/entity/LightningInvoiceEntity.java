@@ -47,6 +47,12 @@ public class LightningInvoiceEntity {
     @Column(name = "expiry", nullable = false)
     private long expiry;
 
+    @Column(name = "amt_paid_sats", nullable = false)
+    private long amountPaidSats;
+
+    @Column(name = "settled_at")
+    private LocalDateTime settledAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "id", insertable = false, updatable = false)
     private UserEntity user;

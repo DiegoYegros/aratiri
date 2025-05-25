@@ -63,6 +63,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .expiry(expiry)
                     .paymentRequest(addInvoiceResponse.getPaymentRequest())
                     .paymentHash(addInvoiceResponse.getRHash().toStringUtf8())
+                    .amountPaidSats(0)
                     .build();
 
             lightningInvoiceRepository.save(lightningInvoice);

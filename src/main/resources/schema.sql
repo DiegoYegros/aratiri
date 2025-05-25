@@ -24,6 +24,8 @@ CREATE TABLE LIGHTNING_INVOICES
     amount_sats     BIGINT        NOT NULL,
     created_at      TIMESTAMP     NOT NULL,
     expiry          INT           NOT NULL,
+    amt_paid_sats   BIGINT        NOT NULL DEFAULT 0,
+    settled_at      TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)
 );
 

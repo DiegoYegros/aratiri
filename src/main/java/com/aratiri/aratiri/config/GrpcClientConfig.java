@@ -26,6 +26,12 @@ public class GrpcClientConfig {
     }
 
     @Bean
+    public LightningGrpc.LightningStub lightningAsyncStub(ManagedChannel channel) {
+        return LightningGrpc.newStub(channel)
+                .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroon()));
+    }
+
+    @Bean
     public ManagedChannel lndChannel() throws SSLException {
         File cert = new File(properties.getLndTlsCertPath());
         return NettyChannelBuilder.forAddress(properties.getGrpcClientLndName(), properties.getGrpcClientLndPort())
