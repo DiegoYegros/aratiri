@@ -28,15 +28,18 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: aratiri-app
+    network_mode: "host"
     ports:
       - "2100:2100"
     environment:
       - JWT_SECRET=${JWT_SECRET}
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
       - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
-      - ADMIN_MACAROON_PATH=${ADMIN_MACAROON_PATH}
-      - LND_TLS_CERT_PATH=${LND_TLS_CERT_PATH}
+      - GRPC_CLIENT_LND_NAME=localhost
+      - GRPC_CLIENT_LND_PORT=10009
+      - ADMIN_MACAROON_PATH=/run/secrets/admin.macaroon
+      - LND_TLS_CERT_PATH=/run/secrets/tls.cert
     volumes:
-      - ./config:/app/config
+      - ./secrets:/run/secrets:ro
     depends_on:
       - kafka

@@ -42,8 +42,8 @@ spring:
 grpc:
   client:
     lnd:
-      name: localhost
-      port: 10009
+      name: ${GRPC_CLIENT_LND_NAME}
+      port: ${GRPC_CLIENT_LND_PORT}
 
 lnd:
   path:
