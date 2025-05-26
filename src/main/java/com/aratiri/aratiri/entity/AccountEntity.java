@@ -24,6 +24,9 @@ public class AccountEntity {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private UserEntity user;
 
+    @Column(unique = true, nullable = false)
+    private String alias;
+
     public AccountEntity() {
         this.id = UUID.randomUUID().toString();
     }

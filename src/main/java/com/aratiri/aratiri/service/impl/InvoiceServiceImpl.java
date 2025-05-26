@@ -1,5 +1,6 @@
 package com.aratiri.aratiri.service.impl;
 
+import com.aratiri.aratiri.dto.accounts.AccountDTO;
 import com.aratiri.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.aratiri.dto.invoices.PayInvoiceDTO;
@@ -7,6 +8,7 @@ import com.aratiri.aratiri.dto.users.UserDTO;
 import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
+import com.aratiri.aratiri.service.AccountsService;
 import com.aratiri.aratiri.service.AuthService;
 import com.aratiri.aratiri.service.InvoiceService;
 import com.aratiri.aratiri.utils.InvoiceUtils;
@@ -31,11 +33,13 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final AuthService authService;
     private final LightningGrpc.LightningBlockingStub lightningStub;
+    private final AccountsService accountsService;
 
-    public InvoiceServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, LightningInvoiceRepository lightningInvoiceRepository, AuthService authService) {
+    public InvoiceServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, LightningInvoiceRepository lightningInvoiceRepository, AuthService authService, AccountsService accountsService) {
         this.lightningStub = lightningStub;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.authService = authService;
+        this.accountsService = accountsService;
     }
 
     @Override
@@ -72,6 +76,40 @@ public class InvoiceServiceImpl implements InvoiceService {
             throw new AratiriException(e.getMessage());
         }
 
+    }
+
+    @Override
+    public GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo) {
+        logger.info("Generating invoice for sats amount [{}] and with memo [{}]", satsAmount, memo);
+        try {
+            byte[] preImage = InvoiceUtils.generatePreimage();
+            byte[] hash = InvoiceUtils.sha256(preImage);
+            Invoice request = Invoice.newBuilder()
+                    .setRHash(ByteString.copyFrom(hash))
+                    .setMemo(memo)
+                    .setRPreimage(ByteString.copyFrom(preImage))
+                    .setValue(satsAmount).build();
+
+            AddInvoiceResponse addInvoiceResponse = lightningStub.addInvoice(request);
+            AccountDTO accountByAlias = accountsService.getAccountByAlias(alias);
+            long expiry = lightningStub.decodePayReq(PayReqString.newBuilder().setPayReq(addInvoiceResponse.getPaymentRequest()).build()).getExpiry();
+            LightningInvoiceEntity lightningInvoice = LightningInvoiceEntity.builder()
+                    .userId(accountByAlias.getUserId())
+                    .amountSats(satsAmount)
+                    .preimage(Base64.getEncoder().encodeToString(preImage))
+                    .invoiceState(LightningInvoiceEntity.InvoiceState.OPEN)
+                    .createdAt(LocalDateTime.now())
+                    .expiry(expiry)
+                    .paymentRequest(addInvoiceResponse.getPaymentRequest())
+                    .paymentHash(addInvoiceResponse.getRHash().toStringUtf8())
+                    .amountPaidSats(0)
+                    .build();
+
+            lightningInvoiceRepository.save(lightningInvoice);
+            return new GenerateInvoiceDTO(addInvoiceResponse.getPaymentRequest());
+        } catch (Exception e) {
+            throw new AratiriException(e.getMessage());
+        }
     }
 
     @Override

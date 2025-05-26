@@ -13,9 +13,9 @@ import java.io.File;
 @Configuration
 public class GrpcClientConfig {
 
-    private final Properties properties;
+    private final AratiriProperties properties;
 
-    public GrpcClientConfig(Properties properties) {
+    public GrpcClientConfig(AratiriProperties properties) {
         this.properties = properties;
     }
 

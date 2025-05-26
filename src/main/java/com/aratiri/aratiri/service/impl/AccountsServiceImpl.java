@@ -1,5 +1,6 @@
 package com.aratiri.aratiri.service.impl;
 
+import com.aratiri.aratiri.config.AratiriProperties;
 import com.aratiri.aratiri.dto.accounts.AccountDTO;
 import com.aratiri.aratiri.dto.accounts.CreateAccountRequestDTO;
 import com.aratiri.aratiri.entity.AccountEntity;
@@ -9,6 +10,8 @@ import com.aratiri.aratiri.repository.AccountRepository;
 import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.AccountsService;
 import com.aratiri.aratiri.service.AuthService;
+import com.aratiri.aratiri.utils.AliasGenerator;
+import com.aratiri.aratiri.utils.LnurlBech32Util;
 import lnrpc.AddressType;
 import lnrpc.LightningGrpc;
 import lnrpc.NewAddressRequest;
@@ -19,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class AccountsServiceImpl implements AccountsService {
@@ -28,19 +32,21 @@ public class AccountsServiceImpl implements AccountsService {
     private final UserRepository userRepository;
     private final LightningGrpc.LightningBlockingStub lightningStub;
     private final AuthService authService;
+    private final AratiriProperties properties;
 
-    public AccountsServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, AccountRepository accountRepository, UserRepository userRepository, AuthService authService) {
+    public AccountsServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, AccountRepository accountRepository, UserRepository userRepository, AuthService authService, AratiriProperties properties) {
         this.lightningStub = lightningStub;
         this.accountRepository = accountRepository;
         this.userRepository = userRepository;
         this.authService = authService;
+        this.properties = properties;
     }
 
     @Override
     public AccountDTO getAccount(String id) {
         AccountEntity account = accountRepository.findById(id)
-                .orElseThrow(() -> new AratiriException("Account not found for user"));
-        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId());
+                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND));
+        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId(), account.getAlias(), buildLnurlForAlias(account.getAlias()));
     }
 
     @Override
@@ -48,18 +54,22 @@ public class AccountsServiceImpl implements AccountsService {
         String id = authService.getCurrentUser().getId();
         logger.info("Searching account for userId [{}]", id);
         AccountEntity account = accountRepository.findByUserId(id);
-        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId());
+        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId(), account.getAlias(), buildLnurlForAlias(account.getAlias()));
     }
 
     @Override
     public AccountDTO getAccountByUserId(String userId) {
         UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new AratiriException("User not found"));
+                .orElseThrow(() -> new AratiriException("User not found", HttpStatus.NOT_FOUND));
 
         AccountEntity account = accountRepository.findByUser(user)
-                .orElseThrow(() -> new AratiriException("Account not found for user"));
+                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND));
+        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId(), account.getAlias(), buildLnurlForAlias(account.getAlias()));
+    }
 
-        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId());
+    @Override
+    public boolean existsByAlias(String alias) {
+        return accountRepository.existsByAlias(alias);
     }
 
     @Override
@@ -81,9 +91,13 @@ public class AccountsServiceImpl implements AccountsService {
         accountEntity.setBalance(0);
         accountEntity.setUser(userEntity);
         accountEntity.setBitcoinAddress(bitcoinAddress);
+        String alias;
+        do {
+            alias = AliasGenerator.generateAlias();
+        } while (accountRepository.existsByAlias(alias));
+        accountEntity.setAlias(alias);
         AccountEntity save = accountRepository.save(accountEntity);
-
-        return new AccountDTO(save.getId(), save.getBitcoinAddress(), save.getBalance(), save.getUser().getId());
+        return new AccountDTO(save.getId(), save.getBitcoinAddress(), save.getBalance(), save.getUser().getId(), alias, buildLnurlForAlias(save.getAlias()));
     }
 
     @Override
@@ -93,7 +107,21 @@ public class AccountsServiceImpl implements AccountsService {
         long newBalance = balance + satsAmount;
         accountEntity.setBalance(newBalance);
         AccountEntity saved = accountRepository.save(accountEntity);
-        return new AccountDTO(saved.getId(), saved.getBitcoinAddress(), saved.getBalance(), saved.getUser().getId());
+        return new AccountDTO(saved.getId(), saved.getBitcoinAddress(), saved.getBalance(), saved.getUser().getId(), saved.getAlias(), buildLnurlForAlias(saved.getAlias()));
     }
 
+    @Override
+    public AccountDTO getAccountByAlias(String alias) {
+        Optional<AccountEntity> byAlias = accountRepository.findByAlias(alias);
+        if (byAlias.isEmpty()) {
+            throw new AratiriException("Account does not exist for given alias.", HttpStatus.NOT_FOUND);
+        }
+        AccountEntity accountEntity = byAlias.get();
+        return new AccountDTO(accountEntity.getId(), accountEntity.getUser().getId(), accountEntity.getBalance(), accountEntity.getBitcoinAddress(), accountEntity.getAlias(), buildLnurlForAlias(alias));
+    }
+
+    private String buildLnurlForAlias(String alias) {
+        String url = properties.getAratiriBaseUrl() + "/.well-known/lnurlp/" + alias;
+        return LnurlBech32Util.encodeLnurl(url);
+    }
 }

@@ -10,8 +10,9 @@ CREATE TABLE USERS
 CREATE TABLE ACCOUNTS
 (
     id              CHAR(36) PRIMARY KEY,
-    bitcoin_address VARCHAR(100) NOT NULL,
-    balance         BIGINT       NOT NULL DEFAULT 0
+    bitcoin_address VARCHAR(100) UNIQUE NOT NULL,
+    alias           VARCHAR(100) UNIQUE NOT NULL,
+    balance         BIGINT              NOT NULL DEFAULT 0
 );
 CREATE TABLE LIGHTNING_INVOICES
 (

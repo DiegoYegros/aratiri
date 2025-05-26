@@ -15,4 +15,7 @@ public interface AccountRepository extends JpaRepository<AccountEntity, String> 
     String user(UserEntity user);
 
     AccountEntity findByUserId(String userId);
+
+    boolean existsByAlias(String alias);
+    Optional<AccountEntity> findByAlias(String alias);
 }

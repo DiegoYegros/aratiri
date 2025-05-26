@@ -10,10 +10,10 @@ import lombok.RequiredArgsConstructor;
 @AllArgsConstructor
 public class AccountDTO {
     private String id;
-
-    private String bitcoinAddress;
-
-    private long balance;
     @JsonProperty(value = "user_id")
     private String userId;
+    private long balance;
+    private String bitcoinAddress;
+    private String alias;
+    private String lnurl;
 }

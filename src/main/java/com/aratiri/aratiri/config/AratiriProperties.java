@@ -14,9 +14,9 @@ import java.nio.file.Path;
 
 @Configuration
 @Data
-public class Properties {
+public class AratiriProperties {
 
-    private final Logger logger = LoggerFactory.getLogger(Properties.class);
+    private final Logger logger = LoggerFactory.getLogger(AratiriProperties.class);
 
     @Value("${lnd.path.macaroon.admin}")
     private String adminMacaroonPath;
@@ -29,19 +29,22 @@ public class Properties {
     @Value("${grpc.client.lnd.port}")
     private int grpcClientLndPort;
 
+    @Value("${aratiri.base.url}")
+    private String aratiriBaseUrl;
+
     private String adminMacaroon;
 
     private String lndTlsCert;
 
     @PostConstruct
     public void loadProperties() throws IOException {
-        try{
+        try {
             adminMacaroon = Files.readString(Path.of(adminMacaroonPath));
             lndTlsCert = Files.readString(Path.of(lndTlsCertPath));
 
-        } catch (IOException e){
-           logger.error("Couldn't get macaroon from path [{}]. Exception is: [{}]", adminMacaroonPath, e.getMessage());
-           throw e;
+        } catch (IOException e) {
+            logger.error("Couldn't get macaroon from path [{}]. Exception is: [{}]", adminMacaroonPath, e.getMessage());
+            throw e;
         }
     }
 }

@@ -55,6 +55,9 @@ lnd:
     macaroon:
       admin: ${ADMIN_MACAROON_PATH}
 
+aratiri:
+  base:
+    url: ${ARATIRI_BASE_URL}
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 8400
+  expiration: ${JWT_EXPIRATION:8400}
