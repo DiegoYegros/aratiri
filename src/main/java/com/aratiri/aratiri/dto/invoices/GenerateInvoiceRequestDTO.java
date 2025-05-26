@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
-public class GenerateInvoiceRequest {
+public class GenerateInvoiceRequestDTO {
     @JsonProperty("sats_amount")
     private long satsAmount;
     @JsonProperty("memo")

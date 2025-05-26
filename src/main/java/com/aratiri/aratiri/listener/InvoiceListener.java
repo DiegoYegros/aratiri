@@ -1,6 +1,7 @@
 package com.aratiri.aratiri.listener;
 
 import com.aratiri.aratiri.entity.LightningInvoiceEntity;
+import com.aratiri.aratiri.producer.InvoiceEventProducer;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
 import io.grpc.stub.StreamObserver;
 import jakarta.annotation.PostConstruct;
@@ -26,18 +27,19 @@ public class InvoiceListener {
 
     private static final Logger logger = LoggerFactory.getLogger(InvoiceListener.class);
 
+    private StreamObserver<Invoice> invoiceStreamObserver;
     private final LightningGrpc.LightningStub lightningAsyncStub;
     private final LightningInvoiceRepository lightningInvoiceRepository;
-
-    private StreamObserver<Invoice> invoiceStreamObserver;
+    private final InvoiceEventProducer invoiceEventProducer;
     private final AtomicBoolean isListening = new AtomicBoolean(false);
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(false);
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
     public InvoiceListener(LightningGrpc.LightningStub lightningAsyncStub,
-                           LightningInvoiceRepository lightningInvoiceRepository) {
+                           LightningInvoiceRepository lightningInvoiceRepository, InvoiceEventProducer invoiceEventProducer) {
         this.lightningAsyncStub = lightningAsyncStub;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
+        this.invoiceEventProducer = invoiceEventProducer;
     }
 
     @PostConstruct
@@ -219,7 +221,7 @@ public class InvoiceListener {
                 case SETTLED:
                     logger.info("Processing settled invoice for user {}: {} sats",
                             invoice.getUserId(), invoice.getAmountSats());
-                    // TODO: i should credit the user here
+                    invoiceEventProducer.sendInvoiceSettledEvent(invoice);
                     break;
                 case CANCELED:
                     logger.info("Invoice canceled for user {}: {}",

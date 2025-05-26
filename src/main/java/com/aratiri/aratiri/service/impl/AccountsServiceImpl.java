@@ -13,6 +13,8 @@ import lnrpc.AddressType;
 import lnrpc.LightningGrpc;
 import lnrpc.NewAddressRequest;
 import lnrpc.NewAddressResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +23,7 @@ import java.util.List;
 @Service
 public class AccountsServiceImpl implements AccountsService {
 
+    private final Logger logger = LoggerFactory.getLogger(AccountsServiceImpl.class);
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
     private final LightningGrpc.LightningBlockingStub lightningStub;
@@ -37,6 +40,14 @@ public class AccountsServiceImpl implements AccountsService {
     public AccountDTO getAccount(String id) {
         AccountEntity account = accountRepository.findById(id)
                 .orElseThrow(() -> new AratiriException("Account not found for user"));
+        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId());
+    }
+
+    @Override
+    public AccountDTO getAccount() {
+        String id = authService.getCurrentUser().getId();
+        logger.info("Searching account for userId [{}]", id);
+        AccountEntity account = accountRepository.findByUserId(id);
         return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId());
     }
 
@@ -73,6 +84,16 @@ public class AccountsServiceImpl implements AccountsService {
         AccountEntity save = accountRepository.save(accountEntity);
 
         return new AccountDTO(save.getId(), save.getBitcoinAddress(), save.getBalance(), save.getUser().getId());
+    }
+
+    @Override
+    public AccountDTO creditBalance(String userId, long satsAmount) {
+        AccountEntity accountEntity = accountRepository.getByUser_Id(userId).getFirst();
+        long balance = accountEntity.getBalance();
+        long newBalance = balance + satsAmount;
+        accountEntity.setBalance(newBalance);
+        AccountEntity saved = accountRepository.save(accountEntity);
+        return new AccountDTO(saved.getId(), saved.getBitcoinAddress(), saved.getBalance(), saved.getUser().getId());
     }
 
 }

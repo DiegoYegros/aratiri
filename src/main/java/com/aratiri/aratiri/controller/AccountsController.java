@@ -19,6 +19,11 @@ public class AccountsController {
         this.accountsService = accountsService;
     }
 
+    @GetMapping("/account")
+    public ResponseEntity<AccountDTO> getAccount() {
+        return ResponseEntity.ok(accountsService.getAccount());
+    }
+
     @GetMapping("/account/{id}")
     public ResponseEntity<AccountDTO> getAccountById(@PathVariable String id) {
         return ResponseEntity.ok(accountsService.getAccount(id));
