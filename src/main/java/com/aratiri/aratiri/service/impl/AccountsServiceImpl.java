@@ -12,6 +12,7 @@ import com.aratiri.aratiri.service.AccountsService;
 import com.aratiri.aratiri.service.AuthService;
 import com.aratiri.aratiri.utils.AliasGenerator;
 import com.aratiri.aratiri.utils.LnurlBech32Util;
+import com.aratiri.aratiri.utils.QrCodeUtil;
 import lnrpc.AddressType;
 import lnrpc.LightningGrpc;
 import lnrpc.NewAddressRequest;
@@ -46,7 +47,16 @@ public class AccountsServiceImpl implements AccountsService {
     public AccountDTO getAccount(String id) {
         AccountEntity account = accountRepository.findById(id)
                 .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND));
-        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId(), account.getAlias(), buildLnurlForAlias(account.getAlias()));
+        String lnurl = buildLnurlForAlias(account.getAlias());
+        return AccountDTO.builder()
+                .id(account.getId())
+                .bitcoinAddress(account.getBitcoinAddress())
+                .balance(account.getBalance())
+                .userId(account.getUser().getId())
+                .alias(account.getAlias())
+                .lnurl(lnurl)
+                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
+                .build();
     }
 
     @Override
@@ -54,7 +64,17 @@ public class AccountsServiceImpl implements AccountsService {
         String id = authService.getCurrentUser().getId();
         logger.info("Searching account for userId [{}]", id);
         AccountEntity account = accountRepository.findByUserId(id);
-        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId(), account.getAlias(), buildLnurlForAlias(account.getAlias()));
+        String lnurl = buildLnurlForAlias(account.getAlias());
+        return AccountDTO.builder()
+                .id(account.getId())
+                .bitcoinAddress(account.getBitcoinAddress())
+                .balance(account.getBalance())
+                .userId(account.getUser().getId())
+                .alias(account.getAlias())
+                .lnurl(lnurl)
+                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
+                .build();
+
     }
 
     @Override
@@ -64,7 +84,16 @@ public class AccountsServiceImpl implements AccountsService {
 
         AccountEntity account = accountRepository.findByUser(user)
                 .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND));
-        return new AccountDTO(account.getId(), account.getBitcoinAddress(), account.getBalance(), account.getUser().getId(), account.getAlias(), buildLnurlForAlias(account.getAlias()));
+        String lnurl = buildLnurlForAlias(account.getAlias());
+        return AccountDTO.builder()
+                .id(account.getId())
+                .bitcoinAddress(account.getBitcoinAddress())
+                .balance(account.getBalance())
+                .userId(account.getUser().getId())
+                .alias(account.getAlias())
+                .lnurl(lnurl)
+                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
+                .build();
     }
 
     @Override
@@ -97,7 +126,16 @@ public class AccountsServiceImpl implements AccountsService {
         } while (accountRepository.existsByAlias(alias));
         accountEntity.setAlias(alias);
         AccountEntity save = accountRepository.save(accountEntity);
-        return new AccountDTO(save.getId(), save.getBitcoinAddress(), save.getBalance(), save.getUser().getId(), alias, buildLnurlForAlias(save.getAlias()));
+        String lnurl = buildLnurlForAlias(save.getAlias());
+        return AccountDTO.builder()
+                .id(save.getId())
+                .bitcoinAddress(save.getBitcoinAddress())
+                .balance(save.getBalance())
+                .userId(save.getUser().getId())
+                .alias(save.getAlias())
+                .lnurl(lnurl)
+                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
+                .build();
     }
 
     @Override
@@ -107,7 +145,16 @@ public class AccountsServiceImpl implements AccountsService {
         long newBalance = balance + satsAmount;
         accountEntity.setBalance(newBalance);
         AccountEntity saved = accountRepository.save(accountEntity);
-        return new AccountDTO(saved.getId(), saved.getBitcoinAddress(), saved.getBalance(), saved.getUser().getId(), saved.getAlias(), buildLnurlForAlias(saved.getAlias()));
+        String lnurl = buildLnurlForAlias(saved.getAlias());
+        return AccountDTO.builder()
+                .id(saved.getId())
+                .bitcoinAddress(saved.getBitcoinAddress())
+                .balance(saved.getBalance())
+                .userId(saved.getUser().getId())
+                .alias(saved.getAlias())
+                .lnurl(lnurl)
+                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
+                .build();
     }
 
     @Override
@@ -117,7 +164,16 @@ public class AccountsServiceImpl implements AccountsService {
             throw new AratiriException("Account does not exist for given alias.", HttpStatus.NOT_FOUND);
         }
         AccountEntity accountEntity = byAlias.get();
-        return new AccountDTO(accountEntity.getId(), accountEntity.getUser().getId(), accountEntity.getBalance(), accountEntity.getBitcoinAddress(), accountEntity.getAlias(), buildLnurlForAlias(alias));
+        String lnurl = buildLnurlForAlias(accountEntity.getAlias());
+        return AccountDTO.builder()
+                .id(accountEntity.getId())
+                .bitcoinAddress(accountEntity.getBitcoinAddress())
+                .balance(accountEntity.getBalance())
+                .userId(accountEntity.getUser().getId())
+                .alias(accountEntity.getAlias())
+                .lnurl(lnurl)
+                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
+                .build();
     }
 
     private String buildLnurlForAlias(String alias) {
