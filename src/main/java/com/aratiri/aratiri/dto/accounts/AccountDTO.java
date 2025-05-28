@@ -19,5 +19,6 @@ public class AccountDTO {
     private String bitcoinAddress;
     private String alias;
     private String lnurl;
+    @JsonProperty("qr_code")
     private String qrCode;
 }

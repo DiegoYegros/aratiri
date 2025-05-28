@@ -1,6 +1,8 @@
 package com.aratiri.aratiri.controller;
 
 
+import com.aratiri.aratiri.context.AratiriContext;
+import com.aratiri.aratiri.context.AratiriCtx;
 import com.aratiri.aratiri.dto.accounts.AccountDTO;
 import com.aratiri.aratiri.dto.accounts.CreateAccountRequestDTO;
 import com.aratiri.aratiri.service.AccountsService;
@@ -20,8 +22,8 @@ public class AccountsController {
     }
 
     @GetMapping("/account")
-    public ResponseEntity<AccountDTO> getAccount() {
-        return ResponseEntity.ok(accountsService.getAccount());
+    public ResponseEntity<AccountDTO> getAccount(@AratiriCtx AratiriContext ctx) {
+        return ResponseEntity.ok(accountsService.getAccountByUserId(ctx.getUser().getId()));
     }
 
     @GetMapping("/account/{id}")
@@ -35,7 +37,8 @@ public class AccountsController {
     }
 
     @PostMapping
-    public ResponseEntity<AccountDTO> createAccount(@Validated @RequestBody CreateAccountRequestDTO request) {
-        return new ResponseEntity<>(accountsService.createAccount(request), HttpStatus.CREATED);
+    public ResponseEntity<AccountDTO> createAccount(@Validated @RequestBody CreateAccountRequestDTO request, @AratiriCtx AratiriContext ctx) {
+        String userId = ctx.getUser().getId();
+        return new ResponseEntity<>(accountsService.createAccount(request, userId), HttpStatus.CREATED);
     }
 }

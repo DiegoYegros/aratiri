@@ -17,6 +17,6 @@ public class AliasGenerator {
         String adjective = ADJECTIVES[random.nextInt(ADJECTIVES.length)];
         String animal = ANIMALS[random.nextInt(ANIMALS.length)];
         int number = random.nextInt(90) + 10;
-        return adjective + "_" + animal + "_" + number;
+        return adjective + animal + number;
     }
 }

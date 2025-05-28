@@ -5,9 +5,9 @@ import com.aratiri.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.aratiri.dto.invoices.PayInvoiceDTO;
 
 public interface InvoiceService {
-    GenerateInvoiceDTO generateInvoice(long satsAmount, String memo);
+    GenerateInvoiceDTO generateInvoice(long satsAmount, String memo, String userId);
     GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo);
 
     PayInvoiceDTO payInvoice(String paymentRquest);
-    DecodedInvoicetDTO decodePaymentRequest(String paymentRequest);
+    DecodedInvoicetDTO decodePaymentRequest(String paymentRequest, String userId);
 }

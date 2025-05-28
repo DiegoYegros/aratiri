@@ -1,5 +1,7 @@
 package com.aratiri.aratiri.controller;
 
+import com.aratiri.aratiri.context.AratiriContext;
+import com.aratiri.aratiri.context.AratiriCtx;
 import com.aratiri.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.aratiri.dto.invoices.GenerateInvoiceRequestDTO;
@@ -19,12 +21,14 @@ public class InvoicesController {
     }
 
     @PostMapping
-    public ResponseEntity<GenerateInvoiceDTO> generateInvoice(@Valid @RequestBody GenerateInvoiceRequestDTO request) {
-        return new ResponseEntity<>(invoiceService.generateInvoice(request.getSatsAmount(), request.getMemo()), HttpStatus.CREATED);
+    public ResponseEntity<GenerateInvoiceDTO> generateInvoice(@Valid @RequestBody GenerateInvoiceRequestDTO request, @AratiriCtx AratiriContext aratiriContext) {
+        String userId = aratiriContext.getUser().getId();
+        return new ResponseEntity<>(invoiceService.generateInvoice(request.getSatsAmount(), request.getMemo(), userId), HttpStatus.CREATED);
     }
 
     @GetMapping("/invoice/decode/{paymentRequest}")
-    public ResponseEntity<DecodedInvoicetDTO> getDecodedInvoice(@PathVariable String paymentRequest) {
-        return new ResponseEntity<>(invoiceService.decodePaymentRequest(paymentRequest), HttpStatus.OK);
+    public ResponseEntity<DecodedInvoicetDTO> getDecodedInvoice(@PathVariable String paymentRequest, @AratiriCtx AratiriContext ctx) {
+        String userId = ctx.getUser().getId();
+        return new ResponseEntity<>(invoiceService.decodePaymentRequest(paymentRequest, userId), HttpStatus.OK);
     }
 }

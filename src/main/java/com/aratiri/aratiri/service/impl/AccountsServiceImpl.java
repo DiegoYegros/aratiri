@@ -32,14 +32,12 @@ public class AccountsServiceImpl implements AccountsService {
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
     private final LightningGrpc.LightningBlockingStub lightningStub;
-    private final AuthService authService;
     private final AratiriProperties properties;
 
-    public AccountsServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, AccountRepository accountRepository, UserRepository userRepository, AuthService authService, AratiriProperties properties) {
+    public AccountsServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, AccountRepository accountRepository, UserRepository userRepository, AratiriProperties properties) {
         this.lightningStub = lightningStub;
         this.accountRepository = accountRepository;
         this.userRepository = userRepository;
-        this.authService = authService;
         this.properties = properties;
     }
 
@@ -57,24 +55,6 @@ public class AccountsServiceImpl implements AccountsService {
                 .lnurl(lnurl)
                 .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
                 .build();
-    }
-
-    @Override
-    public AccountDTO getAccount() {
-        String id = authService.getCurrentUser().getId();
-        logger.info("Searching account for userId [{}]", id);
-        AccountEntity account = accountRepository.findByUserId(id);
-        String lnurl = buildLnurlForAlias(account.getAlias());
-        return AccountDTO.builder()
-                .id(account.getId())
-                .bitcoinAddress(account.getBitcoinAddress())
-                .balance(account.getBalance())
-                .userId(account.getUser().getId())
-                .alias(account.getAlias())
-                .lnurl(lnurl)
-                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
-                .build();
-
     }
 
     @Override
@@ -102,9 +82,9 @@ public class AccountsServiceImpl implements AccountsService {
     }
 
     @Override
-    public AccountDTO createAccount(CreateAccountRequestDTO request) {
+    public AccountDTO createAccount(CreateAccountRequestDTO request, String ctxUserId) {
         String userId = request.getUserId();
-        if (!userId.equalsIgnoreCase(authService.getCurrentUser().getId())) {
+        if (!userId.equalsIgnoreCase(ctxUserId)) {
             throw new AratiriException("UserId does not match logged-in user");
         }
         List<AccountEntity> accountList = accountRepository.getByUser_Id(userId);
