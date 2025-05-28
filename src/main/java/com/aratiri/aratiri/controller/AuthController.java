@@ -1,7 +1,7 @@
 package com.aratiri.aratiri.controller;
 
-import com.aratiri.aratiri.dto.auth.AuthRequest;
-import com.aratiri.aratiri.dto.auth.AuthResponse;
+import com.aratiri.aratiri.dto.auth.AuthRequestDTO;
+import com.aratiri.aratiri.dto.auth.AuthResponseDTO;
 import com.aratiri.aratiri.utils.JwtUtil;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,10 +21,10 @@ public class AuthController {
     private final JwtUtil jwtUtil;
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody AuthRequest request) {
+    public ResponseEntity<AuthResponseDTO> login(@RequestBody AuthRequestDTO request) {
         authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
         String token = jwtUtil.generateToken(request.getUsername());
-        return ResponseEntity.ok(new AuthResponse(token));
+        return ResponseEntity.ok(new AuthResponseDTO(token));
     }
 }

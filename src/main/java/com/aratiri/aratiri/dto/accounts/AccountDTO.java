@@ -13,6 +13,7 @@ public class AccountDTO {
     @JsonProperty(value = "user_id")
     private String userId;
     private long balance;
+    @JsonProperty("bitcoin_address")
     private String bitcoinAddress;
     private String alias;
     private String lnurl;
