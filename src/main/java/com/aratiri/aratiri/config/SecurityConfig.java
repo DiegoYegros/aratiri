@@ -27,7 +27,17 @@ public class SecurityConfig {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/v1/auth/login", "/v1/auth/register", "/h2-console/**", "/.well-known/lnurlp/**", "/lnurl/callback/**").permitAll()
+                        .requestMatchers("/v1/auth/login",
+                                "/v1/auth/register",
+                                "/h2-console/**",
+                                "/.well-known/lnurlp/**",
+                                "/lnurl/callback/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
+                                "/swagger-resources/**",
+                                "/webjars/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
