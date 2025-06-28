@@ -4,12 +4,10 @@ import com.aratiri.aratiri.dto.accounts.AccountDTO;
 import com.aratiri.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.aratiri.dto.invoices.PayInvoiceDTO;
-import com.aratiri.aratiri.dto.users.UserDTO;
 import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
 import com.aratiri.aratiri.service.AccountsService;
-import com.aratiri.aratiri.service.AuthService;
 import com.aratiri.aratiri.service.InvoiceService;
 import com.aratiri.aratiri.utils.InvoiceUtils;
 import com.google.protobuf.ByteString;
@@ -80,7 +78,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         logger.info("Generating invoice for sats amount [{}] and with memo [{}]", satsAmount, memo);
         try {
             byte[] preImage = InvoiceUtils.generatePreimage();
+            logger.debug("generated preIamge: [{}]", preImage);
             byte[] hash = InvoiceUtils.sha256(preImage);
+            logger.debug("Generated Hash: [{}]", hash);
             Invoice request = Invoice.newBuilder()
                     .setRHash(ByteString.copyFrom(hash))
                     .setMemo(memo)

@@ -1,8 +1,12 @@
 package com.aratiri.aratiri.consumer;
 
+import com.aratiri.aratiri.dto.transactions.CreateTransactionRequest;
+import com.aratiri.aratiri.entity.TransactionCurrency;
+import com.aratiri.aratiri.entity.TransactionType;
 import com.aratiri.aratiri.event.InvoiceSettledEvent;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.service.AccountsService;
+import com.aratiri.aratiri.service.TransactionsService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -19,13 +23,16 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class InvoiceSettledConsumer {
 
-    private final AccountsService accountsService;
+    private final TransactionsService transactionsService;
     private final ObjectMapper objectMapper;
+    private static final BigDecimal SATS_IN_BTC = new BigDecimal("100000000");
 
     @KafkaListener(topics = "invoice.settled", groupId = "invoice-listener-group")
     @RetryableTopic(
@@ -43,15 +50,21 @@ public class InvoiceSettledConsumer {
 
         log.info("Received invoice settlement message from topic: {}, partition: {}, offset: {}",
                 topic, partition, offset);
-
         try {
             InvoiceSettledEvent event = objectMapper.readValue(message, InvoiceSettledEvent.class);
 
             log.info("Processing invoice settlement for user: {}, amount: {}, paymentHash: {}",
                     event.getUserId(), event.getAmount(), event.getPaymentHash());
-
-            accountsService.creditBalance(event.getUserId(), event.getAmount());
-
+            BigDecimal amountBtc = new BigDecimal(event.getAmount()).divide(SATS_IN_BTC);
+            CreateTransactionRequest request = new CreateTransactionRequest(
+                    event.getUserId(),
+                    amountBtc,
+                    TransactionCurrency.BTC,
+                    TransactionType.INVOICE_CREDIT,
+                    String.format("Payment received for invoice (hash: %s...)", event.getPaymentHash().substring(0, 10)),
+                    event.getPaymentHash()
+            );
+            transactionsService.createAndSettleTransaction(request);
             log.info("Successfully processed invoice settlement for user: {}", event.getUserId());
 
             acknowledgment.acknowledge();
@@ -70,10 +83,8 @@ public class InvoiceSettledConsumer {
             @Payload String message,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.EXCEPTION_MESSAGE) String exceptionMessage) {
-
         log.error("Invoice settlement failed after all retries. Topic: {}, Message: {}, Error: {}",
                 topic, message, exceptionMessage);
-
         try {
             InvoiceSettledEvent event = objectMapper.readValue(message, InvoiceSettledEvent.class);
             log.error("Failed invoice: userId={}, amount={}, paymentHash={}",

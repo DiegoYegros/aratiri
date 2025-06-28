@@ -27,7 +27,7 @@ public class LnurlServiceImpl implements LnurlService {
         if (!exists) {
             throw new AratiriException("Alias does not match any account.", HttpStatus.NOT_FOUND);
         }
-        Map<String, Object> response = Map.of(
+        return Map.<String, Object>of(
                 "callback", properties.getAratiriBaseUrl() + "/lnurl/callback/" + alias,
                 "minSendable", 1000,
                 "maxSendable", 100_000_000,
@@ -35,7 +35,6 @@ public class LnurlServiceImpl implements LnurlService {
                 "tag", "payRequest",
                 "commentAllowed", 140
         );
-        return response;
     }
 
     @Override

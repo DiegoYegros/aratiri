@@ -29,6 +29,27 @@ CREATE TABLE LIGHTNING_INVOICES
     settled_at      TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)
 );
+CREATE TABLE TRANSACTIONS
+(
+    id            CHAR(36) PRIMARY KEY,
+    user_id       CHAR(36)      NOT NULL, -- i know
+    amount        DECIMAL(20, 8) NOT NULL,
+    balance_after DECIMAL(20, 8) NOT NULL,
+    currency      VARCHAR(10) NOT NULL CHECK (currency IN ('USDT', 'USDC', 'PYG', 'USD', 'BTC')),
+    type          VARCHAR(30)   NOT NULL CHECK (type IN ('INVOICE_CREDIT', 'LN_PAYMENT_DEBIT', 'ONCHAIN_DEPOSIT', 'INTERNAL_TRANSFER_CREDIT', 'INTERNAL_TRANSFER_DEBIT')),
+    status        VARCHAR(20)   NOT NULL CHECK (status IN ('PENDING', 'COMPLETED', 'FAILED')),
+    description   VARCHAR(255),
+    reference_id  CHAR(36),
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES USERS (id)
+);
+COMMENT ON TABLE TRANSACTIONS IS 'Records all financial transactions for user accounts, including credits and debits.';
+COMMENT ON COLUMN TRANSACTIONS.amount IS 'A positive value for credits, a negative value for debits.';
+COMMENT ON COLUMN TRANSACTIONS.balance_after IS 'The final balance of the user''s account AFTER this transaction.';
+COMMENT ON COLUMN TRANSACTIONS.type IS 'The specific reason for the transaction.';
+COMMENT ON COLUMN TRANSACTIONS.status IS 'The current state of the transaction.';
+COMMENT ON COLUMN TRANSACTIONS.description IS 'A human-readable description of the transaction.';
+COMMENT ON COLUMN TRANSACTIONS.reference_id IS 'An ID pointing to a related source object (e.g., an ID from a LIGHTNING_INVOICES table).';
 
 ALTER TABLE ACCOUNTS
     ADD COLUMN user_id CHAR(36) UNIQUE NOT NULL;

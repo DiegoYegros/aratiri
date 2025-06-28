@@ -9,7 +9,6 @@ import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.AccountRepository;
 import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.AccountsService;
-import com.aratiri.aratiri.service.AuthService;
 import com.aratiri.aratiri.utils.AliasGenerator;
 import com.aratiri.aratiri.utils.LnurlBech32Util;
 import com.aratiri.aratiri.utils.QrCodeUtil;
