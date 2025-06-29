@@ -50,7 +50,7 @@ public class AccountsServiceImpl implements AccountsService {
                 .bitcoinAddress(account.getBitcoinAddress())
                 .balance(account.getBalance())
                 .userId(account.getUser().getId())
-                .alias(account.getAlias())
+                .alias(buildAlias(account.getAlias()))
                 .lnurl(lnurl)
                 .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
                 .build();
@@ -69,7 +69,7 @@ public class AccountsServiceImpl implements AccountsService {
                 .bitcoinAddress(account.getBitcoinAddress())
                 .balance(account.getBalance())
                 .userId(account.getUser().getId())
-                .alias(account.getAlias())
+                .alias(buildAlias(account.getAlias()))
                 .lnurl(lnurl)
                 .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
                 .build();
@@ -149,7 +149,7 @@ public class AccountsServiceImpl implements AccountsService {
                 .bitcoinAddress(accountEntity.getBitcoinAddress())
                 .balance(accountEntity.getBalance())
                 .userId(accountEntity.getUser().getId())
-                .alias(accountEntity.getAlias())
+                .alias(buildAlias(accountEntity.getAlias()))
                 .lnurl(lnurl)
                 .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
                 .build();
@@ -159,4 +159,10 @@ public class AccountsServiceImpl implements AccountsService {
         String url = properties.getAratiriBaseUrl() + "/.well-known/lnurlp/" + alias;
         return LnurlBech32Util.encodeLnurl(url);
     }
+    private String buildAlias(String alias) {
+        String aratiriBaseUrl = properties.getAratiriBaseUrl()
+                .replaceFirst("^https?://", "");
+        return alias + "@" + aratiriBaseUrl;
+    }
+
 }

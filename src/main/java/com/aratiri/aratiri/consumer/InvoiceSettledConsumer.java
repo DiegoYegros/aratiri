@@ -24,6 +24,7 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Component
 @RequiredArgsConstructor
@@ -53,12 +54,14 @@ public class InvoiceSettledConsumer {
         try {
             InvoiceSettledEvent event = objectMapper.readValue(message, InvoiceSettledEvent.class);
 
-            log.info("Processing invoice settlement for user: {}, amount: {}, paymentHash: {}",
-                    event.getUserId(), event.getAmount(), event.getPaymentHash());
-            BigDecimal amountBtc = new BigDecimal(event.getAmount()).divide(SATS_IN_BTC);
+
+            BigDecimal amountInSats = new BigDecimal(event.getAmount());
+            BigDecimal amountInBTC = amountInSats.divide(SATS_IN_BTC, 8, RoundingMode.HALF_UP);
+            log.info("Processing invoice settlement for user: {}, amount: {}, paymentHash: {}, amountInBTC = {}",
+                    event.getUserId(), event.getAmount(), event.getPaymentHash(), amountInBTC);
             CreateTransactionRequest request = new CreateTransactionRequest(
                     event.getUserId(),
-                    amountBtc,
+                    amountInBTC,
                     TransactionCurrency.BTC,
                     TransactionType.INVOICE_CREDIT,
                     String.format("Payment received for invoice (hash: %s...)", event.getPaymentHash().substring(0, 10)),

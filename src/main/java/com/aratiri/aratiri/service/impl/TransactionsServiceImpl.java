@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -71,7 +72,7 @@ public class TransactionsServiceImpl implements TransactionsService {
 
     private static TransactionDTOResponse mapToDto(TransactionEntity savedTransaction) {
         return TransactionDTOResponse.builder().id(savedTransaction.getId())
-                .createdAt(OffsetDateTime.from(savedTransaction.getCreatedAt()))
+                .createdAt(OffsetDateTime.from(savedTransaction.getCreatedAt().atZone(ZoneId.systemDefault())))
                 .amount(savedTransaction.getAmount())
                 .type(savedTransaction.getType().name())
                 .balanceAfter(savedTransaction.getBalanceAfter())

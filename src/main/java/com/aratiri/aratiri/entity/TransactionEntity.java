@@ -1,10 +1,7 @@
 package com.aratiri.aratiri.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
@@ -17,6 +14,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString
 public class TransactionEntity {
 
     @Id
@@ -58,6 +56,9 @@ public class TransactionEntity {
     public void ensureId() {
         if (this.id == null) {
             this.id = UUID.randomUUID().toString();
+        }
+        if (this.createdAt == null){
+            this.createdAt = Instant.now();
         }
     }
 }
