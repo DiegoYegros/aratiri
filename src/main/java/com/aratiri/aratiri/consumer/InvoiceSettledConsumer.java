@@ -1,11 +1,11 @@
 package com.aratiri.aratiri.consumer;
 
+import com.aratiri.aratiri.constants.BitcoinConstants;
 import com.aratiri.aratiri.dto.transactions.CreateTransactionRequest;
-import com.aratiri.aratiri.entity.TransactionCurrency;
-import com.aratiri.aratiri.entity.TransactionType;
+import com.aratiri.aratiri.enums.TransactionCurrency;
+import com.aratiri.aratiri.enums.TransactionType;
 import com.aratiri.aratiri.event.InvoiceSettledEvent;
 import com.aratiri.aratiri.exception.AratiriException;
-import com.aratiri.aratiri.service.AccountsService;
 import com.aratiri.aratiri.service.TransactionsService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,7 +33,6 @@ public class InvoiceSettledConsumer {
 
     private final TransactionsService transactionsService;
     private final ObjectMapper objectMapper;
-    private static final BigDecimal SATS_IN_BTC = new BigDecimal("100000000");
 
     @KafkaListener(topics = "invoice.settled", groupId = "invoice-listener-group")
     @RetryableTopic(
@@ -54,9 +53,8 @@ public class InvoiceSettledConsumer {
         try {
             InvoiceSettledEvent event = objectMapper.readValue(message, InvoiceSettledEvent.class);
 
-
             BigDecimal amountInSats = new BigDecimal(event.getAmount());
-            BigDecimal amountInBTC = amountInSats.divide(SATS_IN_BTC, 8, RoundingMode.HALF_UP);
+            BigDecimal amountInBTC = amountInSats.divide(BitcoinConstants.SATOSHIS_PER_BTC, 8, RoundingMode.HALF_UP);
             log.info("Processing invoice settlement for user: {}, amount: {}, paymentHash: {}, amountInBTC = {}",
                     event.getUserId(), event.getAmount(), event.getPaymentHash(), amountInBTC);
             CreateTransactionRequest request = new CreateTransactionRequest(

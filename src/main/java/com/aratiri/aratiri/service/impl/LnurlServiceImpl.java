@@ -1,6 +1,7 @@
 package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.config.AratiriProperties;
+import com.aratiri.aratiri.constants.BitcoinConstants;
 import com.aratiri.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.service.AccountsService;
@@ -30,7 +31,7 @@ public class LnurlServiceImpl implements LnurlService {
         return Map.<String, Object>of(
                 "callback", properties.getAratiriBaseUrl() + "/lnurl/callback/" + alias,
                 "minSendable", 1000,
-                "maxSendable", 100_000_000,
+                "maxSendable", BitcoinConstants.SATOSHIS_PER_BTC_INTEGER,
                 "metadata", "[[\"text/plain\", \"Payment to " + alias + "\"]]",
                 "tag", "payRequest",
                 "commentAllowed", 140

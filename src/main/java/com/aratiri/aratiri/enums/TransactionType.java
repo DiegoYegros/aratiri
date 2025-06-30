@@ -1,4 +1,4 @@
-package com.aratiri.aratiri.entity;
+package com.aratiri.aratiri.enums;
 
 public enum TransactionType {
     INVOICE_CREDIT,

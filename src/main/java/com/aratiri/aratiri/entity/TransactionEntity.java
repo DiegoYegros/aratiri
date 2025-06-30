@@ -1,5 +1,8 @@
 package com.aratiri.aratiri.entity;
 
+import com.aratiri.aratiri.enums.TransactionCurrency;
+import com.aratiri.aratiri.enums.TransactionStatus;
+import com.aratiri.aratiri.enums.TransactionType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -24,10 +27,10 @@ public class TransactionEntity {
     @Column(name = "user_id", nullable = false)
     private String userId;
 
-    @Column(name = "amount", nullable = false)
+    @Column(name = "amount", nullable = false, precision = 20, scale = 8)
     private BigDecimal amount;
 
-    @Column(name = "balance_after", nullable = false)
+    @Column(name = "balance_after", nullable = false, precision = 20, scale = 8)
     private BigDecimal balanceAfter;
 
     @Enumerated(EnumType.STRING)

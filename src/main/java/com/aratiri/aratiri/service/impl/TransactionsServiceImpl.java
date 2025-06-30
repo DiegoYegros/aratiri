@@ -3,12 +3,10 @@ package com.aratiri.aratiri.service.impl;
 import com.aratiri.aratiri.dto.transactions.CreateTransactionRequest;
 import com.aratiri.aratiri.dto.transactions.TransactionDTOResponse;
 import com.aratiri.aratiri.entity.TransactionEntity;
-import com.aratiri.aratiri.entity.TransactionStatus;
-import com.aratiri.aratiri.entity.TransactionType;
-import com.aratiri.aratiri.entity.UserEntity;
+import com.aratiri.aratiri.enums.TransactionStatus;
+import com.aratiri.aratiri.enums.TransactionType;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.TransactionsRepository;
-import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.TransactionsService;
 import com.aratiri.aratiri.service.processor.TransactionProcessor;
 import org.slf4j.Logger;
@@ -18,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -31,16 +30,14 @@ import java.util.stream.Collectors;
 public class TransactionsServiceImpl implements TransactionsService {
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final TransactionsRepository transactionsRepository;
-    private final UserRepository userRepository;
     private final Map<TransactionType, TransactionProcessor> processors;
     private static final Set<TransactionType> SETTLEABLE_TYPES = Set.of(
             TransactionType.INVOICE_CREDIT,
             TransactionType.ONCHAIN_DEPOSIT
     );
 
-    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, UserRepository userRepository, List<TransactionProcessor> processorList) {
+    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList) {
         this.transactionsRepository = transactionsRepository;
-        this.userRepository = userRepository;
         this.processors = processorList.stream()
                 .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
     }
@@ -52,7 +49,7 @@ public class TransactionsServiceImpl implements TransactionsService {
         TransactionEntity transaction = transactionsRepository.findById(id)
                 .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found.", id)));
 
-        if (!Objects.equals(transaction.getUserId(), userId)){
+        if (!Objects.equals(transaction.getUserId(), userId)) {
             throw new AratiriException(String.format("Transaction [%s] does not correspond to current user.", id));
         }
         if (!TransactionStatus.PENDING.equals(transaction.getStatus())) {
@@ -66,20 +63,20 @@ public class TransactionsServiceImpl implements TransactionsService {
         transaction.setBalanceAfter(newBalance);
         transaction.setStatus(TransactionStatus.COMPLETED);
         TransactionEntity savedTransaction = transactionsRepository.save(transaction);
-        logger.info("Saved the transaction with new state.");
+        logger.info("Saved the transaction with new state. This is the saved transaction: [{}]", savedTransaction);
         return mapToDto(savedTransaction);
     }
 
-    private static TransactionDTOResponse mapToDto(TransactionEntity savedTransaction) {
+    private TransactionDTOResponse mapToDto(TransactionEntity savedTransaction) {
         return TransactionDTOResponse.builder().id(savedTransaction.getId())
                 .createdAt(OffsetDateTime.from(savedTransaction.getCreatedAt().atZone(ZoneId.systemDefault())))
                 .amount(savedTransaction.getAmount())
-                .type(savedTransaction.getType().name())
+                .type(savedTransaction.getType())
                 .balanceAfter(savedTransaction.getBalanceAfter())
                 .description(savedTransaction.getDescription())
                 .referenceId(savedTransaction.getReferenceId())
-                .status(savedTransaction.getStatus().name())
-                .currency(savedTransaction.getCurrency().name())
+                .status(savedTransaction.getStatus())
+                .currency(savedTransaction.getCurrency())
                 .build();
     }
 
@@ -108,7 +105,17 @@ public class TransactionsServiceImpl implements TransactionsService {
         BigDecimal newBalance = processor.process(transaction);
         transaction.setBalanceAfter(newBalance);
         TransactionEntity savedTransaction = transactionsRepository.save(transaction);
-        logger.info("Saved the transaction with new state.");
+        logger.info("Saved the transaction with new state. This is the saved transaction: [{}]", savedTransaction);
         return mapToDto(savedTransaction);
+    }
+
+    @Override
+    public List<TransactionDTOResponse> getTransactions(Instant from, Instant to, String userId) {
+        List<TransactionEntity> transactions = transactionsRepository
+                .findByUserIdAndCreatedAtBetween(userId, from, to);
+        logger.info("Got this list of transactions from db: [{}]", transactions);
+        return transactions.stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
     }
 }

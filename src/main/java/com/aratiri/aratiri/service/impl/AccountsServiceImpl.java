@@ -1,14 +1,20 @@
 package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.config.AratiriProperties;
+import com.aratiri.aratiri.constants.BitcoinConstants;
 import com.aratiri.aratiri.dto.accounts.AccountDTO;
+import com.aratiri.aratiri.dto.accounts.AccountTransactionDTO;
 import com.aratiri.aratiri.dto.accounts.CreateAccountRequestDTO;
+import com.aratiri.aratiri.dto.transactions.TransactionDTOResponse;
 import com.aratiri.aratiri.entity.AccountEntity;
 import com.aratiri.aratiri.entity.UserEntity;
+import com.aratiri.aratiri.enums.AccountTransactionType;
+import com.aratiri.aratiri.enums.TransactionType;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.AccountRepository;
 import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.AccountsService;
+import com.aratiri.aratiri.service.TransactionsService;
 import com.aratiri.aratiri.utils.AliasGenerator;
 import com.aratiri.aratiri.utils.LnurlBech32Util;
 import com.aratiri.aratiri.utils.QrCodeUtil;
@@ -21,6 +27,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,12 +44,14 @@ public class AccountsServiceImpl implements AccountsService {
     private final Logger logger = LoggerFactory.getLogger(AccountsServiceImpl.class);
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
+    private final TransactionsService transactionsService;
     private final LightningGrpc.LightningBlockingStub lightningStub;
     private final AratiriProperties properties;
 
-    public AccountsServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, AccountRepository accountRepository, UserRepository userRepository, AratiriProperties properties) {
+    public AccountsServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, AccountRepository accountRepository, UserRepository userRepository, TransactionsService transactionsService, AratiriProperties properties) {
         this.lightningStub = lightningStub;
         this.accountRepository = accountRepository;
+        this.transactionsService = transactionsService;
         this.userRepository = userRepository;
         this.properties = properties;
     }
@@ -153,6 +169,27 @@ public class AccountsServiceImpl implements AccountsService {
                 .lnurl(lnurl)
                 .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
                 .build();
+    }
+
+    @Override
+    public List<AccountTransactionDTO> getTransactions(LocalDate from, LocalDate to, String userId) {
+        Instant fromInstant = from.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant toInstant = to.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
+        List<TransactionDTOResponse> transactions = transactionsService.getTransactions(fromInstant, toInstant, userId);
+        List<AccountTransactionDTO> at = new ArrayList<>();
+        transactions.forEach(t -> {
+            AccountTransactionDTO accountTransactionDTO = new AccountTransactionDTO();
+            accountTransactionDTO.setId(t.getId());
+            accountTransactionDTO.setDate(t.getCreatedAt());
+            accountTransactionDTO.setAmount(t.getAmount().multiply(BitcoinConstants.SATOSHIS_PER_BTC).longValue());
+            if (t.getType() == TransactionType.ONCHAIN_DEPOSIT || t.getType() == TransactionType.INVOICE_CREDIT){
+                accountTransactionDTO.setType(AccountTransactionType.CREDIT);
+            } else {
+                accountTransactionDTO.setType(AccountTransactionType.DEBIT);
+            }
+            at.add(accountTransactionDTO);
+        });
+        return at;
     }
 
     private String buildLnurlForAlias(String alias) {

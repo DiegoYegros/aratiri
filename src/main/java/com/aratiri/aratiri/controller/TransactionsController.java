@@ -3,7 +3,6 @@ package com.aratiri.aratiri.controller;
 import com.aratiri.aratiri.context.AratiriContext;
 import com.aratiri.aratiri.context.AratiriCtx;
 import com.aratiri.aratiri.dto.transactions.TransactionDTOResponse;
-import com.aratiri.aratiri.service.LnurlService;
 import com.aratiri.aratiri.service.TransactionsService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -22,8 +21,9 @@ public class TransactionsController {
     public TransactionsController(TransactionsService transactionsService) {
         this.transactionsService = transactionsService;
     }
+
     @PostMapping("/{id}/confirm")
-    public ResponseEntity<TransactionDTOResponse> confirmTransaction(@PathVariable("id") String id, @AratiriCtx AratiriContext aratiriContext){
+    public ResponseEntity<TransactionDTOResponse> confirmTransaction(@PathVariable("id") String id, @AratiriCtx AratiriContext aratiriContext) {
         String userId = aratiriContext.getUser().getId();
         return ResponseEntity.ok(transactionsService.confirmTransaction(id, userId));
     }

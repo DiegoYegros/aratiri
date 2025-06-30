@@ -4,6 +4,7 @@ package com.aratiri.aratiri.controller;
 import com.aratiri.aratiri.context.AratiriContext;
 import com.aratiri.aratiri.context.AratiriCtx;
 import com.aratiri.aratiri.dto.accounts.AccountDTO;
+import com.aratiri.aratiri.dto.accounts.AccountTransactionsDTOResponse;
 import com.aratiri.aratiri.dto.accounts.CreateAccountRequestDTO;
 import com.aratiri.aratiri.service.AccountsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,10 +13,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/v1/accounts")
@@ -106,5 +110,26 @@ public class AccountsController {
     public ResponseEntity<AccountDTO> createAccount(@Validated @RequestBody CreateAccountRequestDTO request, @AratiriCtx AratiriContext ctx) {
         String userId = ctx.getUser().getId();
         return new ResponseEntity<>(accountsService.createAccount(request, userId), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/account/transactions")
+    @Operation(
+            summary = "Get transactions"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Transactions retrieved",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = AccountDTO.class)
+                    )
+            )
+    })
+    public ResponseEntity<AccountTransactionsDTOResponse> getTransactions(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                                                          @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                                                                          @AratiriCtx AratiriContext ctx) {
+        String userId = ctx.getUser().getId();
+        return new ResponseEntity<>(AccountTransactionsDTOResponse.builder().transactions(accountsService.getTransactions(from, to, userId)).build(), HttpStatus.OK);
     }
 }

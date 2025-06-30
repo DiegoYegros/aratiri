@@ -1,7 +1,7 @@
 package com.aratiri.aratiri.dto.transactions;
 
-import com.aratiri.aratiri.entity.TransactionCurrency;
-import com.aratiri.aratiri.entity.TransactionType;
+import com.aratiri.aratiri.enums.TransactionCurrency;
+import com.aratiri.aratiri.enums.TransactionType;
 import lombok.*;
 
 import java.math.BigDecimal;

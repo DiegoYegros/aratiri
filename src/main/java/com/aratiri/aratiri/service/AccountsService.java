@@ -1,7 +1,12 @@
 package com.aratiri.aratiri.service;
 
 import com.aratiri.aratiri.dto.accounts.AccountDTO;
+import com.aratiri.aratiri.dto.accounts.AccountTransactionDTO;
 import com.aratiri.aratiri.dto.accounts.CreateAccountRequestDTO;
+
+import java.time.LocalDate;
+import java.util.Date;
+import java.util.List;
 
 public interface AccountsService {
 
@@ -14,5 +19,8 @@ public interface AccountsService {
     AccountDTO createAccount(CreateAccountRequestDTO request, String ctxUserId);
 
     AccountDTO creditBalance(String userId, long satsAmount);
+
     AccountDTO getAccountByAlias(String alias);
+
+    List<AccountTransactionDTO> getTransactions(LocalDate from, LocalDate to, String userId);
 }
