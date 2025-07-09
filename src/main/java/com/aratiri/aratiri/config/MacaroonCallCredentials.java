@@ -16,7 +16,7 @@ public class MacaroonCallCredentials extends CallCredentials {
     private final String macaroon;
 
     public MacaroonCallCredentials(String macaroon) {
-        this.macaroonHex = loadMacaroonHex(macaroonPath);
+        this.macaroon = loadMacaroonHex(macaroon);
     }
 
     private String loadMacaroonHex(String macaroonPath) {
