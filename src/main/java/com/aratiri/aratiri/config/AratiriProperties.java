@@ -26,8 +26,4 @@ public class AratiriProperties {
 
     @Value("${aratiri.base.url}")
     private String aratiriBaseUrl;
-
-    private String adminMacaroon;
-
-    private String lndTlsCert;
 }

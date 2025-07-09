@@ -12,6 +12,7 @@ import com.aratiri.aratiri.service.InvoiceService;
 import com.aratiri.aratiri.utils.InvoiceUtils;
 import com.google.protobuf.ByteString;
 import lnrpc.*;
+import lnrpc.LightningGrpc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;

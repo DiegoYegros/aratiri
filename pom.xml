@@ -167,8 +167,8 @@
 							<artifactId>spring-boot-configuration-processor</artifactId>
 						</path>
 					</annotationProcessorPaths>
-                    <source>6</source>
-                    <target>6</target>
+                    <source>21</source>
+                    <target>21</target>
                 </configuration>
 			</plugin>
 			<plugin>
