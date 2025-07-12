@@ -27,14 +27,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -182,7 +179,7 @@ public class AccountsServiceImpl implements AccountsService {
             accountTransactionDTO.setId(t.getId());
             accountTransactionDTO.setDate(t.getCreatedAt());
             accountTransactionDTO.setAmount(t.getAmount().multiply(BitcoinConstants.SATOSHIS_PER_BTC).longValue());
-            if (t.getType() == TransactionType.ONCHAIN_DEPOSIT || t.getType() == TransactionType.INVOICE_CREDIT){
+            if (t.getType() == TransactionType.ONCHAIN_DEPOSIT || t.getType() == TransactionType.INVOICE_CREDIT) {
                 accountTransactionDTO.setType(AccountTransactionType.CREDIT);
             } else {
                 accountTransactionDTO.setType(AccountTransactionType.DEBIT);
@@ -196,6 +193,7 @@ public class AccountsServiceImpl implements AccountsService {
         String url = properties.getAratiriBaseUrl() + "/.well-known/lnurlp/" + alias;
         return LnurlBech32Util.encodeLnurl(url);
     }
+
     private String buildAlias(String alias) {
         String aratiriBaseUrl = properties.getAratiriBaseUrl()
                 .replaceFirst("^https?://", "");

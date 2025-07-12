@@ -1,8 +1,7 @@
 package com.aratiri.aratiri.config;
 
-import com.aratiri.aratiri.service.impl.InvoiceServiceImpl;
+import com.aratiri.aratiri.interceptor.GrpcLoggingInterceptor;
 import io.grpc.ManagedChannel;
-import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import lnrpc.LightningGrpc;
 import org.slf4j.Logger;
@@ -10,14 +9,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import javax.net.ssl.SSLException;
-import java.io.File;
-
 @Configuration
 public class GrpcClientConfig {
 
     private final AratiriProperties properties;
     private final Logger logger = LoggerFactory.getLogger(GrpcClientConfig.class);
+
     public GrpcClientConfig(AratiriProperties properties) {
         this.properties = properties;
     }
@@ -37,10 +34,10 @@ public class GrpcClientConfig {
     }
 
     @Bean
-    public ManagedChannel lndChannel() throws SSLException {
-        File cert = new File(properties.getLndTlsCertPath());
+    public ManagedChannel lndChannel() {
         return NettyChannelBuilder.forAddress(properties.getGrpcClientLndName(), properties.getGrpcClientLndPort())
-                .sslContext(GrpcSslContexts.forClient().trustManager(cert).build())
+                .useTransportSecurity()
+                .intercept(new GrpcLoggingInterceptor())
                 .build();
     }
 }

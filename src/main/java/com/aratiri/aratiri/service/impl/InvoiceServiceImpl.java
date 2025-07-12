@@ -46,7 +46,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             byte[] preImage = InvoiceUtils.generatePreimage();
             byte[] hash = InvoiceUtils.sha256(preImage);
             Invoice request = Invoice.newBuilder()
-                    .setRHash(ByteString.copyFrom(hash))
+                     .setRHash(ByteString.copyFrom(hash))
                     .setMemo(memo)
                     .setRPreimage(ByteString.copyFrom(preImage))
                     .setValue(satsAmount).build();

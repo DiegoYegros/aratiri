@@ -136,6 +136,7 @@ public class InvoiceListener {
     @Async
     public void handleInvoiceUpdate(Invoice invoice) {
         try {
+            logger.info("Received invoice: {}", invoice);
             if (!isListening.get()) {
                 logger.debug("InvoiceListener is shutting down.");
                 return;
