@@ -2,34 +2,22 @@ server:
   port: 2100
 
 spring:
-
   application:
     name: aratiri
-
   datasource:
-    url: jdbc:h2:mem:testdb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-
-  h2:
-    console:
-      enabled: true
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres_db:5432/aratiri_db}
+    username: ${SPRING_DATASOURCE_USERNAME:aratiri_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:aratiri_password}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.postgresql.Driver}
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${SPRING_JPA_DDL_AUTO:update}
     show-sql: true
-    database-platform: org.hibernate.dialect.H2Dialect
-
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:schema.sql
-      data-locations: classpath:data.sql
+    database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     consumer:
       group-id: invoice-listener-group
       auto-offset-reset: earliest
