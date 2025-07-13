@@ -1,11 +1,14 @@
 package com.aratiri.aratiri.config;
 
+import com.google.common.primitives.Chars;
 import io.grpc.CallCredentials;
 import io.grpc.Metadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.Executor;
@@ -21,7 +24,7 @@ public class MacaroonCallCredentials extends CallCredentials {
     private String loadMacaroonHex(String macaroonPath) {
         try {
             byte[] macaroonBytes = Files.readAllBytes(Paths.get(macaroonPath));
-            String macaroonHex = new String(macaroonBytes);
+            String macaroonHex = new String(macaroonBytes, StandardCharsets.US_ASCII);
             logger.info("the macaroon hex is: {}", macaroonHex);
             return macaroonHex;
         } catch (IOException e) {
