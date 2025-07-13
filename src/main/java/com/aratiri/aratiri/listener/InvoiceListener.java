@@ -1,5 +1,6 @@
 package com.aratiri.aratiri.listener;
 
+import com.aratiri.aratiri.config.AratiriProperties;
 import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.producer.InvoiceEventProducer;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
@@ -34,12 +35,13 @@ public class InvoiceListener {
     private final AtomicBoolean isListening = new AtomicBoolean(false);
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(false);
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
-
+    private final AratiriProperties aratiriProperties;
     public InvoiceListener(LightningGrpc.LightningStub lightningAsyncStub,
-                           LightningInvoiceRepository lightningInvoiceRepository, InvoiceEventProducer invoiceEventProducer) {
+                           LightningInvoiceRepository lightningInvoiceRepository, InvoiceEventProducer invoiceEventProducer, AratiriProperties aratiriProperties) {
         this.lightningAsyncStub = lightningAsyncStub;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.invoiceEventProducer = invoiceEventProducer;
+        this.aratiriProperties = aratiriProperties;
     }
 
     @PostConstruct
@@ -73,6 +75,7 @@ public class InvoiceListener {
 
     @Async
     public void subscribeToInvoices() {
+        logger.info("AratiriProps is: {}", aratiriProperties);
         if (isListening.get()) {
             logger.debug("Already listening to invoices, skipping");
             return;
