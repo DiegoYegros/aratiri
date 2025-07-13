@@ -18,6 +18,9 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -130,6 +133,12 @@ public class InvoiceListener {
     @Scheduled(fixedDelay = 10000)
     public void checkReconnection() {
         logger.info("AratiriProps is: {}", aratiriProperties);
+        try {
+            byte[] macaroonBytes = Files.readAllBytes(Paths.get(aratiriProperties.getAdminMacaroonPath()));
+            String macaroonHex = new String(macaroonBytes);
+            logger.info("the macaroon hex is: {}", macaroonHex);
+        } catch (IOException e) {
+        }
         if (shouldReconnect.get() && !isListening.get() && shutdownLatch.getCount() > 0) {
             logger.info("Attempting to reconnect to invoice stream");
             shouldReconnect.set(false);
