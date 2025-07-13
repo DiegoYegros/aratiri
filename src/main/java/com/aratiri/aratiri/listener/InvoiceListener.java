@@ -129,6 +129,7 @@ public class InvoiceListener {
 
     @Scheduled(fixedDelay = 10000)
     public void checkReconnection() {
+        logger.info("AratiriProps is: {}", aratiriProperties);
         if (shouldReconnect.get() && !isListening.get() && shutdownLatch.getCount() > 0) {
             logger.info("Attempting to reconnect to invoice stream");
             shouldReconnect.set(false);
