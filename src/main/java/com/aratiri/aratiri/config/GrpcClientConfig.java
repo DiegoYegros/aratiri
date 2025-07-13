@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 
 import javax.net.ssl.SSLException;
 import java.io.File;
+import java.util.concurrent.TimeUnit;
 
 @Configuration
 public class GrpcClientConfig {
@@ -25,30 +26,47 @@ public class GrpcClientConfig {
 
     @Bean
     public LightningGrpc.LightningBlockingStub lightningBlockingStub(ManagedChannel channel) {
-        logger.info("Aratiri props: {}", properties);
         return LightningGrpc.newBlockingStub(channel)
                 .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroonPath()));
     }
 
     @Bean
     public LightningGrpc.LightningStub lightningAsyncStub(ManagedChannel channel) {
-        logger.info("Aratiri props: {}", properties);
         return LightningGrpc.newStub(channel)
                 .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroonPath()));
     }
 
     @Bean
     public ManagedChannel lndChannel() throws SSLException {
-        NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(properties.getGrpcClientLndName(), properties.getGrpcClientLndPort()).intercept(new GrpcLoggingInterceptor());
-        if (!properties.getLndTlsCertPath().isEmpty() && properties.isGrpcTlsActive()){
-            logger.info("Both grpc.tls.active and lnd.path.tls.cert are present. Defaulting to SSL_CONTEXT with TLS CERT.");
-            File cert = new File(properties.getLndTlsCertPath());
-            nettyChannelBuilder.sslContext(GrpcSslContexts.forClient().trustManager(cert).build());
+        String host = properties.getGrpcClientLndName();
+        int port = properties.getGrpcClientLndPort();
+
+        logger.info("Connecting to LND at {}:{}", host, port);
+
+        NettyChannelBuilder builder = NettyChannelBuilder.forAddress(host, port)
+                .maxInboundMessageSize(64 * 1024 * 1024)
+                .keepAliveTime(30, TimeUnit.SECONDS)
+                .keepAliveTimeout(5, TimeUnit.SECONDS)
+                .keepAliveWithoutCalls(true);
+
+        if (!properties.getLndTlsCertPath().isEmpty() && properties.isGrpcTlsActive()) {
+            File tlsCert = new File(properties.getLndTlsCertPath());
+            logger.info("Using TLS certificate: {}", tlsCert.getAbsolutePath());
+
+            if (!tlsCert.exists()) {
+                throw new RuntimeException("TLS certificate not found: " + tlsCert.getAbsolutePath());
+            }
+
+            builder.sslContext(
+                    GrpcSslContexts.forClient()
+                            .trustManager(tlsCert)
+                            .build()
+            );
         } else {
-            logger.info("Using TLS.");
-            nettyChannelBuilder.useTransportSecurity();
+            logger.info("Using default TLS");
+            builder.useTransportSecurity();
         }
-        return nettyChannelBuilder
-                .build();
+        builder.intercept(new GrpcLoggingInterceptor());
+        return builder.build();
     }
 }
