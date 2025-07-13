@@ -21,4 +21,10 @@ public class AratiriProperties {
     @Value("${aratiri.base.url}")
     private String aratiriBaseUrl;
 
+    @Value("${lnd.path.tls.cert}")
+    private String lndTlsCertPath;
+
+    @Value("${grpc.tls.active:true}")
+    private boolean grpcTlsActive;
+
 }

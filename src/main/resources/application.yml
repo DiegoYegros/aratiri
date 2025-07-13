@@ -47,11 +47,13 @@ grpc:
     lnd:
       name: ${GRPC_CLIENT_LND_NAME}
       port: ${GRPC_CLIENT_LND_PORT}
+  tls:
+    active: ${GRPC_TLS_ACTIVE:true}
 
 lnd:
   path:
     tls:
-      cert: ${LND_TLS_CERT_PATH}
+      cert: ${LND_TLS_CERT_PATH:}
     macaroon:
       admin: ${ADMIN_MACAROON_PATH}
 
