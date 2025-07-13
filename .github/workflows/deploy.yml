@@ -40,6 +40,6 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /opt/aratiri/aratiri
+            cd /home/${{ secrets.SSH_USERNAME }}/aratiri
             docker-compose pull aratiri-app
-            docker-compose --profile full-stack up -d --force-recreate
+            docker-compose up -d --no-deps --force-recreate aratiri-app
