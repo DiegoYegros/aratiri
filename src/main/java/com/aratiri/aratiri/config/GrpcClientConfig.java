@@ -26,14 +26,12 @@ public class GrpcClientConfig {
 
     @Bean
     public LightningGrpc.LightningBlockingStub lightningBlockingStub(ManagedChannel channel) {
-        logger.info("AdminMacaroon Path is: {}", properties.getAdminMacaroonPath());
         return LightningGrpc.newBlockingStub(channel)
                 .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroonPath()));
     }
 
     @Bean
     public LightningGrpc.LightningStub lightningAsyncStub(ManagedChannel channel) {
-        logger.info("AdminMacaroon Path is: {}", properties.getAdminMacaroonPath());
         return LightningGrpc.newStub(channel)
                 .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroonPath()));
     }
