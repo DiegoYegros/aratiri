@@ -24,13 +24,9 @@ public class MacaroonCallCredentials extends CallCredentials {
     private String loadMacaroonHex(String macaroonPath) {
         try {
             byte[] macaroonBytes = Files.readAllBytes(Paths.get(macaroonPath));
-            StringBuilder hexBuilder = new StringBuilder(2 * macaroonBytes.length);
-            for (byte b : macaroonBytes) {
-                hexBuilder.append(String.format("%02x", b));
-            }
-            String hex = hexBuilder.toString();
-            logger.info("the macaroon hex is: {}", hex);
-            return hex;
+            String macaroonHex = new String(macaroonBytes, StandardCharsets.US_ASCII);
+            logger.info("the macaroon hex is: {}", macaroonHex);
+            return macaroonHex;
         } catch (IOException e) {
             throw new RuntimeException("Failed to load macaroon file from path: " + macaroonPath, e);
         }
@@ -41,6 +37,7 @@ public class MacaroonCallCredentials extends CallCredentials {
         Metadata headers = new Metadata();
         Metadata.Key<String> macaroonKey = Metadata.Key.of("macaroon", Metadata.ASCII_STRING_MARSHALLER);
         headers.put(macaroonKey, macaroon);
+        logger.info("Applied the headers. Current headers is : {}", headers);
         applier.apply(headers);
     }
 }
