@@ -2,6 +2,8 @@ package com.aratiri.aratiri.config;
 
 import io.grpc.CallCredentials;
 import io.grpc.Metadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -9,6 +11,7 @@ import java.nio.file.Paths;
 import java.util.concurrent.Executor;
 
 public class MacaroonCallCredentials extends CallCredentials {
+    private final Logger logger = LoggerFactory.getLogger(getClass());
     private final String macaroon;
 
     public MacaroonCallCredentials(String macaroon) {
@@ -18,7 +21,9 @@ public class MacaroonCallCredentials extends CallCredentials {
     private String loadMacaroonHex(String macaroonPath) {
         try {
             byte[] macaroonBytes = Files.readAllBytes(Paths.get(macaroonPath));
-            return new String(macaroonBytes);
+            String macaroonHex = new String(macaroonBytes);
+            logger.info("the macaroon hex is: {}", macaroonHex);
+            return macaroonHex;
         } catch (IOException e) {
             throw new RuntimeException("Failed to load macaroon file from path: " + macaroonPath, e);
         }
