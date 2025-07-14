@@ -33,7 +33,6 @@ public class MacaroonCallCredentials extends CallCredentials {
         Metadata headers = new Metadata();
         Metadata.Key<String> macaroonKey = Metadata.Key.of("macaroon", Metadata.ASCII_STRING_MARSHALLER);
         headers.put(macaroonKey, macaroon);
-        logger.info("Applied the headers. Current headers is : {}", headers);
         applier.apply(headers);
     }
 }
