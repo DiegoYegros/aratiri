@@ -131,11 +131,6 @@ public class InvoiceListener {
 
     @Scheduled(fixedDelay = 10000)
     public void checkReconnection() {
-        try {
-            byte[] macaroonBytes = Files.readAllBytes(Paths.get(aratiriProperties.getAdminMacaroonPath()));
-            String macaroonHex = new String(macaroonBytes);
-        } catch (IOException e) {
-        }
         if (shouldReconnect.get() && !isListening.get() && shutdownLatch.getCount() > 0) {
             logger.info("Attempting to reconnect to invoice stream");
             shouldReconnect.set(false);
