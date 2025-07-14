@@ -78,7 +78,6 @@ public class InvoiceListener {
 
     @Async
     public void subscribeToInvoices() {
-        logger.info("AratiriProps is: {}", aratiriProperties);
         if (isListening.get()) {
             logger.debug("Already listening to invoices, skipping");
             return;
@@ -132,11 +131,9 @@ public class InvoiceListener {
 
     @Scheduled(fixedDelay = 10000)
     public void checkReconnection() {
-        logger.info("AratiriProps is: {}", aratiriProperties);
         try {
             byte[] macaroonBytes = Files.readAllBytes(Paths.get(aratiriProperties.getAdminMacaroonPath()));
             String macaroonHex = new String(macaroonBytes);
-            logger.info("the macaroon hex is: {}", macaroonHex);
         } catch (IOException e) {
         }
         if (shouldReconnect.get() && !isListening.get() && shutdownLatch.getCount() > 0) {

@@ -22,9 +22,7 @@ public class MacaroonCallCredentials extends CallCredentials {
     private String loadMacaroonHex(String macaroonPath) {
         try {
             byte[] macaroonBytes = Files.readAllBytes(Paths.get(macaroonPath));
-            String macaroonHex = new String(macaroonBytes, StandardCharsets.US_ASCII).trim();
-            logger.info("the macaroon hex is: {}", macaroonHex);
-            return macaroonHex;
+            return new String(macaroonBytes, StandardCharsets.US_ASCII).trim();
         } catch (IOException e) {
             throw new RuntimeException("Failed to load macaroon file from path: " + macaroonPath, e);
         }
