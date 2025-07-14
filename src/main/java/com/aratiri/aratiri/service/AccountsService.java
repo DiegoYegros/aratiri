@@ -5,7 +5,6 @@ import com.aratiri.aratiri.dto.accounts.AccountTransactionDTO;
 import com.aratiri.aratiri.dto.accounts.CreateAccountRequestDTO;
 
 import java.time.LocalDate;
-import java.util.Date;
 import java.util.List;
 
 public interface AccountsService {

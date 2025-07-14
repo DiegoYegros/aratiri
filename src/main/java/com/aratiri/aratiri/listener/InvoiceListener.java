@@ -1,6 +1,5 @@
 package com.aratiri.aratiri.listener;
 
-import com.aratiri.aratiri.config.AratiriProperties;
 import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.producer.InvoiceEventProducer;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
@@ -18,9 +17,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -38,13 +34,12 @@ public class InvoiceListener {
     private final AtomicBoolean isListening = new AtomicBoolean(false);
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(false);
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
-    private final AratiriProperties aratiriProperties;
+
     public InvoiceListener(LightningGrpc.LightningStub lightningAsyncStub,
-                           LightningInvoiceRepository lightningInvoiceRepository, InvoiceEventProducer invoiceEventProducer, AratiriProperties aratiriProperties) {
+                           LightningInvoiceRepository lightningInvoiceRepository, InvoiceEventProducer invoiceEventProducer) {
         this.lightningAsyncStub = lightningAsyncStub;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.invoiceEventProducer = invoiceEventProducer;
-        this.aratiriProperties = aratiriProperties;
     }
 
     @PostConstruct
