@@ -15,23 +15,27 @@ import com.aratiri.aratiri.repository.AccountRepository;
 import com.aratiri.aratiri.service.InvoiceService;
 import com.aratiri.aratiri.service.PaymentService;
 import com.aratiri.aratiri.service.TransactionsService;
-import io.grpc.stub.BlockingClientCall;
 import lnrpc.Payment;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import routerrpc.RouterGrpc;
 import routerrpc.SendPaymentRequest;
 
+import java.util.Iterator;
+
 @Service
 public class PaymentServiceImpl implements PaymentService {
 
+    private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountRepository accountRepository;
     private final TransactionsService transactionsService;
     private final InvoiceService invoiceService;
-    private final RouterGrpc.RouterBlockingV2Stub routerStub;
+    private final RouterGrpc.RouterBlockingStub routerStub;
 
-    public PaymentServiceImpl(AccountRepository accountRepository, TransactionsService transactionsService, InvoiceService invoiceService, RouterGrpc.RouterBlockingV2Stub routerStub) {
+    public PaymentServiceImpl(AccountRepository accountRepository, TransactionsService transactionsService, InvoiceService invoiceService, RouterGrpc.RouterBlockingStub routerStub) {
         this.accountRepository = accountRepository;
         this.transactionsService = transactionsService;
         this.invoiceService = invoiceService;
@@ -40,7 +44,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public PaymentResponseDTO payLightningInvoice(PayInvoiceRequestDTO request, String userId) {
-        DecodedInvoicetDTO decodedInvoice = invoiceService.decodePaymentRequest(request.getInvoice(), userId);
+        DecodedInvoicetDTO decodedInvoice = invoiceService.decodePaymentRequest(request.getInvoice());
         long amountSat = decodedInvoice.getNumSatoshis();
         AccountEntity account = accountRepository.findByUserId(userId);
         if (account.getBalance() < amountSat) {
@@ -71,18 +75,28 @@ public class PaymentServiceImpl implements PaymentService {
             SendPaymentRequest grpcRequest = SendPaymentRequest.newBuilder()
                     .setPaymentRequest(payRequest.getInvoice())
                     .setFeeLimitSat(payRequest.getFeeLimitSat() != null ? payRequest.getFeeLimitSat() : 50)
-                    .setTimeoutSeconds(payRequest.getTimeoutSeconds() != null ? payRequest.getTimeoutSeconds() : 100)
+                    .setTimeoutSeconds(payRequest.getTimeoutSeconds() != null ? payRequest.getTimeoutSeconds() : 200)
                     .build();
 
-            BlockingClientCall<?, Payment> paymentStream = routerStub.sendPaymentV2(grpcRequest);
-            lnrpc.Payment finalPayment = null;
+            Iterator<Payment> paymentStream = routerStub.sendPaymentV2(grpcRequest);
+
+            Payment finalPayment = null;
             while (paymentStream.hasNext()) {
-                finalPayment = paymentStream.read();
+                Payment payment = paymentStream.next();
+                logger.info("GOT PAYMENT UPDATE: " + payment);
+
+                if (payment.getStatus() == Payment.PaymentStatus.SUCCEEDED ||
+                        payment.getStatus() == Payment.PaymentStatus.FAILED) {
+                    finalPayment = payment;
+                    break;
+                }
             }
-            if (finalPayment != null && finalPayment.getStatus() == lnrpc.Payment.PaymentStatus.SUCCEEDED) {
+
+            if (finalPayment != null && finalPayment.getStatus() == Payment.PaymentStatus.SUCCEEDED) {
                 transactionsService.confirmTransaction(transactionId, userId);
             } else {
-                transactionsService.failTransaction(transactionId, finalPayment != null ? finalPayment.getFailureReason().toString() : null);
+                String reason = finalPayment != null ? finalPayment.getFailureReason().toString() : "Unknown failure";
+                transactionsService.failTransaction(transactionId, reason);
             }
 
         } catch (Exception e) {

@@ -38,8 +38,8 @@ public class GrpcClientConfig {
     }
 
     @Bean
-    public RouterGrpc.RouterBlockingV2Stub routerBlockingV2Stub(ManagedChannel channel) {
-        return RouterGrpc.newBlockingV2Stub(channel)
+    public RouterGrpc.RouterBlockingStub routerBlockingStub(ManagedChannel channel) {
+        return RouterGrpc.newBlockingStub(channel)
                 .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroonPath()));
     }
 

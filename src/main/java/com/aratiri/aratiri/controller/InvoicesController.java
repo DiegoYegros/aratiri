@@ -44,6 +44,6 @@ public class InvoicesController {
     )
     public ResponseEntity<DecodedInvoicetDTO> getDecodedInvoice(@PathVariable String paymentRequest, @AratiriCtx AratiriContext ctx) {
         String userId = ctx.getUser().getId();
-        return new ResponseEntity<>(invoiceService.decodePaymentRequest(paymentRequest, userId), HttpStatus.OK);
+        return new ResponseEntity<>(invoiceService.decodeAratiriPaymentRequest(paymentRequest, userId), HttpStatus.OK);
     }
 }
