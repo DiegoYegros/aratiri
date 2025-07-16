@@ -109,6 +109,25 @@ public class TransactionsServiceImpl implements TransactionsService {
         return mapToDto(savedTransaction);
     }
 
+
+    @Override
+    @Transactional
+    public TransactionDTOResponse createTransaction(CreateTransactionRequest request) {
+        logger.info("In createTransaction. Received request to create transaction: [{}]", request);
+        TransactionEntity transaction = new TransactionEntity();
+        transaction.setUserId(request.getUserId());
+        transaction.setAmount(request.getAmount());
+        transaction.setCurrency(request.getCurrency());
+        transaction.setType(request.getType());
+        transaction.setDescription(request.getDescription());
+        transaction.setReferenceId(request.getReferenceId());
+        transaction.setStatus(request.getStatus());
+        TransactionEntity savedTransaction = transactionsRepository.save(transaction);
+        logger.info("Successfully created new transaction record with status [{}]. Transaction: [{}]",
+                savedTransaction.getStatus(), savedTransaction);
+        return mapToDto(savedTransaction);
+    }
+
     @Override
     public List<TransactionDTOResponse> getTransactions(Instant from, Instant to, String userId) {
         List<TransactionEntity> transactions = transactionsRepository
@@ -117,5 +136,21 @@ public class TransactionsServiceImpl implements TransactionsService {
         return transactions.stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void failTransaction(String transactionId, String failureReason) {
+        logger.warn("Failing transaction [{}]. Reason: {}", transactionId, failureReason);
+        TransactionEntity transaction = transactionsRepository.findById(transactionId)
+                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found for failure.", transactionId)));
+        if (!TransactionStatus.PENDING.equals(transaction.getStatus())) {
+            logger.error("Attempted to fail a transaction that was not PENDING. ID: {}, Current Status: {}",
+                    transactionId, transaction.getStatus());
+            throw new AratiriException(String.format("Transaction status [%s] is not valid for failure.", transaction.getStatus()));
+        }
+        transaction.setStatus(TransactionStatus.FAILED);
+        transactionsRepository.save(transaction);
+        logger.info("Transaction [{}] has been marked as FAILED.", transactionId);
     }
 }

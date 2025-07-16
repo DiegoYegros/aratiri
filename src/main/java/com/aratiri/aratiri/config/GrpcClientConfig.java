@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import routerrpc.RouterGrpc;
 
 import javax.net.ssl.SSLException;
 import java.io.File;
@@ -35,6 +36,19 @@ public class GrpcClientConfig {
         return LightningGrpc.newStub(channel)
                 .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroonPath()));
     }
+
+    @Bean
+    public RouterGrpc.RouterBlockingV2Stub routerBlockingV2Stub(ManagedChannel channel) {
+        return RouterGrpc.newBlockingV2Stub(channel)
+                .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroonPath()));
+    }
+
+    @Bean
+    public RouterGrpc.RouterFutureStub routerFutureStub(ManagedChannel channel) {
+        return RouterGrpc.newFutureStub(channel)
+                .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroonPath()));
+    }
+
 
     @Bean
     public ManagedChannel lndChannel() throws SSLException {

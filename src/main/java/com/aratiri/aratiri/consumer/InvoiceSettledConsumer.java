@@ -3,6 +3,7 @@ package com.aratiri.aratiri.consumer;
 import com.aratiri.aratiri.constants.BitcoinConstants;
 import com.aratiri.aratiri.dto.transactions.CreateTransactionRequest;
 import com.aratiri.aratiri.enums.TransactionCurrency;
+import com.aratiri.aratiri.enums.TransactionStatus;
 import com.aratiri.aratiri.enums.TransactionType;
 import com.aratiri.aratiri.event.InvoiceSettledEvent;
 import com.aratiri.aratiri.exception.AratiriException;
@@ -62,6 +63,7 @@ public class InvoiceSettledConsumer {
                     amountInBTC,
                     TransactionCurrency.BTC,
                     TransactionType.INVOICE_CREDIT,
+                    TransactionStatus.COMPLETED,
                     String.format("Payment received for invoice (hash: %s...)", event.getPaymentHash().substring(0, 10)),
                     event.getPaymentHash()
             );

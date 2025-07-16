@@ -23,7 +23,7 @@ public class LogFilter implements Filter {
             throws IOException, ServletException {
 
         HttpServletRequest httpRequest = (HttpServletRequest) request;
-        logger.info(LogUtils.formatSectionHeader("REQUEST LOG"));
+        logger.info(LogUtils.formatSectionHeader("START REQUEST LOG"));
         logger.info(LogUtils.formatKeyValue("Method", httpRequest.getMethod()));
         logger.info(LogUtils.formatKeyValue("URI", httpRequest.getRequestURI()));
         logger.info(LogUtils.formatKeyValue("Query String", httpRequest.getQueryString()));

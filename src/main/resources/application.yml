@@ -48,6 +48,9 @@ lnd:
 aratiri:
   base:
     url: ${ARATIRI_BASE_URL}
+  cors:
+    allowed:
+      origins: ${ARATIRI_CORS_ALLOWED_ORIGINS}
 jwt:
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:8400}

@@ -30,7 +30,7 @@ public class TransactionEntity {
     @Column(name = "amount", nullable = false, precision = 20, scale = 8)
     private BigDecimal amount;
 
-    @Column(name = "balance_after", nullable = false, precision = 20, scale = 8)
+    @Column(name = "balance_after", precision = 20, scale = 8)
     private BigDecimal balanceAfter;
 
     @Enumerated(EnumType.STRING)
@@ -48,7 +48,7 @@ public class TransactionEntity {
     @Column(length = 255)
     private String description;
 
-    @Column(name = "reference_id", length = 36)
+    @Column(name = "reference_id", length = 64)
     private String referenceId;
 
     @CreationTimestamp
