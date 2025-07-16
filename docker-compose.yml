@@ -52,6 +52,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: diegoyegros/aratiri-app:latest
     container_name: aratiri-app
     ports:
       - "2100:2100"
