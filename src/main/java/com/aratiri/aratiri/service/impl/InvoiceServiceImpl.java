@@ -3,7 +3,6 @@ package com.aratiri.aratiri.service.impl;
 import com.aratiri.aratiri.dto.accounts.AccountDTO;
 import com.aratiri.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.aratiri.dto.invoices.GenerateInvoiceDTO;
-import com.aratiri.aratiri.dto.invoices.PayInvoiceDTO;
 import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
@@ -112,11 +111,6 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     @Override
-    public PayInvoiceDTO payInvoice(String paymentRquest) {
-        return null;
-    }
-
-    @Override
     public DecodedInvoicetDTO decodeAratiriPaymentRequest(String paymentRequest, String userId) {
         LightningInvoiceEntity invoice = lightningInvoiceRepository
                 .findByPaymentRequest(paymentRequest)
@@ -149,6 +143,13 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     public DecodedInvoicetDTO decodePaymentRequest(String paymentRequest) {
         return getDecodedInvoicetDTO(paymentRequest);
+    }
+
+    @Override
+    public boolean existsSettledInvoiceByPaymentHash(String paymentHash) {
+        Optional<LightningInvoiceEntity> byPaymentHash = lightningInvoiceRepository
+                .findByPaymentHashAndInvoiceState(paymentHash, LightningInvoiceEntity.InvoiceState.SETTLED);
+        return byPaymentHash.isPresent();
     }
 
     private DecodedInvoicetDTO getDecodedInvoicetDTO(String paymentRequest) {

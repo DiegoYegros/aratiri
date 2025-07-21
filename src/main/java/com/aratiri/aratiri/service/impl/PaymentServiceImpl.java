@@ -44,13 +44,15 @@ public class PaymentServiceImpl implements PaymentService {
     private final InvoiceService invoiceService;
     private final RouterGrpc.RouterBlockingStub routerStub;
     private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
 
-    public PaymentServiceImpl(AccountRepository accountRepository, TransactionsService transactionsService, InvoiceService invoiceService, RouterGrpc.RouterBlockingStub routerStub, OutboxEventRepository outboxEventRepository) {
+    public PaymentServiceImpl(AccountRepository accountRepository, TransactionsService transactionsService, InvoiceService invoiceService, RouterGrpc.RouterBlockingStub routerStub, OutboxEventRepository outboxEventRepository, ObjectMapper objectMapper) {
         this.outboxEventRepository = outboxEventRepository;
         this.accountRepository = accountRepository;
         this.transactionsService = transactionsService;
         this.invoiceService = invoiceService;
         this.routerStub = routerStub;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -58,6 +60,14 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentResponseDTO payLightningInvoice(PayInvoiceRequestDTO request, String userId) {
         DecodedInvoicetDTO decodedInvoice = invoiceService.decodePaymentRequest(request.getInvoice());
         String paymentHash = decodedInvoice.getPaymentHash();
+        boolean isSettledAratiriInvoice = invoiceService.existsSettledInvoiceByPaymentHash(paymentHash);
+        if (isSettledAratiriInvoice) {
+            logger.warn("User {} attempted to pay an invoice that has already been successfully paid by another Aratiri user. PaymentHash: {}", userId, paymentHash);
+            throw new AratiriException(
+                    "Invoice has already been paid",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
         Optional<Payment> existingPayment = checkPaymentStatusOnNode(paymentHash);
         if (existingPayment.isPresent() && existingPayment.get().getStatus() == Payment.PaymentStatus.SUCCEEDED) {
             logger.warn("User {} attempted to pay an invoice that has already been successfully paid by this node. PaymentHash: {}", userId, paymentHash);
@@ -93,7 +103,7 @@ public class PaymentServiceImpl implements PaymentService {
                     .aggregateType("LIGHTNING_INVOICE_PAYMENT")
                     .aggregateId(txDto.getId())
                     .eventType("PAYMENT_INITIATED")
-                    .payload(new ObjectMapper().writeValueAsString(eventPayload))
+                    .payload(objectMapper.writeValueAsString(eventPayload))
                     .build();
             outboxEventRepository.save(outboxEvent);
             logger.info("Saved PAYMENT_INITIATED event to outbox for transactionId: {}", txDto.getId());
