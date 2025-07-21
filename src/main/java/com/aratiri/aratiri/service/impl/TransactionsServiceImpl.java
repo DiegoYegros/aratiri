@@ -67,6 +67,11 @@ public class TransactionsServiceImpl implements TransactionsService {
         return mapToDto(savedTransaction);
     }
 
+    @Override
+    public boolean existsByReferenceId(String referenceId) {
+        return transactionsRepository.existsByReferenceId(referenceId);
+    }
+
     private TransactionDTOResponse mapToDto(TransactionEntity savedTransaction) {
         return TransactionDTOResponse.builder().id(savedTransaction.getId())
                 .createdAt(OffsetDateTime.from(savedTransaction.getCreatedAt().atZone(ZoneId.systemDefault())))

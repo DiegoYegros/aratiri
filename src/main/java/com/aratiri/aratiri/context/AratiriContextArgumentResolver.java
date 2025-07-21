@@ -34,7 +34,6 @@ public class AratiriContextArgumentResolver implements HandlerMethodArgumentReso
     public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
                                   NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
         UserDTO currentUser;
-        logger.info("I'm resolving the argument.");
         try {
             currentUser = authService.getCurrentUser(); // TODO: this has to be a call to a database, cache or something
             logger.info("Current User: [{}]", currentUser);

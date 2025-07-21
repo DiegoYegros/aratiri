@@ -13,7 +13,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_DDL_AUTO:update}
-    show-sql: true
+    show-sql: false
     database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
 
   kafka:

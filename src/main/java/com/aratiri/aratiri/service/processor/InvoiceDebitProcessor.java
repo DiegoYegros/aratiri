@@ -36,7 +36,7 @@ public class InvoiceDebitProcessor implements TransactionProcessor {
         }
         account.setBalance(newBalance);
         accountRepository.save(account);
-        BigDecimal btcValue = BitcoinConstants.btcToSatoshis(newBalance);
+        BigDecimal btcValue = BitcoinConstants.satoshisToBtc(newBalance);
         logger.info("Returning new balance in BTC: [{}]", btcValue);
         return btcValue;
     }

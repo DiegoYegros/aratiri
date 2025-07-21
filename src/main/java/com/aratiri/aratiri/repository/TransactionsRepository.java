@@ -17,4 +17,6 @@ public interface TransactionsRepository extends JpaRepository<TransactionEntity,
             @Param("from") Instant from,
             @Param("to") Instant to
     );
+
+    boolean existsByReferenceId(String referenceId);
 }

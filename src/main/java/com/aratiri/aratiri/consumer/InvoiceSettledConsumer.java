@@ -48,16 +48,20 @@ public class InvoiceSettledConsumer {
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset,
             Acknowledgment acknowledgment) {
-
         log.info("Received invoice settlement message from topic: {}, partition: {}, offset: {}",
                 topic, partition, offset);
         try {
             InvoiceSettledEvent event = objectMapper.readValue(message, InvoiceSettledEvent.class);
-
             BigDecimal amountInSats = new BigDecimal(event.getAmount());
             BigDecimal amountInBTC = amountInSats.divide(BitcoinConstants.SATOSHIS_PER_BTC, 8, RoundingMode.HALF_UP);
             log.info("Processing invoice settlement for user: {}, amount: {}, paymentHash: {}, amountInBTC = {}",
                     event.getUserId(), event.getAmount(), event.getPaymentHash(), amountInBTC);
+            boolean transactionExists = transactionsService.existsByReferenceId(event.getPaymentHash());
+            if (transactionExists) {
+                log.warn("Transaction with paymentHash {} already processed. Skipping.", event.getPaymentHash());
+                acknowledgment.acknowledge();
+                return;
+            }
             CreateTransactionRequest request = new CreateTransactionRequest(
                     event.getUserId(),
                     amountInBTC,
@@ -69,9 +73,7 @@ public class InvoiceSettledConsumer {
             );
             transactionsService.createAndSettleTransaction(request);
             log.info("Successfully processed invoice settlement for user: {}", event.getUserId());
-
             acknowledgment.acknowledge();
-
         } catch (JsonProcessingException e) {
             log.error("Couldn't deserialze invoice settlement message: {}", message, e);
             throw new AratiriException("Deserialization failed", HttpStatus.INTERNAL_SERVER_ERROR);

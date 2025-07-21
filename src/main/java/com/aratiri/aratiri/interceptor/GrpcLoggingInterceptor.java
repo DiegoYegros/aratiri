@@ -30,18 +30,18 @@ public class GrpcLoggingInterceptor implements ClientInterceptor {
                 Listener<RespT> forwardingListener = new ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(responseListener) {
                     @Override
                     public void onMessage(RespT message) {
-                        log.info(LogUtils.formatKeyValue("SERVER'S RESPONSE", "\n" + message.toString()));
+                        log.debug(LogUtils.formatKeyValue("SERVER'S RESPONSE", "\n" + message.toString()));
                         super.onMessage(message);
                     }
 
                     @Override
                     public void onClose(Status status, Metadata trailers) {
                         if (!status.isOk()) {
-                            log.error(LogUtils.formatKeyValue("gRPC CALL CLOSED WITH ERROR", status));
+                            log.debug(LogUtils.formatKeyValue("gRPC CALL CLOSED WITH ERROR", status));
                         } else {
-                            log.info(LogUtils.formatKeyValue("gRPC CALL STATUS", "SUCCESSFULLY CLOSED"));
+                            log.debug(LogUtils.formatKeyValue("gRPC CALL STATUS", "SUCCESSFULLY CLOSED"));
                         }
-                        log.info(LogUtils.formatSectionHeader("END gRPC CALL"));
+                        log.debug(LogUtils.formatSectionHeader("END gRPC CALL"));
                         super.onClose(status, trailers);
                     }
                 };
