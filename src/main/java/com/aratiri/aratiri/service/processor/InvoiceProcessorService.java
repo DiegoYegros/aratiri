@@ -92,7 +92,7 @@ public class InvoiceProcessorService {
         } else {
             lightningInvoiceRepository.save(invoiceEntity);
         }
-        InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton").orElse(new InvoiceSubscriptionState());
+        InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton").orElse(InvoiceSubscriptionState.builder().id("singleton").build());
         state.setAddIndex(invoice.getAddIndex());
         state.setSettleIndex(invoice.getSettleIndex());
         invoiceSubscriptionStateRepository.save(state);
