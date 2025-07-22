@@ -126,10 +126,9 @@ public class PaymentServiceImpl implements PaymentService {
                     .setPaymentRequest(payRequest.getInvoice())
                     .setFeeLimitSat(payRequest.getFeeLimitSat() != null ? payRequest.getFeeLimitSat() : DEFAULT_FEE_LIIMT_SAT)
                     .setTimeoutSeconds(payRequest.getTimeoutSeconds() != null ? payRequest.getTimeoutSeconds() : DEFAULT_TIMEOUT_SECONDS)
+                    .setAllowSelfPayment(true)
                     .build();
-
             Iterator<Payment> paymentStream = routerStub.sendPaymentV2(grpcRequest);
-
             Payment finalPayment = null;
             while (paymentStream.hasNext()) {
                 Payment payment = paymentStream.next();
@@ -146,14 +145,12 @@ public class PaymentServiceImpl implements PaymentService {
                     break;
                 }
             }
-
             if (finalPayment != null && finalPayment.getStatus() == Payment.PaymentStatus.SUCCEEDED) {
                 transactionsService.confirmTransaction(transactionId, userId);
             } else {
                 String reason = finalPayment != null ? finalPayment.getFailureReason().toString() : "Unknown failure";
                 transactionsService.failTransaction(transactionId, reason);
             }
-
         } catch (Exception e) {
             transactionsService.failTransaction(transactionId, e.getMessage());
         }
