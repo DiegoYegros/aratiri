@@ -37,6 +37,5 @@ public class OutboxEventEntity {
     @CreationTimestamp
     private Instant createdAt;
 
-    @Column
     private Instant processedAt;
 }

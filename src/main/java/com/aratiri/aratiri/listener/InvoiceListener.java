@@ -1,5 +1,7 @@
 package com.aratiri.aratiri.listener;
 
+import com.aratiri.aratiri.entity.InvoiceSubscriptionState;
+import com.aratiri.aratiri.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.aratiri.service.processor.InvoiceProcessorService;
 import io.grpc.stub.StreamObserver;
 import jakarta.annotation.PostConstruct;
@@ -29,10 +31,12 @@ public class InvoiceListener {
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(false);
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private final InvoiceProcessorService invoiceProcessorService;
+    private final InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
 
-    public InvoiceListener(LightningGrpc.LightningStub lightningAsyncStub, InvoiceProcessorService invoiceProcessorService) {
+    public InvoiceListener(LightningGrpc.LightningStub lightningAsyncStub, InvoiceProcessorService invoiceProcessorService, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.lightningAsyncStub = lightningAsyncStub;
         this.invoiceProcessorService = invoiceProcessorService;
+        this.invoiceSubscriptionStateRepository = invoiceSubscriptionStateRepository;
     }
 
     @PostConstruct
@@ -74,15 +78,20 @@ public class InvoiceListener {
         try {
             logger.info("Establishing invoice subscription stream");
             isListening.set(true);
-
+            InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton").orElse(InvoiceSubscriptionState.builder().id("singleton").build());
+            logger.info("Subscribing with addIndex [{}] and settleIndex [{}]", state.getAddIndex(), state.getSettleIndex());
             InvoiceSubscription subscriptionRequest = InvoiceSubscription.newBuilder()
-                    .setAddIndex(0)
-                    .setSettleIndex(0)
+                    .setAddIndex(state.getAddIndex())
+                    .setSettleIndex(state.getSettleIndex())
                     .build();
 
             invoiceStreamObserver = new StreamObserver<>() {
                 @Override
                 public void onNext(Invoice invoice) {
+                    if (!isListening.get()) {
+                        logger.warn("Invoice received during shutdown, ignoring: {}", invoice.getPaymentRequest());
+                        return;
+                    }
                     try {
                         invoiceProcessorService.processInvoiceUpdate(invoice);
                     } catch (Exception e) {

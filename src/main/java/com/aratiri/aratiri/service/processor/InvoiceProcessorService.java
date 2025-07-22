@@ -1,9 +1,11 @@
 package com.aratiri.aratiri.service.processor;
 
+import com.aratiri.aratiri.entity.InvoiceSubscriptionState;
 import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.entity.OutboxEventEntity;
 import com.aratiri.aratiri.enums.KafkaTopics;
 import com.aratiri.aratiri.event.InvoiceSettledEvent;
+import com.aratiri.aratiri.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
 import com.aratiri.aratiri.repository.OutboxEventRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,13 +27,15 @@ public class InvoiceProcessorService {
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
 
     public InvoiceProcessorService(LightningInvoiceRepository lightningInvoiceRepository,
                                    OutboxEventRepository outboxEventRepository,
-                                   ObjectMapper objectMapper) {
+                                   ObjectMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.objectMapper = objectMapper;
+        this.invoiceSubscriptionStateRepository = invoiceSubscriptionStateRepository;
     }
 
     @Transactional
@@ -88,6 +92,10 @@ public class InvoiceProcessorService {
         } else {
             lightningInvoiceRepository.save(invoiceEntity);
         }
+        InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton").orElse(new InvoiceSubscriptionState());
+        state.setAddIndex(invoice.getAddIndex());
+        state.setSettleIndex(invoice.getSettleIndex());
+        invoiceSubscriptionStateRepository.save(state);
     }
 
     private LightningInvoiceEntity.InvoiceState mapInvoiceState(Invoice.InvoiceState grpcState) {
