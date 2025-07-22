@@ -53,16 +53,16 @@ public class InvoiceServiceImpl implements InvoiceService {
 
             AddInvoiceResponse addInvoiceResponse = lightningStub.addInvoice(request);
 
-            long expiry = lightningStub.decodePayReq(PayReqString.newBuilder().setPayReq(addInvoiceResponse.getPaymentRequest()).build()).getExpiry();
+            PayReq payReq = lightningStub.decodePayReq(PayReqString.newBuilder().setPayReq(addInvoiceResponse.getPaymentRequest()).build());
             LightningInvoiceEntity lightningInvoice = LightningInvoiceEntity.builder()
                     .userId(userId)
                     .amountSats(satsAmount)
                     .preimage(Base64.getEncoder().encodeToString(preImage))
                     .invoiceState(LightningInvoiceEntity.InvoiceState.OPEN)
                     .createdAt(LocalDateTime.now())
-                    .expiry(expiry)
+                    .expiry(payReq.getExpiry())
                     .paymentRequest(addInvoiceResponse.getPaymentRequest())
-                    .paymentHash(addInvoiceResponse.getRHash().toStringUtf8())
+                    .paymentHash(payReq.getPaymentHash())
                     .amountPaidSats(0)
                     .build();
 

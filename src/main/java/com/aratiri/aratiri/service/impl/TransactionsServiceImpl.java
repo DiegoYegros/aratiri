@@ -72,19 +72,6 @@ public class TransactionsServiceImpl implements TransactionsService {
         return transactionsRepository.existsByReferenceId(referenceId);
     }
 
-    private TransactionDTOResponse mapToDto(TransactionEntity savedTransaction) {
-        return TransactionDTOResponse.builder().id(savedTransaction.getId())
-                .createdAt(OffsetDateTime.from(savedTransaction.getCreatedAt().atZone(ZoneId.systemDefault())))
-                .amount(savedTransaction.getAmount())
-                .type(savedTransaction.getType())
-                .balanceAfter(savedTransaction.getBalanceAfter())
-                .description(savedTransaction.getDescription())
-                .referenceId(savedTransaction.getReferenceId())
-                .status(savedTransaction.getStatus())
-                .currency(savedTransaction.getCurrency())
-                .build();
-    }
-
     @Override
     @Transactional
     public TransactionDTOResponse createAndSettleTransaction(CreateTransactionRequest request) {
@@ -157,5 +144,18 @@ public class TransactionsServiceImpl implements TransactionsService {
         transaction.setStatus(TransactionStatus.FAILED);
         transactionsRepository.save(transaction);
         logger.info("Transaction [{}] has been marked as FAILED.", transactionId);
+    }
+
+    private TransactionDTOResponse mapToDto(TransactionEntity savedTransaction) {
+        return TransactionDTOResponse.builder().id(savedTransaction.getId())
+                .createdAt(OffsetDateTime.from(savedTransaction.getCreatedAt().atZone(ZoneId.systemDefault())))
+                .amount(savedTransaction.getAmount())
+                .type(savedTransaction.getType())
+                .balanceAfter(savedTransaction.getBalanceAfter())
+                .description(savedTransaction.getDescription())
+                .referenceId(savedTransaction.getReferenceId())
+                .status(savedTransaction.getStatus())
+                .currency(savedTransaction.getCurrency())
+                .build();
     }
 }

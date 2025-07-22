@@ -38,6 +38,8 @@ import java.util.Optional;
 @Service
 public class PaymentServiceImpl implements PaymentService {
 
+    private static final int DEFAULT_FEE_LIIMT_SAT = 50;
+    private static final int DEFAULT_TIMEOUT_SECONDS = 200;
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountRepository accountRepository;
     private final TransactionsService transactionsService;
@@ -112,7 +114,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
         return PaymentResponseDTO.builder()
                 .transactionId(txDto.getId())
-                .status(TransactionStatus.PENDING)
+                .status(txDto.getStatus())
                 .message("Payment initiated. Status is pending.")
                 .build();
     }
@@ -122,8 +124,8 @@ public class PaymentServiceImpl implements PaymentService {
         try {
             SendPaymentRequest grpcRequest = SendPaymentRequest.newBuilder()
                     .setPaymentRequest(payRequest.getInvoice())
-                    .setFeeLimitSat(payRequest.getFeeLimitSat() != null ? payRequest.getFeeLimitSat() : 50)
-                    .setTimeoutSeconds(payRequest.getTimeoutSeconds() != null ? payRequest.getTimeoutSeconds() : 200)
+                    .setFeeLimitSat(payRequest.getFeeLimitSat() != null ? payRequest.getFeeLimitSat() : DEFAULT_FEE_LIIMT_SAT)
+                    .setTimeoutSeconds(payRequest.getTimeoutSeconds() != null ? payRequest.getTimeoutSeconds() : DEFAULT_TIMEOUT_SECONDS)
                     .build();
 
             Iterator<Payment> paymentStream = routerStub.sendPaymentV2(grpcRequest);
