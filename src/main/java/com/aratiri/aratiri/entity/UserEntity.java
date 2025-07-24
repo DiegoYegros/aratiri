@@ -26,7 +26,8 @@ public class UserEntity {
     @Column
     private String password;
 
-    @Column(name = "auth_provider")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false)
     private AuthProvider authProvider;
 
     @Column(name = "created_at")
