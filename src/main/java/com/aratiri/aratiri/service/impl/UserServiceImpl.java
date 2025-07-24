@@ -1,6 +1,7 @@
 package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.entity.UserEntity;
+import com.aratiri.aratiri.enums.AuthProvider;
 import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.UserService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -24,6 +25,7 @@ public class UserServiceImpl implements UserService {
         user.setName(name);
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(rawPassword));
+        user.setAuthProvider(AuthProvider.LOCAL);
         userRepository.save(user);
     }
 }

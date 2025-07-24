@@ -1,6 +1,7 @@
 package com.aratiri.aratiri.service;
 
 import com.aratiri.aratiri.entity.UserEntity;
+import com.aratiri.aratiri.enums.AuthProvider;
 import com.aratiri.aratiri.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -20,7 +21,9 @@ public class AratiriUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-
+        if (user.getAuthProvider() == AuthProvider.GOOGLE) {
+            throw new UsernameNotFoundException("Please log in using your Google account.");
+        }
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(), user.getPassword(), Collections.emptyList());
     }

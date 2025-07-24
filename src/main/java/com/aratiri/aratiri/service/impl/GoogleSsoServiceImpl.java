@@ -1,6 +1,7 @@
 package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.entity.UserEntity;
+import com.aratiri.aratiri.enums.AuthProvider;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.GoogleSsoService;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.Optional;
 
 @Service
 public class GoogleSsoServiceImpl implements GoogleSsoService {
@@ -45,20 +47,30 @@ public class GoogleSsoServiceImpl implements GoogleSsoService {
             GoogleIdToken.Payload payload = idToken.getPayload();
             String email = payload.getEmail();
             String name = (String) payload.get("name");
-            UserEntity user = userRepository.findByEmail(email)
-                    .orElseGet(() -> {
-                        UserEntity newUser = new UserEntity();
-                        newUser.setEmail(email);
-                        newUser.setName(name);
-                        newUser.setPassword(null);
-                        return userRepository.save(newUser);
-                    });
+            Optional<UserEntity> userOptional = userRepository.findByEmail(email);
+            UserEntity user;
+            if (userOptional.isPresent()) {
+                user = userOptional.get();
+                if (user.getAuthProvider() != AuthProvider.GOOGLE) {
+                    throw new AratiriException("This email is registered with a password. Please use the standard login.", HttpStatus.BAD_REQUEST);
+                }
+            } else {
+                logger.info("Creating new user for email via Google SSO: {}", email);
+                UserEntity newUser = new UserEntity();
+                newUser.setEmail(email);
+                newUser.setName(name);
+                newUser.setPassword(null);
+                newUser.setAuthProvider(AuthProvider.GOOGLE);
+                user = userRepository.save(newUser);
+            }
+
             return jwtUtil.generateToken(user.getEmail());
+
         } catch (Exception e) {
+            logger.error("Auth failed with Google, message is: {}", e.getMessage(), e);
             if (e instanceof AratiriException ex) {
                 throw ex;
             }
-            logger.error("Auth failed with Google, message is: {}", e.getMessage(), e);
             throw new AratiriException("Auth Failed with Google", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

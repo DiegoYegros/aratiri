@@ -1,5 +1,6 @@
 package com.aratiri.aratiri.entity;
 
+import com.aratiri.aratiri.enums.AuthProvider;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -24,6 +25,9 @@ public class UserEntity {
 
     @Column
     private String password;
+
+    @Column(name = "auth_provider")
+    private AuthProvider authProvider;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
