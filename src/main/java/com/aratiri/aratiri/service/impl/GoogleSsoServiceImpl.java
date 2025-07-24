@@ -9,15 +9,19 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 
 @Service
 public class GoogleSsoServiceImpl implements GoogleSsoService {
 
+    private final Logger logger = LoggerFactory.getLogger(getClass());
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final GoogleIdTokenVerifier verifier;
@@ -30,6 +34,7 @@ public class GoogleSsoServiceImpl implements GoogleSsoService {
                 .build();
     }
 
+    @Transactional
     public String loginWithGoogle(String googleToken) {
         try {
             GoogleIdToken idToken = verifier.verify(googleToken);
@@ -49,7 +54,8 @@ public class GoogleSsoServiceImpl implements GoogleSsoService {
                     });
             return jwtUtil.generateToken(user.getEmail());
         } catch (Exception e) {
-            throw new AratiriException("Auth Failed with Google: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            logger.error("Auth failed with Google, message is: {}", e.getMessage(), e);
+            throw new AratiriException("Auth Failed with Google", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }
