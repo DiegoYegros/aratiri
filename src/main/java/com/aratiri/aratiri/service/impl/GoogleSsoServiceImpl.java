@@ -1,9 +1,11 @@
 package com.aratiri.aratiri.service.impl;
 
+import com.aratiri.aratiri.dto.accounts.CreateAccountRequestDTO;
 import com.aratiri.aratiri.entity.UserEntity;
 import com.aratiri.aratiri.enums.AuthProvider;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.UserRepository;
+import com.aratiri.aratiri.service.AccountsService;
 import com.aratiri.aratiri.service.GoogleSsoService;
 import com.aratiri.aratiri.utils.JwtUtil;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
@@ -27,13 +29,15 @@ public class GoogleSsoServiceImpl implements GoogleSsoService {
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final GoogleIdTokenVerifier verifier;
+    private final AccountsService accountsService;
 
-    public GoogleSsoServiceImpl(UserRepository userRepository, JwtUtil jwtUtil, @Value("${spring.security.oauth2.client.registration.google.client-id}") String googleClientId) {
+    public GoogleSsoServiceImpl(UserRepository userRepository, JwtUtil jwtUtil, @Value("${spring.security.oauth2.client.registration.google.client-id}") String googleClientId, AccountsService accountsService) {
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
         this.verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
                 .setAudience(Collections.singletonList(googleClientId))
                 .build();
+        this.accountsService = accountsService;
     }
 
     @Override
@@ -62,10 +66,11 @@ public class GoogleSsoServiceImpl implements GoogleSsoService {
                 newUser.setPassword(null);
                 newUser.setAuthProvider(AuthProvider.GOOGLE);
                 user = userRepository.save(newUser);
+                CreateAccountRequestDTO createAccountRequestDTO = new CreateAccountRequestDTO();
+                createAccountRequestDTO.setUserId(user.getId());
+                accountsService.createAccount(createAccountRequestDTO, user.getId());
             }
-
             return jwtUtil.generateToken(user.getEmail());
-
         } catch (Exception e) {
             logger.error("Auth failed with Google, message is: {}", e.getMessage(), e);
             if (e instanceof AratiriException ex) {
