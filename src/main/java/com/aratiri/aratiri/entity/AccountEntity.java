@@ -3,8 +3,6 @@ package com.aratiri.aratiri.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
-import java.util.UUID;
-
 @Entity
 @Table(name = "ACCOUNTS")
 @Data
@@ -28,6 +26,5 @@ public class AccountEntity {
     private String alias;
 
     public AccountEntity() {
-        this.id = UUID.randomUUID().toString();
     }
 }

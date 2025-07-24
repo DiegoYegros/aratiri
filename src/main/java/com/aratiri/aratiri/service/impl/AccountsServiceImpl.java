@@ -95,6 +95,7 @@ public class AccountsServiceImpl implements AccountsService {
 
     @Override
     public AccountDTO createAccount(CreateAccountRequestDTO request, String ctxUserId) {
+        logger.info("Creating an account for userId [{}]", ctxUserId);
         String userId = request.getUserId();
         if (!userId.equalsIgnoreCase(ctxUserId)) {
             throw new AratiriException("UserId does not match logged-in user");
@@ -117,7 +118,9 @@ public class AccountsServiceImpl implements AccountsService {
             alias = AliasGenerator.generateAlias();
         } while (accountRepository.existsByAlias(alias));
         accountEntity.setAlias(alias);
+        logger.info("saving the account entity. [{}]", accountEntity);
         AccountEntity save = accountRepository.save(accountEntity);
+        logger.info("Saved the account.");
         String lnurl = buildLnurlForAlias(save.getAlias());
         return AccountDTO.builder()
                 .id(save.getId())
