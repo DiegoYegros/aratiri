@@ -34,6 +34,7 @@ public class GoogleSsoServiceImpl implements GoogleSsoService {
                 .build();
     }
 
+    @Override
     @Transactional
     public String loginWithGoogle(String googleToken) {
         try {
@@ -54,6 +55,9 @@ public class GoogleSsoServiceImpl implements GoogleSsoService {
                     });
             return jwtUtil.generateToken(user.getEmail());
         } catch (Exception e) {
+            if (e instanceof AratiriException ex) {
+                throw ex;
+            }
             logger.error("Auth failed with Google, message is: {}", e.getMessage(), e);
             throw new AratiriException("Auth Failed with Google", HttpStatus.INTERNAL_SERVER_ERROR);
         }
