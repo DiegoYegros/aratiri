@@ -22,7 +22,7 @@ public class UserEntity {
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
-    @Column(nullable = false)
+    @Column
     private String password;
 
     @Column(name = "created_at")
