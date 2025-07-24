@@ -2,6 +2,7 @@ package com.aratiri.aratiri.controller;
 
 import com.aratiri.aratiri.dto.auth.AuthRequestDTO;
 import com.aratiri.aratiri.dto.auth.AuthResponseDTO;
+import com.aratiri.aratiri.service.GoogleSsoService;
 import com.aratiri.aratiri.utils.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,6 +23,7 @@ public class AuthController {
 
     private final AuthenticationManager authManager;
     private final JwtUtil jwtUtil;
+    private final GoogleSsoService googleSsoService;
 
     @PostMapping("/login")
     @Operation(
@@ -35,5 +37,15 @@ public class AuthController {
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
         String token = jwtUtil.generateToken(request.getUsername());
         return ResponseEntity.ok(new AuthResponseDTO(token));
+    }
+
+    @PostMapping("/sso/google")
+    @Operation(
+            summary = "Google SSO login",
+            description = "Authenticates an user using a Google Client ID and returns an Aratiri JWT."
+    )
+    public ResponseEntity<AuthResponseDTO> googleLogin(@RequestBody String googleToken) {
+        String jwt = googleSsoService.loginWithGoogle(googleToken);
+        return ResponseEntity.ok(new AuthResponseDTO(jwt));
     }
 }

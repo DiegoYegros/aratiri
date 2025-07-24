@@ -9,7 +9,12 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:aratiri_user}
     password: ${SPRING_DATASOURCE_PASSWORD:aratiri_password}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.postgresql.Driver}
-
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_DDL_AUTO:update}
