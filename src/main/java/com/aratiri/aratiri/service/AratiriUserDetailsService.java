@@ -21,9 +21,6 @@ public class AratiriUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-        if (user.getAuthProvider() == AuthProvider.GOOGLE) {
-            throw new UsernameNotFoundException("Please log in using your Google account.");
-        }
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(), user.getPassword(), Collections.emptyList());
     }

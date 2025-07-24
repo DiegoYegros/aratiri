@@ -2,6 +2,7 @@ package com.aratiri.aratiri.controller;
 
 import com.aratiri.aratiri.dto.auth.AuthRequestDTO;
 import com.aratiri.aratiri.dto.auth.AuthResponseDTO;
+import com.aratiri.aratiri.service.AuthService;
 import com.aratiri.aratiri.service.GoogleSsoService;
 import com.aratiri.aratiri.utils.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,9 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Authentication", description = "User authentication endpoints for accessing the Aratiri Bitcoin Lightning middleware platform")
 public class AuthController {
 
-    private final AuthenticationManager authManager;
-    private final JwtUtil jwtUtil;
     private final GoogleSsoService googleSsoService;
+    private final AuthService authService;
 
     @PostMapping("/login")
     @Operation(
@@ -33,10 +33,7 @@ public class AuthController {
                     "subsequent API calls to protected endpoints."
     )
     public ResponseEntity<AuthResponseDTO> login(@RequestBody AuthRequestDTO request) {
-        authManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
-        String token = jwtUtil.generateToken(request.getUsername());
-        return ResponseEntity.ok(new AuthResponseDTO(token));
+        return ResponseEntity.ok(authService.login(request));
     }
 
     @PostMapping("/sso/google")
