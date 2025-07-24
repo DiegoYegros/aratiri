@@ -10,6 +10,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
+import java.util.UUID;
 
 @Service
 public class AratiriUserDetailsService implements UserDetailsService {
@@ -21,8 +22,14 @@ public class AratiriUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        String passwd;
+        if (user.getPassword() == null||user.getPassword().isEmpty()){
+            passwd = UUID.randomUUID().toString();
+        } else {
+            passwd = user.getPassword();
+        }
         return new org.springframework.security.core.userdetails.User(
-                user.getEmail(), user.getPassword(), Collections.emptyList());
+                user.getEmail(), passwd, Collections.emptyList());
     }
 }
 
