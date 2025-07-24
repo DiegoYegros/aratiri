@@ -103,7 +103,7 @@ public class AccountsServiceImpl implements AccountsService {
         if (!accountList.isEmpty()) {
             throw new AratiriException("An account already exists for the user. Multiple accounts is not allowed.", HttpStatus.BAD_REQUEST);
         }
-        UserEntity userEntity = accountList.getFirst().getUser();
+        UserEntity userEntity = userRepository.getReferenceById(userId);
         NewAddressRequest build = NewAddressRequest.newBuilder()
                 .setType(AddressType.TAPROOT_PUBKEY).build();
         NewAddressResponse newAddressResponse = lightningStub.newAddress(build);
