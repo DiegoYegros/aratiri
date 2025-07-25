@@ -112,9 +112,6 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     public DecodedInvoicetDTO decodeAratiriPaymentRequest(String paymentRequest, String userId) {
-        LightningInvoiceEntity invoice = lightningInvoiceRepository
-                .findByPaymentRequest(paymentRequest)
-                .orElseThrow(() -> new AratiriException("Invoice not found", HttpStatus.BAD_REQUEST));
         return getDecodedInvoicetDTO(paymentRequest);
     }
 

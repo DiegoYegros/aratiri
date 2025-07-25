@@ -126,7 +126,7 @@ public class PaymentServiceImpl implements PaymentService {
                     .setPaymentRequest(payRequest.getInvoice())
                     .setFeeLimitSat(payRequest.getFeeLimitSat() != null ? payRequest.getFeeLimitSat() : DEFAULT_FEE_LIIMT_SAT)
                     .setTimeoutSeconds(payRequest.getTimeoutSeconds() != null ? payRequest.getTimeoutSeconds() : DEFAULT_TIMEOUT_SECONDS)
-                    .setAllowSelfPayment(true)
+                    .setAllowSelfPayment(false)
                     .build();
             Iterator<Payment> paymentStream = routerStub.sendPaymentV2(grpcRequest);
             Payment finalPayment = null;

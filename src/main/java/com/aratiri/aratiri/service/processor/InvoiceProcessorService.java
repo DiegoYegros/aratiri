@@ -8,6 +8,7 @@ import com.aratiri.aratiri.event.InvoiceSettledEvent;
 import com.aratiri.aratiri.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
 import com.aratiri.aratiri.repository.OutboxEventRepository;
+import com.aratiri.aratiri.service.NotificationsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lnrpc.Invoice;
 import org.slf4j.Logger;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -28,14 +30,16 @@ public class InvoiceProcessorService {
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
     private final InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
+    private final NotificationsService notificationsService;
 
     public InvoiceProcessorService(LightningInvoiceRepository lightningInvoiceRepository,
                                    OutboxEventRepository outboxEventRepository,
-                                   ObjectMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
+                                   ObjectMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository, NotificationsService notificationsService) {
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.objectMapper = objectMapper;
         this.invoiceSubscriptionStateRepository = invoiceSubscriptionStateRepository;
+        this.notificationsService = notificationsService;
     }
 
     @Transactional
@@ -87,6 +91,14 @@ public class InvoiceProcessorService {
                     .build();
 
             outboxEventRepository.save(outboxEvent);
+            String userId = invoiceEntity.getUserId();
+            Map<String, Object> notificationPayload = Map.of(
+                    "message", "Payment Received",
+                    "amountSats", invoice.getAmtPaidSat(),
+                    "memo", invoice.getMemo()
+            );
+            notificationsService.sendNotification(userId, "payment_received", notificationPayload);
+
             logger.info("Saved INVOICE_SETTLED event to outbox for invoiceId: {}", invoiceEntity.getId());
 
         } else {
