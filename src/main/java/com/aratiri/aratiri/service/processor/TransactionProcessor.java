@@ -1,7 +1,7 @@
 package com.aratiri.aratiri.service.processor;
 
 import com.aratiri.aratiri.entity.TransactionEntity;
-import com.aratiri.aratiri.enums.TransactionType;
+import com.aratiri.aratiri.dto.transactions.TransactionType;
 
 import java.math.BigDecimal;
 

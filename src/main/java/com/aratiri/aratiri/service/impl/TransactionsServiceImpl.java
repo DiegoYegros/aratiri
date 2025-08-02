@@ -3,8 +3,8 @@ package com.aratiri.aratiri.service.impl;
 import com.aratiri.aratiri.dto.transactions.CreateTransactionRequest;
 import com.aratiri.aratiri.dto.transactions.TransactionDTOResponse;
 import com.aratiri.aratiri.entity.TransactionEntity;
-import com.aratiri.aratiri.enums.TransactionStatus;
-import com.aratiri.aratiri.enums.TransactionType;
+import com.aratiri.aratiri.dto.transactions.TransactionStatus;
+import com.aratiri.aratiri.dto.transactions.TransactionType;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.TransactionsRepository;
 import com.aratiri.aratiri.service.TransactionsService;
@@ -124,7 +124,7 @@ public class TransactionsServiceImpl implements TransactionsService {
     public List<TransactionDTOResponse> getTransactions(Instant from, Instant to, String userId) {
         List<TransactionEntity> transactions = transactionsRepository
                 .findByUserIdAndCreatedAtBetween(userId, from, to);
-        logger.info("Got this list of transactions from db: [{}]", transactions);
+        logger.info("Got a list of [{}] transactions from db", transactions.size());
         return transactions.stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());

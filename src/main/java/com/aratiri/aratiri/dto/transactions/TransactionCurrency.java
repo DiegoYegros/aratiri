@@ -1,4 +1,4 @@
-package com.aratiri.aratiri.enums;
+package com.aratiri.aratiri.dto.transactions;
 
 public enum TransactionCurrency {
     PYG,

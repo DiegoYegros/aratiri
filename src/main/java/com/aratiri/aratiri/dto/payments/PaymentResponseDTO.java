@@ -1,6 +1,6 @@
 package com.aratiri.aratiri.dto.payments;
 
-import com.aratiri.aratiri.enums.TransactionStatus;
+import com.aratiri.aratiri.dto.transactions.TransactionStatus;
 import lombok.Builder;
 import lombok.Data;
 

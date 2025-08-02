@@ -1,8 +1,5 @@
 package com.aratiri.aratiri.dto.transactions;
 
-import com.aratiri.aratiri.enums.TransactionCurrency;
-import com.aratiri.aratiri.enums.TransactionStatus;
-import com.aratiri.aratiri.enums.TransactionType;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;

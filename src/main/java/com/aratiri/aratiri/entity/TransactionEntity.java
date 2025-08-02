@@ -1,8 +1,8 @@
 package com.aratiri.aratiri.entity;
 
-import com.aratiri.aratiri.enums.TransactionCurrency;
-import com.aratiri.aratiri.enums.TransactionStatus;
-import com.aratiri.aratiri.enums.TransactionType;
+import com.aratiri.aratiri.dto.transactions.TransactionCurrency;
+import com.aratiri.aratiri.dto.transactions.TransactionStatus;
+import com.aratiri.aratiri.dto.transactions.TransactionType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

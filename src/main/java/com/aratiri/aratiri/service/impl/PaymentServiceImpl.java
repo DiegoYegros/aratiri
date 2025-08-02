@@ -8,9 +8,9 @@ import com.aratiri.aratiri.dto.transactions.CreateTransactionRequest;
 import com.aratiri.aratiri.dto.transactions.TransactionDTOResponse;
 import com.aratiri.aratiri.entity.AccountEntity;
 import com.aratiri.aratiri.entity.OutboxEventEntity;
-import com.aratiri.aratiri.enums.TransactionCurrency;
-import com.aratiri.aratiri.enums.TransactionStatus;
-import com.aratiri.aratiri.enums.TransactionType;
+import com.aratiri.aratiri.dto.transactions.TransactionCurrency;
+import com.aratiri.aratiri.dto.transactions.TransactionStatus;
+import com.aratiri.aratiri.dto.transactions.TransactionType;
 import com.aratiri.aratiri.event.PaymentInitiatedEvent;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.AccountRepository;
@@ -24,6 +24,7 @@ import io.grpc.StatusRuntimeException;
 import lnrpc.Payment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -38,8 +39,11 @@ import java.util.Optional;
 @Service
 public class PaymentServiceImpl implements PaymentService {
 
-    private static final int DEFAULT_FEE_LIIMT_SAT = 50;
-    private static final int DEFAULT_TIMEOUT_SECONDS = 200;
+    @Value("${aratiri.payment.default.fee.limit.sat:50}")
+    private int defaultFeeLimitSat;
+    @Value("${aratiri.payment.default.timeout.seconds:200}")
+    private int defaultTimeoutSeconds;
+
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountRepository accountRepository;
     private final TransactionsService transactionsService;
@@ -124,8 +128,8 @@ public class PaymentServiceImpl implements PaymentService {
         try {
             SendPaymentRequest grpcRequest = SendPaymentRequest.newBuilder()
                     .setPaymentRequest(payRequest.getInvoice())
-                    .setFeeLimitSat(payRequest.getFeeLimitSat() != null ? payRequest.getFeeLimitSat() : DEFAULT_FEE_LIIMT_SAT)
-                    .setTimeoutSeconds(payRequest.getTimeoutSeconds() != null ? payRequest.getTimeoutSeconds() : DEFAULT_TIMEOUT_SECONDS)
+                    .setFeeLimitSat(payRequest.getFeeLimitSat() != null ? payRequest.getFeeLimitSat() : defaultFeeLimitSat)
+                    .setTimeoutSeconds(payRequest.getTimeoutSeconds() != null ? payRequest.getTimeoutSeconds() : defaultTimeoutSeconds)
                     .setAllowSelfPayment(false)
                     .build();
             Iterator<Payment> paymentStream = routerStub.sendPaymentV2(grpcRequest);

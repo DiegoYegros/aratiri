@@ -1,6 +1,5 @@
 package com.aratiri.aratiri.dto.accounts;
 
-import com.aratiri.aratiri.enums.AccountTransactionType;
 import lombok.*;
 
 import java.time.OffsetDateTime;
@@ -13,6 +12,7 @@ import java.time.OffsetDateTime;
 public class AccountTransactionDTO {
     private String id;
     private AccountTransactionType type;
+    private AccountTransactionStatus status;
     private long amount;
     private OffsetDateTime date;
 }

@@ -2,14 +2,11 @@ package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.config.AratiriProperties;
 import com.aratiri.aratiri.constants.BitcoinConstants;
-import com.aratiri.aratiri.dto.accounts.AccountDTO;
-import com.aratiri.aratiri.dto.accounts.AccountTransactionDTO;
-import com.aratiri.aratiri.dto.accounts.CreateAccountRequestDTO;
+import com.aratiri.aratiri.dto.accounts.*;
 import com.aratiri.aratiri.dto.transactions.TransactionDTOResponse;
+import com.aratiri.aratiri.dto.transactions.TransactionType;
 import com.aratiri.aratiri.entity.AccountEntity;
 import com.aratiri.aratiri.entity.UserEntity;
-import com.aratiri.aratiri.enums.AccountTransactionType;
-import com.aratiri.aratiri.enums.TransactionType;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.AccountRepository;
 import com.aratiri.aratiri.repository.UserRepository;
@@ -57,35 +54,16 @@ public class AccountsServiceImpl implements AccountsService {
     public AccountDTO getAccount(String id) {
         AccountEntity account = accountRepository.findById(id)
                 .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND));
-        String lnurl = buildLnurlForAlias(account.getAlias());
-        return AccountDTO.builder()
-                .id(account.getId())
-                .bitcoinAddress(account.getBitcoinAddress())
-                .balance(account.getBalance())
-                .userId(account.getUser().getId())
-                .alias(buildAlias(account.getAlias()))
-                .lnurl(lnurl)
-                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
-                .build();
+        return buildAccountDTO(account);
     }
 
     @Override
     public AccountDTO getAccountByUserId(String userId) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new AratiriException("User not found", HttpStatus.NOT_FOUND));
-
         AccountEntity account = accountRepository.findByUser(user)
                 .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND));
-        String lnurl = buildLnurlForAlias(account.getAlias());
-        return AccountDTO.builder()
-                .id(account.getId())
-                .bitcoinAddress(account.getBitcoinAddress())
-                .balance(account.getBalance())
-                .userId(account.getUser().getId())
-                .alias(buildAlias(account.getAlias()))
-                .lnurl(lnurl)
-                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
-                .build();
+        return buildAccountDTO(account);
     }
 
     @Override
@@ -121,16 +99,7 @@ public class AccountsServiceImpl implements AccountsService {
         logger.info("saving the account entity. [{}]", accountEntity);
         AccountEntity save = accountRepository.save(accountEntity);
         logger.info("Saved the account.");
-        String lnurl = buildLnurlForAlias(save.getAlias());
-        return AccountDTO.builder()
-                .id(save.getId())
-                .bitcoinAddress(save.getBitcoinAddress())
-                .balance(save.getBalance())
-                .userId(save.getUser().getId())
-                .alias(save.getAlias())
-                .lnurl(lnurl)
-                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
-                .build();
+        return buildAccountDTO(save);
     }
 
     @Override
@@ -140,16 +109,7 @@ public class AccountsServiceImpl implements AccountsService {
         long newBalance = balance + satsAmount;
         accountEntity.setBalance(newBalance);
         AccountEntity saved = accountRepository.save(accountEntity);
-        String lnurl = buildLnurlForAlias(saved.getAlias());
-        return AccountDTO.builder()
-                .id(saved.getId())
-                .bitcoinAddress(saved.getBitcoinAddress())
-                .balance(saved.getBalance())
-                .userId(saved.getUser().getId())
-                .alias(saved.getAlias())
-                .lnurl(lnurl)
-                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
-                .build();
+        return buildAccountDTO(saved);
     }
 
     @Override
@@ -159,16 +119,7 @@ public class AccountsServiceImpl implements AccountsService {
             throw new AratiriException("Account does not exist for given alias.", HttpStatus.NOT_FOUND);
         }
         AccountEntity accountEntity = byAlias.get();
-        String lnurl = buildLnurlForAlias(accountEntity.getAlias());
-        return AccountDTO.builder()
-                .id(accountEntity.getId())
-                .bitcoinAddress(accountEntity.getBitcoinAddress())
-                .balance(accountEntity.getBalance())
-                .userId(accountEntity.getUser().getId())
-                .alias(buildAlias(accountEntity.getAlias()))
-                .lnurl(lnurl)
-                .qrCode(QrCodeUtil.generateQrCodeBase64(lnurl))
-                .build();
+        return buildAccountDTO(accountEntity);
     }
 
     @Override
@@ -187,6 +138,7 @@ public class AccountsServiceImpl implements AccountsService {
             } else {
                 accountTransactionDTO.setType(AccountTransactionType.DEBIT);
             }
+            accountTransactionDTO.setStatus(AccountTransactionStatus.valueOf(t.getStatus().name()));
             at.add(accountTransactionDTO);
         });
         return at;
@@ -203,4 +155,18 @@ public class AccountsServiceImpl implements AccountsService {
         return alias + "@" + aratiriBaseUrl;
     }
 
+    private AccountDTO buildAccountDTO(AccountEntity accountEntity) {
+        String lnurl = buildLnurlForAlias(accountEntity.getAlias());
+        String alias = buildAlias(accountEntity.getAlias());
+        String qrCode = QrCodeUtil.generateQrCodeBase64(lnurl);
+        return AccountDTO.builder()
+                .id(accountEntity.getId())
+                .bitcoinAddress(accountEntity.getBitcoinAddress())
+                .balance(accountEntity.getBalance())
+                .userId(accountEntity.getUser().getId())
+                .alias(alias)
+                .lnurl(lnurl)
+                .qrCode(qrCode)
+                .build();
+    }
 }

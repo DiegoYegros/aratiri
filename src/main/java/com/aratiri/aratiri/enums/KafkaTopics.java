@@ -1,5 +1,8 @@
 package com.aratiri.aratiri.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum KafkaTopics {
     INVOICE_SETTLED("invoice.settled");
 
@@ -9,7 +12,4 @@ public enum KafkaTopics {
         this.code = code;
     }
 
-    public String getCode() {
-        return code;
-    }
 }
