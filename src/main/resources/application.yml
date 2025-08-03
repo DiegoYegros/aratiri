@@ -60,7 +60,7 @@ aratiri:
     default:
       fee:
         limit:
-          sat: ${ARATIRI_PAYMENT_DEFAULT_LIMIT_SAT:50}
+          sat: ${ARATIRI_PAYMENT_DEFAULT_FEE_LIMIT_SAT:50}
       timeout:
         seconds: ${ARATIRI_PAYMENT_DEFAULT_TIMEOUT_SECONDS:200}
 jwt:
