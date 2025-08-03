@@ -14,10 +14,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/v1/general-data")
 @Tag(name = "General Data", description = "General Information.")
-public class GemeralDataController {
+public class GeneralDataController {
     private final CurrencyConversionService currencyConversionService;
 
-    public GemeralDataController(CurrencyConversionService currencyConversionService) {
+    public GeneralDataController(CurrencyConversionService currencyConversionService) {
         this.currencyConversionService = currencyConversionService;
     }
 
