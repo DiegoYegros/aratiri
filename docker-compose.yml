@@ -83,7 +83,16 @@ services:
         condition: service_started
     profiles:
       - full-stack
-
+      - backend-only
+  aratiri-frontend:
+    image: diegoyegros/aratiri-frontend:latest
+    container_name: aratiri-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    profiles:
+      - full-stack
+      - frontend-only
 volumes:
   kafka_data:
   postgres_data:
