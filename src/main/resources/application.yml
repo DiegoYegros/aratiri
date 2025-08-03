@@ -56,6 +56,13 @@ aratiri:
   cors:
     allowed:
       origins: ${ARATIRI_CORS_ALLOWED_ORIGINS}
+  currency:
+    conversion:
+      api:
+        url: ${ARATIRI_CURRENCY_CONVERSION_API_URL:https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=%s}
+  accounts:
+    fiat:
+      currencies: ${ARATIRI_ACCOUNTS_FIAT_CURRENCIES:usd,pyg,ars,eth,eur}
   payment:
     default:
       fee:

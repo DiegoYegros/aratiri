@@ -11,6 +11,7 @@ import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.AccountRepository;
 import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.AccountsService;
+import com.aratiri.aratiri.service.CurrencyConversionService;
 import com.aratiri.aratiri.service.TransactionsService;
 import com.aratiri.aratiri.utils.AliasGenerator;
 import com.aratiri.aratiri.utils.LnurlBech32Util;
@@ -24,13 +25,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class AccountsServiceImpl implements AccountsService {
@@ -41,13 +46,15 @@ public class AccountsServiceImpl implements AccountsService {
     private final TransactionsService transactionsService;
     private final LightningGrpc.LightningBlockingStub lightningStub;
     private final AratiriProperties properties;
+    private final CurrencyConversionService currencyConversionService;
 
-    public AccountsServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, AccountRepository accountRepository, UserRepository userRepository, TransactionsService transactionsService, AratiriProperties properties) {
+    public AccountsServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, AccountRepository accountRepository, UserRepository userRepository, TransactionsService transactionsService, AratiriProperties properties, CurrencyConversionService currencyConversionService) {
         this.lightningStub = lightningStub;
         this.accountRepository = accountRepository;
         this.transactionsService = transactionsService;
         this.userRepository = userRepository;
         this.properties = properties;
+        this.currencyConversionService = currencyConversionService;
     }
 
     @Override
@@ -127,21 +134,43 @@ public class AccountsServiceImpl implements AccountsService {
         Instant fromInstant = from.atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant toInstant = to.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
         List<TransactionDTOResponse> transactions = transactionsService.getTransactions(fromInstant, toInstant, userId);
-        List<AccountTransactionDTO> at = new ArrayList<>();
-        transactions.forEach(t -> {
-            AccountTransactionDTO accountTransactionDTO = new AccountTransactionDTO();
-            accountTransactionDTO.setId(t.getId());
-            accountTransactionDTO.setDate(t.getCreatedAt());
-            accountTransactionDTO.setAmount(t.getAmount().multiply(BitcoinConstants.SATOSHIS_PER_BTC).longValue());
-            if (t.getType() == TransactionType.ONCHAIN_DEPOSIT || t.getType() == TransactionType.INVOICE_CREDIT) {
-                accountTransactionDTO.setType(AccountTransactionType.CREDIT);
-            } else {
-                accountTransactionDTO.setType(AccountTransactionType.DEBIT);
+        List<String> targetCurrencies = properties.getFiatCurrencies();
+        Map<String, BigDecimal> btcPrices = new HashMap<>();
+        for (String currency : targetCurrencies) {
+            try {
+                BigDecimal price = currencyConversionService.getCurrentBtcPrice(currency);
+                if (price != null) {
+                    btcPrices.put(currency, price);
+                }
+            } catch (Exception e) {
+                logger.warn("Could not fetch price for currency '{}'. It will be omitted.", currency);
             }
-            accountTransactionDTO.setStatus(AccountTransactionStatus.valueOf(t.getStatus().name()));
-            at.add(accountTransactionDTO);
-        });
-        return at;
+        }
+        return transactions.stream()
+                .map(t -> {
+                    long satoshis = t.getAmount().multiply(BitcoinConstants.SATOSHIS_PER_BTC).longValue();
+                    BigDecimal amountInBtc = new BigDecimal(satoshis).divide(BitcoinConstants.SATOSHIS_PER_BTC, 8, RoundingMode.HALF_UP);
+                    Map<String, BigDecimal> fiatEquivalents = btcPrices.entrySet().stream()
+                            .collect(Collectors.toMap(
+                                    Map.Entry::getKey,
+                                    entry -> amountInBtc.multiply(entry.getValue()).setScale(2, RoundingMode.HALF_UP)
+                            ));
+                    AccountTransactionType accountTransactionType;
+                    if (t.getType() == TransactionType.ONCHAIN_DEPOSIT || t.getType().name().toLowerCase().contains("credit")) {
+                        accountTransactionType = AccountTransactionType.CREDIT;
+                    } else {
+                        accountTransactionType = AccountTransactionType.DEBIT;
+                    }
+                    return AccountTransactionDTO.builder()
+                            .id(t.getId())
+                            .date(t.getCreatedAt())
+                            .amount(satoshis)
+                            .status(AccountTransactionStatus.valueOf(t.getStatus().name()))
+                            .type(accountTransactionType)
+                            .fiatEquivalents(fiatEquivalents)
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 
     private String buildLnurlForAlias(String alias) {
