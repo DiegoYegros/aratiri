@@ -29,6 +29,12 @@ public class AratiriProperties {
     @Value("${grpc.tls.active:true}")
     private boolean grpcTlsActive;
 
-    @Value("${aratiri.accounts.fiat.currencies:usd,ars,eth,eur,pyg}")
+    @Value("${aratiri.accounts.fiat.currencies:usd,ars,eur,pyg}")
     private List<String> fiatCurrencies;
+
+    @Value("${aratiri.currency.conversion.api.url:https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=%s}")
+    private String coingeckoApiUrlTemplate;
+
+    @Value("${aratiri.currency.conversion.fallback.api.url:https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/%s.json}")
+    private String fallbackApiUrlTemplate;
 }

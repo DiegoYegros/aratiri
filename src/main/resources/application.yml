@@ -59,10 +59,14 @@ aratiri:
   currency:
     conversion:
       api:
-        url: ${ARATIRI_CURRENCY_CONVERSION_API_URL:https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=%s}
+        url: ${ARATIRI_CURRENCY_CONVERSION_API_URL:https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=%s}\
+      fallback:
+        api:
+          url: ${ARATIRI_CURRENCY_CONVERSION_FALLBACK_API_URL:https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/%s.json}
   accounts:
     fiat:
-      currencies: ${ARATIRI_ACCOUNTS_FIAT_CURRENCIES:usd,pyg,ars,eth,eur}
+      currencies: ${ARATIRI_ACCOUNTS_FIAT_CURRENCIES:usd,pyg,ars,eur}
+
   payment:
     default:
       fee:

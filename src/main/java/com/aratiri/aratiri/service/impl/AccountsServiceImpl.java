@@ -31,7 +31,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -134,22 +133,11 @@ public class AccountsServiceImpl implements AccountsService {
         Instant fromInstant = from.atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant toInstant = to.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
         List<TransactionDTOResponse> transactions = transactionsService.getTransactions(fromInstant, toInstant, userId);
-        List<String> targetCurrencies = properties.getFiatCurrencies();
-        Map<String, BigDecimal> btcPrices = new HashMap<>();
-        for (String currency : targetCurrencies) {
-            try {
-                BigDecimal price = currencyConversionService.getCurrentBtcPrice(currency);
-                if (price != null) {
-                    btcPrices.put(currency, price);
-                }
-            } catch (Exception e) {
-                logger.warn("Could not fetch price for currency '{}'. It will be omitted.", currency);
-            }
-        }
         return transactions.stream()
                 .map(t -> {
                     long satoshis = t.getAmount().multiply(BitcoinConstants.SATOSHIS_PER_BTC).longValue();
                     BigDecimal amountInBtc = new BigDecimal(satoshis).divide(BitcoinConstants.SATOSHIS_PER_BTC, 8, RoundingMode.HALF_UP);
+                    Map<String, BigDecimal> btcPrices = currencyConversionService.getCurrentBtcPrice();
                     Map<String, BigDecimal> fiatEquivalents = btcPrices.entrySet().stream()
                             .collect(Collectors.toMap(
                                     Map.Entry::getKey,
