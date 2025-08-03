@@ -153,7 +153,7 @@ public class AccountsServiceImpl implements AccountsService {
                     Map<String, BigDecimal> fiatEquivalents = btcPrices.entrySet().stream()
                             .collect(Collectors.toMap(
                                     Map.Entry::getKey,
-                                    entry -> amountInBtc.multiply(entry.getValue()).setScale(2, RoundingMode.HALF_UP)
+                                    entry -> amountInBtc.multiply(entry.getValue())
                             ));
                     AccountTransactionType accountTransactionType;
                     if (t.getType() == TransactionType.ONCHAIN_DEPOSIT || t.getType().name().toLowerCase().contains("credit")) {
