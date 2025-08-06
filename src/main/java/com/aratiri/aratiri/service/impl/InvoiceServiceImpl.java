@@ -118,7 +118,11 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private DecodedInvoicetDTO getDecodedInvoicetDTO(String paymentRequest) {
-        PayReqString payReqString = PayReqString.newBuilder().setPayReq(paymentRequest).build();
+        String cleanPaymentRequest = paymentRequest;
+        if (cleanPaymentRequest.toLowerCase().startsWith("lightning:")) {
+            cleanPaymentRequest = cleanPaymentRequest.substring(10);
+        }
+        PayReqString payReqString = PayReqString.newBuilder().setPayReq(cleanPaymentRequest).build();
         PayReq payReq = lightningStub.decodePayReq(payReqString);
         return DecodedInvoicetDTO.builder()
                 .blindedPaths(new ArrayList<>())
