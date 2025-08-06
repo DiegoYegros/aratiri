@@ -21,7 +21,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -41,7 +40,18 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     public GenerateInvoiceDTO generateInvoice(long satsAmount, String memo, String userId) {
-        logger.info("Generating invoice for sats amount [{}] and with memo [{}]", satsAmount, memo);
+        logger.info("Generating invoice for sats amount [{}] and with memo [{}] for userId [{}]", satsAmount, memo, userId);
+        return createAndSaveInvoice(userId, satsAmount, memo);
+    }
+
+    @Override
+    public GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo) {
+        logger.info("Generating invoice for sats amount [{}] and with memo [{}] for alias [{}]", satsAmount, memo, alias);
+        AccountDTO accountByAlias = accountsService.getAccountByAlias(alias);
+        return createAndSaveInvoice(accountByAlias.getUserId(), satsAmount, memo);
+    }
+
+    private GenerateInvoiceDTO createAndSaveInvoice(String userId, long satsAmount, String memo) {
         try {
             byte[] preImage = InvoiceUtils.generatePreimage();
             byte[] hash = InvoiceUtils.sha256(preImage);
@@ -52,7 +62,6 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .setValue(satsAmount).build();
 
             AddInvoiceResponse addInvoiceResponse = lightningStub.addInvoice(request);
-
             PayReq payReq = lightningStub.decodePayReq(PayReqString.newBuilder().setPayReq(addInvoiceResponse.getPaymentRequest()).build());
             LightningInvoiceEntity lightningInvoice = LightningInvoiceEntity.builder()
                     .userId(userId)
@@ -63,43 +72,6 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .expiry(payReq.getExpiry())
                     .paymentRequest(addInvoiceResponse.getPaymentRequest())
                     .paymentHash(payReq.getPaymentHash())
-                    .amountPaidSats(0)
-                    .build();
-
-            lightningInvoiceRepository.save(lightningInvoice);
-            return new GenerateInvoiceDTO(addInvoiceResponse.getPaymentRequest());
-        } catch (Exception e) {
-            throw new AratiriException(e.getMessage());
-        }
-
-    }
-
-    @Override
-    public GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo) {
-        logger.info("Generating invoice for sats amount [{}] and with memo [{}]", satsAmount, memo);
-        try {
-            byte[] preImage = InvoiceUtils.generatePreimage();
-            logger.debug("generated preIamge: [{}]", preImage);
-            byte[] hash = InvoiceUtils.sha256(preImage);
-            logger.debug("Generated Hash: [{}]", hash);
-            Invoice request = Invoice.newBuilder()
-                    .setRHash(ByteString.copyFrom(hash))
-                    .setMemo(memo)
-                    .setRPreimage(ByteString.copyFrom(preImage))
-                    .setValue(satsAmount).build();
-
-            AddInvoiceResponse addInvoiceResponse = lightningStub.addInvoice(request);
-            AccountDTO accountByAlias = accountsService.getAccountByAlias(alias);
-            long expiry = lightningStub.decodePayReq(PayReqString.newBuilder().setPayReq(addInvoiceResponse.getPaymentRequest()).build()).getExpiry();
-            LightningInvoiceEntity lightningInvoice = LightningInvoiceEntity.builder()
-                    .userId(accountByAlias.getUserId())
-                    .amountSats(satsAmount)
-                    .preimage(Base64.getEncoder().encodeToString(preImage))
-                    .invoiceState(LightningInvoiceEntity.InvoiceState.OPEN)
-                    .createdAt(LocalDateTime.now())
-                    .expiry(expiry)
-                    .paymentRequest(addInvoiceResponse.getPaymentRequest())
-                    .paymentHash(addInvoiceResponse.getRHash().toStringUtf8())
                     .amountPaidSats(0)
                     .build();
 
@@ -162,5 +134,4 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .fallbackAddr(payReq.getFallbackAddr())
                 .build();
     }
-
 }

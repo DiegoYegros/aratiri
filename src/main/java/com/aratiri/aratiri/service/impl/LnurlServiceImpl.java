@@ -30,7 +30,7 @@ public class LnurlServiceImpl implements LnurlService {
         }
         return Map.<String, Object>of(
                 "callback", properties.getAratiriBaseUrl() + "/lnurl/callback/" + alias,
-                "minSendable", 1000,
+                "minSendable", 1,
                 "maxSendable", BitcoinConstants.SATOSHIS_PER_BTC_INTEGER,
                 "metadata", "[[\"text/plain\", \"Payment to " + alias + "\"]]",
                 "tag", "payRequest",
