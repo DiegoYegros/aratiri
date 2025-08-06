@@ -2,15 +2,19 @@ package com.aratiri.aratiri.controller;
 
 import com.aratiri.aratiri.dto.auth.AuthRequestDTO;
 import com.aratiri.aratiri.dto.auth.AuthResponseDTO;
+import com.aratiri.aratiri.dto.auth.LogoutRequestDTO;
+import com.aratiri.aratiri.dto.auth.RefreshTokenRequestDTO;
+import com.aratiri.aratiri.entity.RefreshTokenEntity;
+import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.service.AuthService;
 import com.aratiri.aratiri.service.GoogleSsoService;
+import com.aratiri.aratiri.service.RefreshTokenService;
 import com.aratiri.aratiri.utils.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,6 +28,8 @@ public class AuthController {
 
     private final GoogleSsoService googleSsoService;
     private final AuthService authService;
+    private final RefreshTokenService refreshTokenService;
+    private final JwtUtil jwtUtil;
 
     @PostMapping("/login")
     @Operation(
@@ -42,7 +48,26 @@ public class AuthController {
             description = "Authenticates an user using a Google Client ID and returns an Aratiri JWT."
     )
     public ResponseEntity<AuthResponseDTO> googleLogin(@RequestBody String googleToken) {
-        String jwt = googleSsoService.loginWithGoogle(googleToken);
-        return ResponseEntity.ok(new AuthResponseDTO(jwt));
+        return ResponseEntity.ok(googleSsoService.loginWithGoogle(googleToken));
+    }
+
+    @PostMapping("/refresh")
+    @Operation(summary = "Refresh access token")
+    public ResponseEntity<AuthResponseDTO> refreshToken(@RequestBody RefreshTokenRequestDTO request) {
+        return refreshTokenService.findByToken(request.getRefreshToken())
+                .map(refreshTokenService::verifyExpiration)
+                .map(RefreshTokenEntity::getUser)
+                .map(user -> {
+                    String accessToken = jwtUtil.generateTokenFromUsername(user.getEmail());
+                    return ResponseEntity.ok(new AuthResponseDTO(accessToken, request.getRefreshToken()));
+                })
+                .orElseThrow(() -> new AratiriException("Refresh token is not in database!", HttpStatus.BAD_REQUEST));
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "User logout")
+    public ResponseEntity<Void> logout(@RequestBody LogoutRequestDTO request) {
+        authService.logout(request.getRefreshToken());
+        return ResponseEntity.ok().build();
     }
 }

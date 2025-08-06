@@ -1,5 +1,7 @@
 package com.aratiri.aratiri.service;
 
+import com.aratiri.aratiri.dto.auth.AuthResponseDTO;
+
 public interface GoogleSsoService {
-    String loginWithGoogle(String googleToken);
+    AuthResponseDTO loginWithGoogle(String googleToken);
 }

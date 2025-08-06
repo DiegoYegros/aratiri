@@ -37,4 +37,13 @@ public class AratiriProperties {
 
     @Value("${aratiri.currency.conversion.fallback.api.url:https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/%s.json}")
     private String fallbackApiUrlTemplate;
+
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
+    @Value("${jwt.expiration}")
+    private long jwtExpiration;
+
+    @Value("${jwt.refresh-expiration}")
+    private long jwtRefreshExpiration;
 }

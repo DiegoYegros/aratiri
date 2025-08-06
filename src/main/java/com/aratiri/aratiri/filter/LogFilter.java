@@ -1,40 +1,130 @@
 package com.aratiri.aratiri.filter;
 
 import com.aratiri.aratiri.utils.LogUtils;
-import jakarta.servlet.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.ContentCachingRequestWrapper;
+import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.List;
 
 @Component
 @Order(1)
-public class LogFilter implements Filter {
+public class LogFilter extends OncePerRequestFilter {
 
     private static final Logger logger = LoggerFactory.getLogger(LogFilter.class);
-
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final List<String> SENSITIVE_FIELDS = Arrays.asList("password", "token", "accessToken", "refreshToken", "jwt");
 
     @Override
-    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-            throws IOException, ServletException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+        ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(request);
+        ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(response);
+        long startTime = System.currentTimeMillis();
 
-        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        filterChain.doFilter(requestWrapper, responseWrapper);
+
+        long timeTaken = System.currentTimeMillis() - startTime;
+        logRequest(requestWrapper);
+        logResponse(responseWrapper, timeTaken);
+        responseWrapper.copyBodyToResponse();
+    }
+
+    private void logRequest(ContentCachingRequestWrapper request) {
         logger.info(LogUtils.formatSectionHeader("START REQUEST LOG"));
-        logger.info(LogUtils.formatKeyValue("Method", httpRequest.getMethod()));
-        logger.info(LogUtils.formatKeyValue("URI", httpRequest.getRequestURI()));
-        logger.info(LogUtils.formatKeyValue("Query String", httpRequest.getQueryString()));
-        logger.info(LogUtils.formatKeyValue("Content Type", httpRequest.getContentType()));
+        logger.info(LogUtils.formatKeyValue("Method", request.getMethod()));
+        logger.info(LogUtils.formatKeyValue("URI", request.getRequestURI()));
+        logger.info(LogUtils.formatKeyValue("Query String", request.getQueryString()));
+        logger.info(LogUtils.formatKeyValue("Content Type", request.getContentType()));
+        logHeaders(request);
+        String requestBody = getRequestBody(request);
+        if (!requestBody.isEmpty()) {
+            logger.info(LogUtils.formatKeyValue("Request Body", maskSensitiveData(requestBody)));
+        }
+        logger.info(LogUtils.formatSectionHeader("END REQUEST LOG"));
+
+    }
+
+    private void logResponse(ContentCachingResponseWrapper response, long timeTaken) {
+        logger.info(LogUtils.formatSectionHeader("START RESPONSE LOG"));
+        logger.info(LogUtils.formatKeyValue("Status", response.getStatus()));
+        logger.info(LogUtils.formatKeyValue("Time Taken", timeTaken + " ms"));
+
+        String responseBody = getResponseBody(response);
+        if (!responseBody.isEmpty()) {
+            logger.info(LogUtils.formatKeyValue("Response Body", maskSensitiveData(responseBody)));
+        }
+        logger.info(LogUtils.formatSectionHeader("END RESPONSE LOG"));
+    }
+
+    private void logHeaders(HttpServletRequest request) {
         logger.info(LogUtils.formatKeyValue("Headers", ""));
-        Enumeration<String> headerNames = httpRequest.getHeaderNames();
+        Enumeration<String> headerNames = request.getHeaderNames();
         while (headerNames.hasMoreElements()) {
             String headerName = headerNames.nextElement();
-            logger.info(LogUtils.formatKeyValue("  " + headerName, httpRequest.getHeader(headerName)));
+            logger.info(LogUtils.formatKeyValue("  " + headerName, request.getHeader(headerName)));
         }
-        logger.info(LogUtils.formatSectionHeader("END REQUEST LOG", "="));
-        chain.doFilter(request, response);
+    }
+
+    private String getRequestBody(ContentCachingRequestWrapper request) {
+        byte[] content = request.getContentAsByteArray();
+        if (content.length > 0) {
+            try {
+                return new String(content, request.getCharacterEncoding());
+            } catch (UnsupportedEncodingException e) {
+                logger.error("Could not read request body", e);
+            }
+        }
+        return "";
+    }
+
+    private String getResponseBody(ContentCachingResponseWrapper response) {
+        byte[] content = response.getContentAsByteArray();
+        if (content.length > 0) {
+            try {
+                return new String(content, response.getCharacterEncoding());
+            } catch (UnsupportedEncodingException e) {
+                logger.error("Could not read response body", e);
+            }
+        }
+        return "";
+    }
+
+    private String maskSensitiveData(String body) {
+        try {
+            JsonNode jsonNode = objectMapper.readTree(body);
+            if (jsonNode.isObject()) {
+                maskFields((ObjectNode) jsonNode);
+            }
+            return objectMapper.writeValueAsString(jsonNode);
+        } catch (IOException e) {
+            return "Not a JSON body, cannot mask.";
+        }
+    }
+
+    private void maskFields(ObjectNode node) {
+        node.fields().forEachRemaining(entry -> {
+            String fieldName = entry.getKey().toLowerCase();
+            if (SENSITIVE_FIELDS.stream().anyMatch(fieldName::contains)) {
+                node.put(entry.getKey(), "[REDACTED]");
+            } else if (entry.getValue().isObject()) {
+                maskFields((ObjectNode) entry.getValue());
+            }
+        });
     }
 }

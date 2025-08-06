@@ -8,4 +8,7 @@ public interface AuthService {
     UserDTO getCurrentUser();
 
     AuthResponseDTO login(AuthRequestDTO request);
+
+    void logout(String refreshToken);
+
 }

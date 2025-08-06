@@ -1,9 +1,9 @@
 package com.aratiri.aratiri.utils;
 
+import com.aratiri.aratiri.config.AratiriProperties;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -11,24 +11,32 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.secret}")
-    private String secret;
+    private final AratiriProperties aratiriProperties;
 
-    @Value("${jwt.expiration}")
-    private long expiration;
+    public JwtUtil(AratiriProperties aratiriProperties) {
+        this.aratiriProperties = aratiriProperties;
+    }
 
     public String generateToken(String username) {
+        return generateTokenWithExpiration(username, aratiriProperties.getJwtExpiration());
+    }
+
+    public String generateTokenFromUsername(String username) {
+        return generateToken(username);
+    }
+
+    private String generateTokenWithExpiration(String username, long expirationInSeconds) {
         return Jwts.builder()
                 .setSubject(username)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + expiration * 1000))
-                .signWith(Keys.hmacShaKeyFor(secret.getBytes()), SignatureAlgorithm.HS256)
+                .setExpiration(new Date(System.currentTimeMillis() + expirationInSeconds * 1000))
+                .signWith(Keys.hmacShaKeyFor(aratiriProperties.getJwtSecret().getBytes()), SignatureAlgorithm.HS256)
                 .compact();
     }
 
     public String extractUsername(String token) {
         return Jwts.parserBuilder()
-                .setSigningKey(secret.getBytes())
+                .setSigningKey(aratiriProperties.getJwtSecret().getBytes())
                 .build()
                 .parseClaimsJws(token)
                 .getBody()
@@ -41,7 +49,7 @@ public class JwtUtil {
 
     private boolean isTokenExpired(String token) {
         return Jwts.parserBuilder()
-                .setSigningKey(secret.getBytes())
+                .setSigningKey(aratiriProperties.getJwtSecret().getBytes())
                 .build()
                 .parseClaimsJws(token)
                 .getBody()

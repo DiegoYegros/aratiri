@@ -77,3 +77,4 @@ aratiri:
 jwt:
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:8400}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:2592000}
