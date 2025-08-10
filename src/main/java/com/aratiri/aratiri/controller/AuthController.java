@@ -1,11 +1,16 @@
 package com.aratiri.aratiri.controller;
 
+import com.aratiri.aratiri.dto.ErrorResponse;
 import com.aratiri.aratiri.dto.auth.*;
 import com.aratiri.aratiri.entity.RefreshTokenEntity;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.service.*;
 import com.aratiri.aratiri.utils.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
@@ -42,6 +47,12 @@ public class AuthController {
 
     @PostMapping("/register")
     @Operation(summary = "Initiate user registration")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Registration initiated successfully."),
+            @ApiResponse(responseCode = "400", description = "Bad Request - Email or alias already in use.",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
     public ResponseEntity<Void> register(@Valid @RequestBody RegistrationRequestDTO request) {
         registrationService.initiateRegistration(request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
@@ -49,6 +60,14 @@ public class AuthController {
 
     @PostMapping("/verify")
     @Operation(summary = "Verify user registration")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Registration completed successfully.",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = AuthResponseDTO.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request - Invalid verification request, code has expired, or invalid code.",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
     public ResponseEntity<AuthResponseDTO> verify(@Valid @RequestBody VerificationRequestDTO request) {
         return ResponseEntity.ok(registrationService.completeRegistration(request));
     }
@@ -84,6 +103,12 @@ public class AuthController {
 
     @PostMapping("/forgot-password")
     @Operation(summary = "Initiate password reset")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Password reset initiated successfully."),
+            @ApiResponse(responseCode = "404", description = "Not Found - User with this email not found.",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
     public ResponseEntity<Void> forgotPassword(@Valid @RequestBody PasswordResetDTOs.ForgotPasswordRequestDTO request) {
         passwordResetService.initiatePasswordReset(request);
         return ResponseEntity.ok().build();
@@ -91,6 +116,12 @@ public class AuthController {
 
     @PostMapping("/reset-password")
     @Operation(summary = "Complete password reset")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Password reset completed successfully."),
+            @ApiResponse(responseCode = "400", description = "Bad Request - Invalid password reset request, code has expired, or invalid code.",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
     public ResponseEntity<Void> resetPassword(@Valid @RequestBody PasswordResetDTOs.ResetPasswordRequestDTO request) {
         passwordResetService.completePasswordReset(request);
         return ResponseEntity.ok().build();
