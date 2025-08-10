@@ -17,5 +17,8 @@ public interface AccountRepository extends JpaRepository<AccountEntity, String> 
     AccountEntity findByUserId(String userId);
 
     boolean existsByAlias(String alias);
+
+    Optional<AccountEntity> findByBitcoinAddress(String bitcoinAddress);
+
     Optional<AccountEntity> findByAlias(String alias);
 }

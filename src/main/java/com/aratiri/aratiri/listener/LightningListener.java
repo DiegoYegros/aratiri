@@ -21,9 +21,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
-public class InvoiceListener {
+public class LightningListener {
 
-    private static final Logger logger = LoggerFactory.getLogger(InvoiceListener.class);
+    private static final Logger logger = LoggerFactory.getLogger(LightningListener.class);
 
     private StreamObserver<Invoice> invoiceStreamObserver;
     private final LightningGrpc.LightningStub lightningAsyncStub;
@@ -33,7 +33,7 @@ public class InvoiceListener {
     private final InvoiceProcessorService invoiceProcessorService;
     private final InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
 
-    public InvoiceListener(LightningGrpc.LightningStub lightningAsyncStub, InvoiceProcessorService invoiceProcessorService, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
+    public LightningListener(LightningGrpc.LightningStub lightningAsyncStub, InvoiceProcessorService invoiceProcessorService, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.lightningAsyncStub = lightningAsyncStub;
         this.invoiceProcessorService = invoiceProcessorService;
         this.invoiceSubscriptionStateRepository = invoiceSubscriptionStateRepository;
