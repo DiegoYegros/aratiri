@@ -22,8 +22,10 @@ public class AccountDTO {
     private String bitcoinAddress;
     private String alias;
     private String lnurl;
-    @JsonProperty("qr_code")
-    private String qrCode;
+    @JsonProperty("lnurl_qr_code")
+    private String lnurlQrCode;
+    @JsonProperty("bitcoin_address_qr_code")
+    private String bitcoinAddressQrCode;
     @JsonProperty("fiat_equivalents")
     private Map<String, BigDecimal> fiatEquivalents;
 }

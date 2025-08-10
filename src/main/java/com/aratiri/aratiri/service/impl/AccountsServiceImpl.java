@@ -181,7 +181,10 @@ public class AccountsServiceImpl implements AccountsService {
     private AccountDTO buildAccountDTO(AccountEntity accountEntity) {
         String lnurl = buildLnurlForAlias(accountEntity.getAlias());
         String alias = buildAlias(accountEntity.getAlias());
-        String qrCode = QrCodeUtil.generateQrCodeBase64(lnurl);
+        String lnurlQrCode = QrCodeUtil.generateQrCodeBase64(lnurl);
+        String bitcoinAddressQrCode = QrCodeUtil.generateQrCodeBase64(
+                "bitcoin:" + accountEntity.getBitcoinAddress()
+        );
         BigDecimal balanceInBtc = BitcoinConstants.satoshisToBtc(accountEntity.getBalance());
         Map<String, BigDecimal> btcPrices = currencyConversionService.getCurrentBtcPrice();
         Map<String, BigDecimal> fiatEquivalents = btcPrices.entrySet().stream()
@@ -189,7 +192,6 @@ public class AccountsServiceImpl implements AccountsService {
                         Map.Entry::getKey,
                         entry -> balanceInBtc.multiply(entry.getValue())
                 ));
-
         return AccountDTO.builder()
                 .id(accountEntity.getId())
                 .bitcoinAddress(accountEntity.getBitcoinAddress())
@@ -197,7 +199,8 @@ public class AccountsServiceImpl implements AccountsService {
                 .userId(accountEntity.getUser().getId())
                 .alias(alias)
                 .lnurl(lnurl)
-                .qrCode(qrCode)
+                .lnurlQrCode(lnurlQrCode)
+                .bitcoinAddressQrCode(bitcoinAddressQrCode)
                 .fiatEquivalents(fiatEquivalents)
                 .build();
     }
