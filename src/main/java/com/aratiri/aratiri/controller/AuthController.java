@@ -3,10 +3,7 @@ package com.aratiri.aratiri.controller;
 import com.aratiri.aratiri.dto.auth.*;
 import com.aratiri.aratiri.entity.RefreshTokenEntity;
 import com.aratiri.aratiri.exception.AratiriException;
-import com.aratiri.aratiri.service.AuthService;
-import com.aratiri.aratiri.service.GoogleSsoService;
-import com.aratiri.aratiri.service.RefreshTokenService;
-import com.aratiri.aratiri.service.RegistrationService;
+import com.aratiri.aratiri.service.*;
 import com.aratiri.aratiri.utils.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,6 +27,7 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final JwtUtil jwtUtil;
     private final RegistrationService registrationService;
+    private final PasswordResetService passwordResetService;
 
     @PostMapping("/login")
     @Operation(
@@ -81,6 +79,20 @@ public class AuthController {
     @Operation(summary = "User logout")
     public ResponseEntity<Void> logout(@RequestBody LogoutRequestDTO request) {
         authService.logout(request.getRefreshToken());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Initiate password reset")
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody PasswordResetDTOs.ForgotPasswordRequestDTO request) {
+        passwordResetService.initiatePasswordReset(request);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(summary = "Complete password reset")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody PasswordResetDTOs.ResetPasswordRequestDTO request) {
+        passwordResetService.completePasswordReset(request);
         return ResponseEntity.ok().build();
     }
 }

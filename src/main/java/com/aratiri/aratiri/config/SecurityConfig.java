@@ -33,6 +33,8 @@ public class SecurityConfig {
                         .requestMatchers("/v1/auth/login",
                                 "/v1/auth/register",
                                 "/v1/auth/verify",
+                                "/v1/auth/forgot-password",
+                                "/v1/auth/reset-password",
                                 "/v1/auth/refresh",
                                 "/h2-console/**",
                                 "/.well-known/lnurlp/**",

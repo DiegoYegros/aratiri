@@ -70,8 +70,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (!verificationData.getCode().equals(request.getCode())) {
             throw new AratiriException("Invalid verification code", HttpStatus.BAD_REQUEST);
         }
-        userService.register(verificationData.getName(), verificationData.getEmail(), verificationData.getPassword());
-        UserEntity user = userRepository.findByEmail(verificationData.getEmail()).get();
+        UserEntity user = userService.register(verificationData.getName(), verificationData.getEmail(), verificationData.getPassword());
         CreateAccountRequestDTO createAccountRequest = new CreateAccountRequestDTO();
         createAccountRequest.setUserId(user.getId());
         createAccountRequest.setAlias(verificationData.getAlias());

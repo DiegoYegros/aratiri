@@ -20,4 +20,13 @@ public class EmailServiceImpl implements EmailService {
         message.setText("Your verification code is: " + code);
         mailSender.send(message);
     }
+
+    @Override
+    public void sendPasswordResetEmail(String to, String token) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(to);
+        message.setSubject("Aratiri Password Reset Request");
+        message.setText("To reset your password, use the following token: " + token);
+        mailSender.send(message);
+    }
 }

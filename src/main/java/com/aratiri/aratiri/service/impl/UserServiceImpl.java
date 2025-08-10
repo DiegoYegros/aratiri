@@ -4,24 +4,28 @@ import com.aratiri.aratiri.entity.UserEntity;
 import com.aratiri.aratiri.enums.AuthProvider;
 import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.UserService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
 
-    public UserServiceImpl(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
-
     @Override
-    public void register(String name, String email, String encodedPassowrd) {
+    public UserEntity register(String name, String email, String encodedPassowrd) {
         UserEntity user = new UserEntity();
         user.setName(name);
         user.setEmail(email);
         user.setPassword(encodedPassowrd);
         user.setAuthProvider(AuthProvider.LOCAL);
+        return userRepository.save(user);
+    }
+
+    @Override
+    public void updatePassword(UserEntity user, String encodedPassword) {
+        user.setPassword(encodedPassword);
         userRepository.save(user);
     }
 }
