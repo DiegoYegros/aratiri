@@ -32,8 +32,8 @@ public class TransactionsServiceImpl implements TransactionsService {
     private final TransactionsRepository transactionsRepository;
     private final Map<TransactionType, TransactionProcessor> processors;
     private static final Set<TransactionType> SETTLEABLE_TYPES = Set.of(
-            TransactionType.INVOICE_CREDIT,
-            TransactionType.ONCHAIN_DEPOSIT
+            TransactionType.LIGHTNING_CREDIT,
+            TransactionType.ONCHAIN_CREDIT
     );
 
     public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList) {
@@ -142,6 +142,7 @@ public class TransactionsServiceImpl implements TransactionsService {
             throw new AratiriException(String.format("Transaction status [%s] is not valid for failure.", transaction.getStatus()));
         }
         transaction.setStatus(TransactionStatus.FAILED);
+        transaction.setFailureReason(failureReason);
         transactionsRepository.save(transaction);
         logger.info("Transaction [{}] has been marked as FAILED.", transactionId);
     }
@@ -153,6 +154,7 @@ public class TransactionsServiceImpl implements TransactionsService {
                 .type(savedTransaction.getType())
                 .balanceAfter(savedTransaction.getBalanceAfter())
                 .description(savedTransaction.getDescription())
+                .failureReason(savedTransaction.getFailureReason())
                 .referenceId(savedTransaction.getReferenceId())
                 .status(savedTransaction.getStatus())
                 .currency(savedTransaction.getCurrency())

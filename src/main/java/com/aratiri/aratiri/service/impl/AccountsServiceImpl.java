@@ -150,7 +150,7 @@ public class AccountsServiceImpl implements AccountsService {
                                     entry -> amountInBtc.multiply(entry.getValue())
                             ));
                     AccountTransactionType accountTransactionType;
-                    if (t.getType() == TransactionType.ONCHAIN_DEPOSIT || t.getType().name().toLowerCase().contains("credit")) {
+                    if (t.getType() == TransactionType.ONCHAIN_CREDIT || t.getType().name().toLowerCase().contains("credit")) {
                         accountTransactionType = AccountTransactionType.CREDIT;
                     } else {
                         accountTransactionType = AccountTransactionType.DEBIT;

@@ -18,6 +18,7 @@ public class TransactionDTOResponse {
     private TransactionType type;
     private TransactionStatus status;
     private String description;
+    private String failureReason;
     private String referenceId;
     private OffsetDateTime createdAt;
 }

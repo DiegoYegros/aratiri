@@ -37,6 +37,6 @@ public class InvoiceCreditProcessor implements TransactionProcessor {
 
     @Override
     public TransactionType supportedType() {
-        return TransactionType.INVOICE_CREDIT;
+        return TransactionType.LIGHTNING_CREDIT;
     }
 }

@@ -1,9 +1,10 @@
 package com.aratiri.aratiri.dto.transactions;
 
 public enum TransactionType {
+    LIGHTNING_CREDIT,
+    LIGHTNING_DEBIT,
     INVOICE_CREDIT,
-    LN_PAYMENT_DEBIT,
-    ONCHAIN_DEPOSIT,
-    INTERNAL_TRANSFER_CREDIT,
-    INVOICE_DEBIT, INTERNAL_TRANSFER_DEBIT
+    INVOICE_DEBIT,
+    ONCHAIN_DEBIT,
+    ONCHAIN_CREDIT,
 }

@@ -66,7 +66,7 @@ public class InvoiceSettledConsumer {
                     event.getUserId(),
                     amountInBTC,
                     TransactionCurrency.BTC,
-                    TransactionType.INVOICE_CREDIT,
+                    TransactionType.LIGHTNING_CREDIT,
                     TransactionStatus.COMPLETED,
                     String.format("Payment received for invoice (hash: %s...)", event.getPaymentHash().substring(0, 10)),
                     event.getPaymentHash()

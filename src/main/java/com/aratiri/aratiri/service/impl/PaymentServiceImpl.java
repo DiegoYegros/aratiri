@@ -2,15 +2,13 @@ package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.constants.BitcoinConstants;
 import com.aratiri.aratiri.dto.invoices.DecodedInvoicetDTO;
+import com.aratiri.aratiri.dto.payments.OnChainPaymentDTOs;
 import com.aratiri.aratiri.dto.payments.PayInvoiceRequestDTO;
 import com.aratiri.aratiri.dto.payments.PaymentResponseDTO;
-import com.aratiri.aratiri.dto.transactions.CreateTransactionRequest;
-import com.aratiri.aratiri.dto.transactions.TransactionDTOResponse;
+import com.aratiri.aratiri.dto.transactions.*;
 import com.aratiri.aratiri.entity.AccountEntity;
 import com.aratiri.aratiri.entity.OutboxEventEntity;
-import com.aratiri.aratiri.dto.transactions.TransactionCurrency;
-import com.aratiri.aratiri.dto.transactions.TransactionStatus;
-import com.aratiri.aratiri.dto.transactions.TransactionType;
+import com.aratiri.aratiri.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.aratiri.event.PaymentInitiatedEvent;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.AccountRepository;
@@ -21,7 +19,11 @@ import com.aratiri.aratiri.service.TransactionsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
+import lnrpc.LightningGrpc;
 import lnrpc.Payment;
+import lnrpc.SendCoinsRequest;
+import lnrpc.SendCoinsResponse;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +39,7 @@ import java.util.Iterator;
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 
     @Value("${aratiri.payment.default.fee.limit.sat:50}")
@@ -51,15 +54,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final RouterGrpc.RouterBlockingStub routerStub;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
-
-    public PaymentServiceImpl(AccountRepository accountRepository, TransactionsService transactionsService, InvoiceService invoiceService, RouterGrpc.RouterBlockingStub routerStub, OutboxEventRepository outboxEventRepository, ObjectMapper objectMapper) {
-        this.outboxEventRepository = outboxEventRepository;
-        this.accountRepository = accountRepository;
-        this.transactionsService = transactionsService;
-        this.invoiceService = invoiceService;
-        this.routerStub = routerStub;
-        this.objectMapper = objectMapper;
-    }
+    private final LightningGrpc.LightningBlockingStub lightningStub;
 
     @Override
     @Transactional
@@ -92,7 +87,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .userId(userId)
                 .amount(BitcoinConstants.satoshisToBtc(amountSat))
                 .currency(TransactionCurrency.BTC)
-                .type(TransactionType.INVOICE_DEBIT)
+                .type(TransactionType.LIGHTNING_DEBIT)
                 .status(TransactionStatus.PENDING)
                 .referenceId(paymentHash)
                 .description("Lightning Payment: " + decodedInvoice.getDescription())
@@ -124,7 +119,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Async
-    public void initiateGrpcPayment(String transactionId, String userId, PayInvoiceRequestDTO payRequest) {
+    public void initiateGrpcLightningPayment(String transactionId, String userId, PayInvoiceRequestDTO payRequest) {
         try {
             SendPaymentRequest grpcRequest = SendPaymentRequest.newBuilder()
                     .setPaymentRequest(payRequest.getInvoice())
@@ -178,6 +173,67 @@ public class PaymentServiceImpl implements PaymentService {
                 return Optional.empty();
             }
             throw new AratiriException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Override
+    @Transactional
+    public OnChainPaymentDTOs.SendOnChainResponseDTO sendOnChain(OnChainPaymentDTOs.SendOnChainRequestDTO request, String userId) {
+        AccountEntity account = accountRepository.findByUserId(userId);
+        if (account.getBalance() < request.getSatsAmount()) {
+            throw new AratiriException("Insufficient balance", HttpStatus.BAD_REQUEST);
+        }
+        CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
+                .userId(userId)
+                .amount(BitcoinConstants.satoshisToBtc(request.getSatsAmount()))
+                .currency(TransactionCurrency.BTC)
+                .type(TransactionType.ONCHAIN_DEBIT)
+                .status(TransactionStatus.PENDING)
+                .description("On-chain payment to " + request.getAddress())
+                .build();
+
+        TransactionDTOResponse txDto = transactionsService.createTransaction(txRequest);
+
+        OnChainPaymentInitiatedEvent eventPayload = new OnChainPaymentInitiatedEvent(
+                userId, txDto.getId(), request
+        );
+        try {
+            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
+                    .aggregateType("ONCHAIN_PAYMENT")
+                    .aggregateId(txDto.getId())
+                    .eventType("ONCHAIN_PAYMENT_INITIATED")
+                    .payload(objectMapper.writeValueAsString(eventPayload))
+                    .build();
+            outboxEventRepository.save(outboxEvent);
+            logger.info("Saved ONCHAIN_PAYMENT_INITIATED event to outbox for transactionId: {}", txDto.getId());
+        } catch (Exception e) {
+            throw new AratiriException("Failed to create outbox event for on-chain payment.", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        OnChainPaymentDTOs.SendOnChainResponseDTO response = new OnChainPaymentDTOs.SendOnChainResponseDTO();
+        response.setTransactionId(txDto.getId());
+        return response;
+    }
+
+    @Async
+    @Override
+    public void initiateGrpcOnChainPayment(String transactionId, String userId, OnChainPaymentDTOs.SendOnChainRequestDTO payRequest) {
+        try {
+            SendCoinsRequest.Builder grpcRequestBuilder = SendCoinsRequest.newBuilder()
+                    .setAddr(payRequest.getAddress())
+                    .setAmount(payRequest.getSatsAmount());
+            if (payRequest.getSatPerVbyte() != null) {
+                grpcRequestBuilder.setSatPerVbyte(payRequest.getSatPerVbyte());
+            } else if (payRequest.getTargetConf() != null) {
+                grpcRequestBuilder.setTargetConf(payRequest.getTargetConf());
+            }
+            SendCoinsResponse sendCoinsResponse = lightningStub.sendCoins(grpcRequestBuilder.build());
+            logger.info("Successfully broadcast on-chain transaction with txid: {}", sendCoinsResponse.getTxid());
+            transactionsService.confirmTransaction(transactionId, userId);
+
+        } catch (Exception e) {
+            logger.error("gRPC call to SendCoins failed for transactionId: {}. Reason: {}", transactionId, e.getMessage());
+            transactionsService.failTransaction(transactionId, e.getMessage());
         }
     }
 }

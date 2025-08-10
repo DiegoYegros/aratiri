@@ -2,12 +2,15 @@ package com.aratiri.aratiri.jobs;
 
 import com.aratiri.aratiri.entity.OutboxEventEntity;
 import com.aratiri.aratiri.enums.KafkaTopics;
+import com.aratiri.aratiri.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.aratiri.event.PaymentInitiatedEvent;
 import com.aratiri.aratiri.producer.InvoiceEventProducer;
 import com.aratiri.aratiri.repository.OutboxEventRepository;
 import com.aratiri.aratiri.service.PaymentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +21,6 @@ import java.util.List;
 @Slf4j
 @Component
 public class OutboxEventPoller {
-
     private final OutboxEventRepository outboxEventRepository;
     private final InvoiceEventProducer invoiceEventProducer;
     private final PaymentService paymentService;
@@ -46,7 +48,13 @@ public class OutboxEventPoller {
                     invoiceEventProducer.sendInvoiceSettledEventFromString(event.getPayload());
                 } else if ("PAYMENT_INITIATED".equals(eventType)) {
                     PaymentInitiatedEvent eventPayload = objectMapper.readValue(event.getPayload(), PaymentInitiatedEvent.class);
-                    paymentService.initiateGrpcPayment(eventPayload.getTransactionId(), eventPayload.getUserId(), eventPayload.getPayRequest());
+                    paymentService.initiateGrpcLightningPayment(eventPayload.getTransactionId(), eventPayload.getUserId(), eventPayload.getPayRequest());
+                } else if ("ONCHAIN_PAYMENT_INITIATED".equals(eventType)) {
+                    OnChainPaymentInitiatedEvent eventPayload = objectMapper.readValue(event.getPayload(), OnChainPaymentInitiatedEvent.class);
+                    paymentService.initiateGrpcOnChainPayment(eventPayload.getTransactionId(), eventPayload.getUserId(), eventPayload.getPaymentRequest());
+                } else {
+                    log.error("Couldn't find a way to process this event type: [{}] -- Ignoring.", eventType);
+                    continue;
                 }
                 event.setProcessedAt(Instant.now());
                 outboxEventRepository.save(event);

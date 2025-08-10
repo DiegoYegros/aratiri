@@ -51,6 +51,9 @@ public class TransactionEntity {
     @Column(name = "reference_id", length = 64)
     private String referenceId;
 
+    @Column(name = "failure_reason", length = 255)
+    private String failureReason;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -60,7 +63,7 @@ public class TransactionEntity {
         if (this.id == null) {
             this.id = UUID.randomUUID().toString();
         }
-        if (this.createdAt == null){
+        if (this.createdAt == null) {
             this.createdAt = Instant.now();
         }
     }
