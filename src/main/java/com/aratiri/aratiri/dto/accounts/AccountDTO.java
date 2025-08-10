@@ -6,6 +6,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
+import java.math.BigDecimal;
+import java.util.Map;
+
 @Data
 @RequiredArgsConstructor
 @AllArgsConstructor
@@ -21,4 +24,6 @@ public class AccountDTO {
     private String lnurl;
     @JsonProperty("qr_code")
     private String qrCode;
+    @JsonProperty("fiat_equivalents")
+    private Map<String, BigDecimal> fiatEquivalents;
 }

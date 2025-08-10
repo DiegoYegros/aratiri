@@ -182,6 +182,14 @@ public class AccountsServiceImpl implements AccountsService {
         String lnurl = buildLnurlForAlias(accountEntity.getAlias());
         String alias = buildAlias(accountEntity.getAlias());
         String qrCode = QrCodeUtil.generateQrCodeBase64(lnurl);
+        BigDecimal balanceInBtc = BitcoinConstants.satoshisToBtc(accountEntity.getBalance());
+        Map<String, BigDecimal> btcPrices = currencyConversionService.getCurrentBtcPrice();
+        Map<String, BigDecimal> fiatEquivalents = btcPrices.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> balanceInBtc.multiply(entry.getValue())
+                ));
+
         return AccountDTO.builder()
                 .id(accountEntity.getId())
                 .bitcoinAddress(accountEntity.getBitcoinAddress())
@@ -190,6 +198,7 @@ public class AccountsServiceImpl implements AccountsService {
                 .alias(alias)
                 .lnurl(lnurl)
                 .qrCode(qrCode)
+                .fiatEquivalents(fiatEquivalents)
                 .build();
     }
 }
