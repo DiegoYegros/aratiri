@@ -3,6 +3,7 @@ package com.aratiri.aratiri.service.impl;
 import com.aratiri.aratiri.dto.auth.PasswordResetDTOs;
 import com.aratiri.aratiri.entity.PasswordResetData;
 import com.aratiri.aratiri.entity.UserEntity;
+import com.aratiri.aratiri.enums.AuthProvider;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.PasswordResetDataRepository;
 import com.aratiri.aratiri.repository.UserRepository;
@@ -33,6 +34,12 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     public void initiatePasswordReset(PasswordResetDTOs.ForgotPasswordRequestDTO request) {
         UserEntity user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new AratiriException("User with this email not found.", HttpStatus.NOT_FOUND));
+        if (user.getAuthProvider() == AuthProvider.GOOGLE) {
+            throw new AratiriException("This account is registered with Google. Please log in using your Google account.", HttpStatus.BAD_REQUEST);
+        }
+        if (AuthProvider.LOCAL != user.getAuthProvider()){
+            throw new AratiriException("Invalid Auth Provider for Password Reset. Please Contact Support for further assistance.");
+        }
         String code = generateResetCode();
         PasswordResetData resetData = new PasswordResetData();
         resetData.setCode(code);
