@@ -22,11 +22,11 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
-    public void sendPasswordResetEmail(String to, String token) {
+    public void sendPasswordResetEmail(String to, String code) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);
         message.setSubject("Aratiri Password Reset Request");
-        message.setText("To reset your password, use the following token: " + token);
+        message.setText("To reset your password, use the following code: " + code);
         mailSender.send(message);
     }
 }

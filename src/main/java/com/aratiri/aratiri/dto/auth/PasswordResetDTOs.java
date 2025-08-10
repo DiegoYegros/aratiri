@@ -16,8 +16,12 @@ public class PasswordResetDTOs {
 
     @Data
     public static class ResetPasswordRequestDTO {
-        @NotBlank(message = "Token cannot be blank")
-        private String token;
+        @Email(message = "Email should be valid")
+        @NotBlank(message = "Email cannot be blank")
+        private String email;
+
+        @NotBlank(message = "Code cannot be blank")
+        private String code;
 
         @NotBlank(message = "Password cannot be blank")
         @Size(min = 8, message = "Password must be at least 8 characters long")
