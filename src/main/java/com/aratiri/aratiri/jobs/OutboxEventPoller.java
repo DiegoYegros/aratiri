@@ -2,15 +2,16 @@ package com.aratiri.aratiri.jobs;
 
 import com.aratiri.aratiri.entity.OutboxEventEntity;
 import com.aratiri.aratiri.enums.KafkaTopics;
+import com.aratiri.aratiri.event.InternalTransferInitiatedEvent;
 import com.aratiri.aratiri.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.aratiri.event.PaymentInitiatedEvent;
 import com.aratiri.aratiri.producer.InvoiceEventProducer;
 import com.aratiri.aratiri.repository.OutboxEventRepository;
 import com.aratiri.aratiri.service.PaymentService;
+import com.aratiri.aratiri.service.TransactionsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,18 +21,13 @@ import java.util.List;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class OutboxEventPoller {
     private final OutboxEventRepository outboxEventRepository;
     private final InvoiceEventProducer invoiceEventProducer;
     private final PaymentService paymentService;
     private final ObjectMapper objectMapper;
-
-    public OutboxEventPoller(OutboxEventRepository outboxEventRepository, InvoiceEventProducer invoiceEventProducer, PaymentService paymentService, ObjectMapper objectMapper) {
-        this.outboxEventRepository = outboxEventRepository;
-        this.invoiceEventProducer = invoiceEventProducer;
-        this.paymentService = paymentService;
-        this.objectMapper = objectMapper;
-    }
+    private final TransactionsService transactionsService;
 
     @Scheduled(fixedDelay = 1000)
     @Transactional
@@ -52,6 +48,9 @@ public class OutboxEventPoller {
                 } else if ("ONCHAIN_PAYMENT_INITIATED".equals(eventType)) {
                     OnChainPaymentInitiatedEvent eventPayload = objectMapper.readValue(event.getPayload(), OnChainPaymentInitiatedEvent.class);
                     paymentService.initiateGrpcOnChainPayment(eventPayload.getTransactionId(), eventPayload.getUserId(), eventPayload.getPaymentRequest());
+                } else if ("INTERNAL_TRANSFER_INITIATED".equals(eventType)) {
+                    InternalTransferInitiatedEvent eventPayload = objectMapper.readValue(event.getPayload(), InternalTransferInitiatedEvent.class);
+                    transactionsService.processInternalTransfer(eventPayload);
                 } else {
                     log.error("Couldn't find a way to process this event type: [{}] -- Ignoring.", eventType);
                     continue;

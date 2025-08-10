@@ -1,11 +1,12 @@
 package com.aratiri.aratiri.service.impl;
 
-import com.aratiri.aratiri.dto.transactions.CreateTransactionRequest;
-import com.aratiri.aratiri.dto.transactions.TransactionDTOResponse;
+import com.aratiri.aratiri.constants.BitcoinConstants;
+import com.aratiri.aratiri.dto.transactions.*;
+import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.entity.TransactionEntity;
-import com.aratiri.aratiri.dto.transactions.TransactionStatus;
-import com.aratiri.aratiri.dto.transactions.TransactionType;
+import com.aratiri.aratiri.event.InternalTransferInitiatedEvent;
 import com.aratiri.aratiri.exception.AratiriException;
+import com.aratiri.aratiri.repository.LightningInvoiceRepository;
 import com.aratiri.aratiri.repository.TransactionsRepository;
 import com.aratiri.aratiri.service.TransactionsService;
 import com.aratiri.aratiri.service.processor.TransactionProcessor;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -31,15 +33,17 @@ public class TransactionsServiceImpl implements TransactionsService {
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final TransactionsRepository transactionsRepository;
     private final Map<TransactionType, TransactionProcessor> processors;
+    private final LightningInvoiceRepository lightningInvoiceRepository;
     private static final Set<TransactionType> SETTLEABLE_TYPES = Set.of(
             TransactionType.LIGHTNING_CREDIT,
             TransactionType.ONCHAIN_CREDIT
     );
 
-    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList) {
+    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository) {
         this.transactionsRepository = transactionsRepository;
         this.processors = processorList.stream()
                 .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
+        this.lightningInvoiceRepository = lightningInvoiceRepository;
     }
 
     @Override
@@ -159,5 +163,35 @@ public class TransactionsServiceImpl implements TransactionsService {
                 .status(savedTransaction.getStatus())
                 .currency(savedTransaction.getCurrency())
                 .build();
+    }
+
+
+    @Transactional
+    public void processInternalTransfer(InternalTransferInitiatedEvent event) {
+        TransactionEntity senderTx = transactionsRepository.findById(event.getTransactionId())
+                .orElseThrow(() -> new AratiriException("Sender transaction not found for internal transfer."));
+
+        TransactionProcessor debitProcessor = processors.get(TransactionType.LIGHTNING_DEBIT);
+        debitProcessor.process(senderTx);
+        senderTx.setStatus(TransactionStatus.COMPLETED);
+        transactionsRepository.save(senderTx);
+
+        CreateTransactionRequest creditRequest = new CreateTransactionRequest(
+                event.getReceiverId(),
+                BitcoinConstants.satoshisToBtc(event.getAmountSat()),
+                TransactionCurrency.BTC,
+                TransactionType.LIGHTNING_CREDIT,
+                TransactionStatus.COMPLETED,
+                "Internal transfer from: " + event.getSenderId(),
+                event.getPaymentHash()
+        );
+        createAndSettleTransaction(creditRequest);
+
+        LightningInvoiceEntity invoice = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash()).orElseThrow();
+        invoice.setInvoiceState(LightningInvoiceEntity.InvoiceState.SETTLED);
+        invoice.setAmountPaidSats(event.getAmountSat());
+        invoice.setSettledAt(LocalDateTime.now());
+        lightningInvoiceRepository.save(invoice);
+        logger.info("Successfully processed internal transfer for transactionId: {}", event.getTransactionId());
     }
 }

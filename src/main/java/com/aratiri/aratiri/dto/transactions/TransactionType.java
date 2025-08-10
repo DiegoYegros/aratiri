@@ -6,5 +6,5 @@ public enum TransactionType {
     INVOICE_CREDIT,
     INVOICE_DEBIT,
     ONCHAIN_DEBIT,
-    ONCHAIN_CREDIT,
+    ONCHAIN_CREDIT
 }

@@ -7,11 +7,14 @@ import com.aratiri.aratiri.dto.payments.PayInvoiceRequestDTO;
 import com.aratiri.aratiri.dto.payments.PaymentResponseDTO;
 import com.aratiri.aratiri.dto.transactions.*;
 import com.aratiri.aratiri.entity.AccountEntity;
+import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.entity.OutboxEventEntity;
+import com.aratiri.aratiri.event.InternalTransferInitiatedEvent;
 import com.aratiri.aratiri.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.aratiri.event.PaymentInitiatedEvent;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.AccountRepository;
+import com.aratiri.aratiri.repository.LightningInvoiceRepository;
 import com.aratiri.aratiri.repository.OutboxEventRepository;
 import com.aratiri.aratiri.service.InvoiceService;
 import com.aratiri.aratiri.service.PaymentService;
@@ -55,12 +58,21 @@ public class PaymentServiceImpl implements PaymentService {
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
     private final LightningGrpc.LightningBlockingStub lightningStub;
+    private final LightningInvoiceRepository lightningInvoiceRepository;
 
     @Override
     @Transactional
     public PaymentResponseDTO payLightningInvoice(PayInvoiceRequestDTO request, String userId) {
         DecodedInvoicetDTO decodedInvoice = invoiceService.decodePaymentRequest(request.getInvoice());
         String paymentHash = decodedInvoice.getPaymentHash();
+        Optional<LightningInvoiceEntity> internalInvoiceOpt = lightningInvoiceRepository.findByPaymentHash(paymentHash);
+        if (internalInvoiceOpt.isPresent()) {
+            return processInternalTransfer(request, userId, decodedInvoice, internalInvoiceOpt.get());
+        }
+        return processExternalPayment(request, userId, paymentHash, decodedInvoice);
+    }
+
+    private PaymentResponseDTO processExternalPayment(PayInvoiceRequestDTO request, String userId, String paymentHash, DecodedInvoicetDTO decodedInvoice) {
         boolean isSettledAratiriInvoice = invoiceService.existsSettledInvoiceByPaymentHash(paymentHash);
         if (isSettledAratiriInvoice) {
             logger.warn("User {} attempted to pay an invoice that has already been successfully paid by another Aratiri user. PaymentHash: {}", userId, paymentHash);
@@ -115,6 +127,50 @@ public class PaymentServiceImpl implements PaymentService {
                 .transactionId(txDto.getId())
                 .status(txDto.getStatus())
                 .message("Payment initiated. Status is pending.")
+                .build();
+    }
+
+    private PaymentResponseDTO processInternalTransfer(PayInvoiceRequestDTO request, String senderId, DecodedInvoicetDTO decodedInvoice, LightningInvoiceEntity internalInvoice) {
+        long amountSat = decodedInvoice.getNumSatoshis();
+        AccountEntity senderAccount = accountRepository.findByUserId(senderId);
+
+        if (senderAccount.getBalance() < amountSat) {
+            throw new AratiriException("Insufficient balance for internal transfer", HttpStatus.BAD_REQUEST);
+        }
+        CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
+                .userId(senderId)
+                .amount(BitcoinConstants.satoshisToBtc(amountSat))
+                .currency(TransactionCurrency.BTC)
+                .type(TransactionType.LIGHTNING_DEBIT)
+                .status(TransactionStatus.PENDING)
+                .referenceId(decodedInvoice.getPaymentHash())
+                .description("Internal transfer to: " + internalInvoice.getUserId())
+                .build();
+
+        TransactionDTOResponse txDto = transactionsService.createTransaction(txRequest);
+        InternalTransferInitiatedEvent eventPayload = new InternalTransferInitiatedEvent(
+                txDto.getId(),
+                senderId,
+                internalInvoice.getUserId(),
+                amountSat,
+                decodedInvoice.getPaymentHash()
+        );
+        try {
+            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
+                    .aggregateType("INTERNAL_TRANSFER")
+                    .aggregateId(txDto.getId())
+                    .eventType("INTERNAL_TRANSFER_INITIATED")
+                    .payload(objectMapper.writeValueAsString(eventPayload))
+                    .build();
+            outboxEventRepository.save(outboxEvent);
+            logger.info("Saved INTERNAL_TRANSFER_INITIATED event to outbox for transactionId: {}", txDto.getId());
+        } catch (Exception e) {
+            throw new AratiriException("Failed to create outbox event for internal transfer.", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        return PaymentResponseDTO.builder()
+                .transactionId(txDto.getId())
+                .status(TransactionStatus.PENDING)
+                .message("Internal transfer initiated.")
                 .build();
     }
 
