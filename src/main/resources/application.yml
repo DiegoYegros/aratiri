@@ -1,5 +1,5 @@
 server:
-  port: 2100
+  port: ${SERVER_PORT:2100}
 
 spring:
   application:
@@ -9,6 +9,11 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:aratiri_user}
     password: ${SPRING_DATASOURCE_PASSWORD:aratiri_password}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.postgresql.Driver}
+    hikari:
+      maximum-pool-size: ${HIKARI_MAXIMUM_POOL_SIZE:20}
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
+      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT:30000}
   security:
     oauth2:
       client:
@@ -20,6 +25,18 @@ spring:
       ddl-auto: ${SPRING_JPA_DDL_AUTO:update}
     show-sql: false
     database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${EMAIL_USERNAME}
+    password: ${EMAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}

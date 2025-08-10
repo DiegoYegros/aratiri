@@ -7,4 +7,5 @@ import lombok.Data;
 public class CreateAccountRequestDTO {
     @NotNull(message = "userId no puede ser nulo.")
     private String userId;
+    private String alias;
 }

@@ -97,10 +97,16 @@ public class AccountsServiceImpl implements AccountsService {
         accountEntity.setBalance(0);
         accountEntity.setUser(userEntity);
         accountEntity.setBitcoinAddress(bitcoinAddress);
-        String alias;
-        do {
-            alias = AliasGenerator.generateAlias();
-        } while (accountRepository.existsByAlias(alias));
+        String alias = request.getAlias();
+        if (alias == null || alias.isEmpty()) {
+            do {
+                alias = AliasGenerator.generateAlias();
+            } while (accountRepository.existsByAlias(alias));
+        } else {
+            if (accountRepository.existsByAlias(alias)) {
+                throw new AratiriException("Alias is already in use.", HttpStatus.BAD_REQUEST);
+            }
+        }
         accountEntity.setAlias(alias);
         logger.info("saving the account entity. [{}]", accountEntity);
         AccountEntity save = accountRepository.save(accountEntity);

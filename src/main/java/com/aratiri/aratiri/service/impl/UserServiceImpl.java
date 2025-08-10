@@ -4,7 +4,6 @@ import com.aratiri.aratiri.entity.UserEntity;
 import com.aratiri.aratiri.enums.AuthProvider;
 import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.UserService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -12,19 +11,16 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
 
-    private final BCryptPasswordEncoder passwordEncoder;
-
-    public UserServiceImpl(UserRepository userRepository, BCryptPasswordEncoder passwordEncoder) {
+    public UserServiceImpl(UserRepository userRepository) {
         this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
-    public void register(String name, String email, String rawPassword) {
+    public void register(String name, String email, String encodedPassowrd) {
         UserEntity user = new UserEntity();
         user.setName(name);
         user.setEmail(email);
-        user.setPassword(passwordEncoder.encode(rawPassword));
+        user.setPassword(encodedPassowrd);
         user.setAuthProvider(AuthProvider.LOCAL);
         userRepository.save(user);
     }

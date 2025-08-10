@@ -32,6 +32,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/v1/auth/login",
                                 "/v1/auth/register",
+                                "/v1/auth/verify",
                                 "/v1/auth/refresh",
                                 "/h2-console/**",
                                 "/.well-known/lnurlp/**",

@@ -1,17 +1,16 @@
 package com.aratiri.aratiri.controller;
 
-import com.aratiri.aratiri.dto.auth.AuthRequestDTO;
-import com.aratiri.aratiri.dto.auth.AuthResponseDTO;
-import com.aratiri.aratiri.dto.auth.LogoutRequestDTO;
-import com.aratiri.aratiri.dto.auth.RefreshTokenRequestDTO;
+import com.aratiri.aratiri.dto.auth.*;
 import com.aratiri.aratiri.entity.RefreshTokenEntity;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.service.AuthService;
 import com.aratiri.aratiri.service.GoogleSsoService;
 import com.aratiri.aratiri.service.RefreshTokenService;
+import com.aratiri.aratiri.service.RegistrationService;
 import com.aratiri.aratiri.utils.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +29,7 @@ public class AuthController {
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
     private final JwtUtil jwtUtil;
+    private final RegistrationService registrationService;
 
     @PostMapping("/login")
     @Operation(
@@ -40,6 +40,19 @@ public class AuthController {
     )
     public ResponseEntity<AuthResponseDTO> login(@RequestBody AuthRequestDTO request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/register")
+    @Operation(summary = "Initiate user registration")
+    public ResponseEntity<Void> register(@Valid @RequestBody RegistrationRequestDTO request) {
+        registrationService.initiateRegistration(request);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @PostMapping("/verify")
+    @Operation(summary = "Verify user registration")
+    public ResponseEntity<AuthResponseDTO> verify(@Valid @RequestBody VerificationRequestDTO request) {
+        return ResponseEntity.ok(registrationService.completeRegistration(request));
     }
 
     @PostMapping("/sso/google")
