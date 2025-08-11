@@ -49,8 +49,7 @@ public class OutboxEventPoller {
                     OnChainPaymentInitiatedEvent eventPayload = objectMapper.readValue(event.getPayload(), OnChainPaymentInitiatedEvent.class);
                     paymentService.initiateGrpcOnChainPayment(eventPayload.getTransactionId(), eventPayload.getUserId(), eventPayload.getPaymentRequest());
                 } else if ("INTERNAL_TRANSFER_INITIATED".equals(eventType)) {
-                    InternalTransferInitiatedEvent eventPayload = objectMapper.readValue(event.getPayload(), InternalTransferInitiatedEvent.class);
-                    transactionsService.processInternalTransfer(eventPayload);
+                    invoiceEventProducer.sendInternalTransferEvent(event.getPayload());
                 } else {
                     log.error("Couldn't find a way to process this event type: [{}] -- Ignoring.", eventType);
                     continue;

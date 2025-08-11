@@ -69,6 +69,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .preimage(Base64.getEncoder().encodeToString(preImage))
                     .invoiceState(LightningInvoiceEntity.InvoiceState.OPEN)
                     .createdAt(LocalDateTime.now())
+                    .memo(memo)
                     .expiry(payReq.getExpiry())
                     .paymentRequest(addInvoiceResponse.getPaymentRequest())
                     .paymentHash(payReq.getPaymentHash())

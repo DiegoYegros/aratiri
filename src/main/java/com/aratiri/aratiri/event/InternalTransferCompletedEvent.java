@@ -2,14 +2,16 @@ package com.aratiri.aratiri.event;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
-public class InvoiceSettledEvent {
-    private String userId;
-    private Long amount;
+public class InternalTransferCompletedEvent {
+    private String receiverId;
+    private Long amountSat;
     private String paymentHash;
     private LocalDateTime timestamp;
     private String memo;

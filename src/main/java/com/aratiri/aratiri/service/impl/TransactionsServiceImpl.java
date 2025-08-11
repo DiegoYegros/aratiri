@@ -4,12 +4,15 @@ import com.aratiri.aratiri.constants.BitcoinConstants;
 import com.aratiri.aratiri.dto.transactions.*;
 import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.entity.TransactionEntity;
+import com.aratiri.aratiri.event.InternalTransferCompletedEvent;
 import com.aratiri.aratiri.event.InternalTransferInitiatedEvent;
 import com.aratiri.aratiri.exception.AratiriException;
+import com.aratiri.aratiri.producer.InvoiceEventProducer;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
 import com.aratiri.aratiri.repository.TransactionsRepository;
 import com.aratiri.aratiri.service.TransactionsService;
 import com.aratiri.aratiri.service.processor.TransactionProcessor;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -34,16 +37,20 @@ public class TransactionsServiceImpl implements TransactionsService {
     private final TransactionsRepository transactionsRepository;
     private final Map<TransactionType, TransactionProcessor> processors;
     private final LightningInvoiceRepository lightningInvoiceRepository;
+    private final InvoiceEventProducer invoiceEventProducer;
+    private final ObjectMapper objectMapper;
     private static final Set<TransactionType> SETTLEABLE_TYPES = Set.of(
             TransactionType.LIGHTNING_CREDIT,
             TransactionType.ONCHAIN_CREDIT
     );
 
-    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository) {
+    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, ObjectMapper objectMapper, InvoiceEventProducer invoiceEventProducer) {
         this.transactionsRepository = transactionsRepository;
         this.processors = processorList.stream()
                 .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
         this.lightningInvoiceRepository = lightningInvoiceRepository;
+        this.objectMapper = objectMapper;
+        this.invoiceEventProducer = invoiceEventProducer;
     }
 
     @Override
@@ -192,6 +199,21 @@ public class TransactionsServiceImpl implements TransactionsService {
         invoice.setAmountPaidSats(event.getAmountSat());
         invoice.setSettledAt(LocalDateTime.now());
         lightningInvoiceRepository.save(invoice);
+        InternalTransferCompletedEvent completedEvent = new InternalTransferCompletedEvent(
+                event.getReceiverId(),
+                event.getAmountSat(),
+                event.getPaymentHash(),
+                LocalDateTime.now(),
+                invoice.getMemo()
+        );
+        try {
+            String eventPayload = objectMapper.writeValueAsString(completedEvent);
+            invoiceEventProducer.sendInternalTransferCompletedEvent(eventPayload);
+        } catch (Exception e) {
+            logger.error("Failed to send InternalTransferCompletedEvent", e);
+            throw new AratiriException("Failed to publish settlement event for internal transfer.");
+        }
+
         logger.info("Successfully processed internal transfer for transactionId: {}", event.getTransactionId());
     }
 }

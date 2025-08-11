@@ -68,7 +68,6 @@ public class InvoiceProcessorService {
                 invoiceEntity.getInvoiceState(), newState, invoice.getPaymentRequest());
 
         invoiceEntity.setInvoiceState(newState);
-
         if (newState == LightningInvoiceEntity.InvoiceState.SETTLED) {
             invoiceEntity.setSettledAt(LocalDateTime.now());
             invoiceEntity.setAmountPaidSats(invoice.getAmtPaidSat());
@@ -80,7 +79,8 @@ public class InvoiceProcessorService {
                     invoiceEntity.getUserId(),
                     invoiceEntity.getAmountSats(),
                     invoiceEntity.getPaymentHash(),
-                    LocalDateTime.now()
+                    LocalDateTime.now(),
+                    invoiceEntity.getMemo()
             );
 
             OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
@@ -98,9 +98,7 @@ public class InvoiceProcessorService {
                     "memo", invoice.getMemo()
             );
             notificationsService.sendNotification(userId, "payment_received", notificationPayload);
-
             logger.info("Saved INVOICE_SETTLED event to outbox for invoiceId: {}", invoiceEntity.getId());
-
         } else {
             lightningInvoiceRepository.save(invoiceEntity);
         }

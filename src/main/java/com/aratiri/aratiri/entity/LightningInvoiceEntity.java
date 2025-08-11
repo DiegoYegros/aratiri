@@ -57,6 +57,9 @@ public class LightningInvoiceEntity {
     @JoinColumn(name = "user_id", referencedColumnName = "id", insertable = false, updatable = false)
     private UserEntity user;
 
+    @Column(name = "memo", length = 500)
+    private String memo;
+
     public enum InvoiceState {
         OPEN,
         ACCEPTED,

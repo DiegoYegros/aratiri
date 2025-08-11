@@ -5,8 +5,10 @@ import com.aratiri.aratiri.dto.transactions.CreateTransactionRequest;
 import com.aratiri.aratiri.dto.transactions.TransactionCurrency;
 import com.aratiri.aratiri.dto.transactions.TransactionStatus;
 import com.aratiri.aratiri.dto.transactions.TransactionType;
+import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.event.InvoiceSettledEvent;
 import com.aratiri.aratiri.exception.AratiriException;
+import com.aratiri.aratiri.repository.LightningInvoiceRepository;
 import com.aratiri.aratiri.service.TransactionsService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,6 +35,7 @@ import java.math.RoundingMode;
 public class InvoiceSettledConsumer {
 
     private final TransactionsService transactionsService;
+    private final LightningInvoiceRepository lightningInvoiceRepository;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "invoice.settled", groupId = "invoice-listener-group")
@@ -56,6 +59,10 @@ public class InvoiceSettledConsumer {
             BigDecimal amountInBTC = amountInSats.divide(BitcoinConstants.SATOSHIS_PER_BTC, 8, RoundingMode.HALF_UP);
             log.info("Processing invoice settlement for user: {}, amount: {}, paymentHash: {}, amountInBTC = {}",
                     event.getUserId(), event.getAmount(), event.getPaymentHash(), amountInBTC);
+            String description = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash())
+                    .map(LightningInvoiceEntity::getMemo)
+                    .orElse(String.format("Payment received for invoice (hash: %s...)", event.getPaymentHash().substring(0, 10)));
+
             boolean transactionExists = transactionsService.existsByReferenceId(event.getPaymentHash());
             if (transactionExists) {
                 log.warn("Transaction with paymentHash {} already processed. Skipping.", event.getPaymentHash());
@@ -68,7 +75,7 @@ public class InvoiceSettledConsumer {
                     TransactionCurrency.BTC,
                     TransactionType.LIGHTNING_CREDIT,
                     TransactionStatus.COMPLETED,
-                    String.format("Payment received for invoice (hash: %s...)", event.getPaymentHash().substring(0, 10)),
+                    description,
                     event.getPaymentHash()
             );
             transactionsService.createAndSettleTransaction(request);
