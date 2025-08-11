@@ -3,6 +3,7 @@ package com.aratiri.aratiri.service.impl;
 import com.aratiri.aratiri.service.NotificationsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -47,6 +48,7 @@ public class NotificationServiceImpl implements NotificationsService {
         return emitter;
     }
 
+    @Async
     public void sendNotification(String userId, String eventName, Object data) {
         SseEmitter emitter = emitters.get(userId);
         if (emitter != null) {
