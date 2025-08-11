@@ -6,7 +6,8 @@ import lombok.Getter;
 public enum KafkaTopics {
     INVOICE_SETTLED("invoice.settled"),
     INTERNAL_TRANSFER_INITIATED("internal.transfer.initiated"),
-    INTERNAL_TRANSFER_COMPLETED("internal.transfer.completed");
+    INTERNAL_TRANSFER_COMPLETED("internal.transfer.completed"),
+    PAYMENT_SENT("payment.sent");
     private final String code;
 
     KafkaTopics(String code) {

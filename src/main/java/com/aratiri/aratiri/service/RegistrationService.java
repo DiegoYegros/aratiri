@@ -6,5 +6,6 @@ import com.aratiri.aratiri.dto.auth.VerificationRequestDTO;
 
 public interface RegistrationService {
     void initiateRegistration(RegistrationRequestDTO request);
+
     AuthResponseDTO completeRegistration(VerificationRequestDTO request);
 }

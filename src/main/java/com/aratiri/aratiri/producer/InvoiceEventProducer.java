@@ -23,6 +23,15 @@ public class InvoiceEventProducer {
         }
     }
 
+    public void sendPaymentSentEvent(String payload) {
+        try {
+            send(KafkaTopics.PAYMENT_SENT, payload);
+        } catch (Exception e) {
+            logger.error("Failed to send event to Kafka.", e);
+            throw e;
+        }
+    }
+
     public void sendInternalTransferEvent(String payload) {
         try {
             send(KafkaTopics.INTERNAL_TRANSFER_INITIATED, payload);
@@ -40,6 +49,7 @@ public class InvoiceEventProducer {
             throw e;
         }
     }
+
     private void send(KafkaTopics topic, String payload) {
         kafkaTemplate.send(topic.getCode(), payload);
         logger.info("Successfully sent event from outbox to Kafka topic: {}", topic.getCode());

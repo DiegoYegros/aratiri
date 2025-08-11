@@ -44,7 +44,8 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/v1/auth/sso/google",
                                 "/swagger-resources/**",
-                                "/webjars/**"
+                                "/webjars/**",
+                                "/v1/notifications/subscribe"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

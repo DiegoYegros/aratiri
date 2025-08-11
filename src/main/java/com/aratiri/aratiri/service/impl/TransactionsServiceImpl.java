@@ -13,6 +13,9 @@ import com.aratiri.aratiri.repository.TransactionsRepository;
 import com.aratiri.aratiri.service.TransactionsService;
 import com.aratiri.aratiri.service.processor.TransactionProcessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.protobuf.ByteString;
+import invoicesrpc.CancelInvoiceMsg;
+import invoicesrpc.InvoicesGrpc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -24,33 +27,32 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 public class TransactionsServiceImpl implements TransactionsService {
+    private static final Set<TransactionType> SETTLEABLE_TYPES = Set.of(
+            TransactionType.LIGHTNING_CREDIT,
+            TransactionType.ONCHAIN_CREDIT
+    );
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final TransactionsRepository transactionsRepository;
     private final Map<TransactionType, TransactionProcessor> processors;
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final InvoiceEventProducer invoiceEventProducer;
     private final ObjectMapper objectMapper;
-    private static final Set<TransactionType> SETTLEABLE_TYPES = Set.of(
-            TransactionType.LIGHTNING_CREDIT,
-            TransactionType.ONCHAIN_CREDIT
-    );
+    private final InvoicesGrpc.InvoicesBlockingStub invoiceBlockingStub;
 
-    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, ObjectMapper objectMapper, InvoiceEventProducer invoiceEventProducer) {
+    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, ObjectMapper objectMapper, InvoiceEventProducer invoiceEventProducer, InvoicesGrpc.InvoicesBlockingStub invoiceStub) {
         this.transactionsRepository = transactionsRepository;
         this.processors = processorList.stream()
                 .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.objectMapper = objectMapper;
         this.invoiceEventProducer = invoiceEventProducer;
+        this.invoiceBlockingStub = invoiceStub;
     }
 
     @Override
@@ -195,11 +197,24 @@ public class TransactionsServiceImpl implements TransactionsService {
         createAndSettleTransaction(creditRequest);
 
         LightningInvoiceEntity invoice = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash()).orElseThrow();
+
+        try {
+            CancelInvoiceMsg cancelInvoiceMsg = CancelInvoiceMsg.newBuilder()
+                    .setPaymentHash(ByteString.copyFrom(HexFormat.of().parseHex(event.getPaymentHash())))
+                    .build();
+            invoiceBlockingStub.cancelInvoice(cancelInvoiceMsg);
+            logger.info("Successfully canceled invoice on LND for internal transfer.");
+        } catch (Exception e) {
+            logger.error("Failed to cancel invoice on LND", e);
+            throw new AratiriException("Failed to cancel invoice on LND: " + e.getMessage());
+        }
+
         invoice.setInvoiceState(LightningInvoiceEntity.InvoiceState.SETTLED);
         invoice.setAmountPaidSats(event.getAmountSat());
         invoice.setSettledAt(LocalDateTime.now());
         lightningInvoiceRepository.save(invoice);
         InternalTransferCompletedEvent completedEvent = new InternalTransferCompletedEvent(
+                event.getSenderId(),
                 event.getReceiverId(),
                 event.getAmountSat(),
                 event.getPaymentHash(),

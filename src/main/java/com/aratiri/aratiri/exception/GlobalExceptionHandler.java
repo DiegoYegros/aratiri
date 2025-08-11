@@ -53,6 +53,7 @@ public class GlobalExceptionHandler {
         ErrorResponse errorResponse = new ErrorResponse("Request body is missing or malformed. Please provide a valid request body.", HttpStatus.BAD_REQUEST.value());
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
     }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleBadCredentialsException(BadCredentialsException ex) {
         logger.error("BadCredentialsException occured: {}", ex.getMessage());

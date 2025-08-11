@@ -37,7 +37,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         if (user.getAuthProvider() == AuthProvider.GOOGLE) {
             throw new AratiriException("This account is registered with Google. Please log in using your Google account.", HttpStatus.BAD_REQUEST);
         }
-        if (AuthProvider.LOCAL != user.getAuthProvider()){
+        if (AuthProvider.LOCAL != user.getAuthProvider()) {
             throw new AratiriException("Invalid Auth Provider for Password Reset. Please Contact Support for further assistance.");
         }
         String code = generateResetCode();

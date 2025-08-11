@@ -12,7 +12,10 @@ public interface InvoiceService {
     GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo);
 
     DecodedInvoicetDTO decodeAratiriPaymentRequest(String paymentRequest, String userId);
+
     Optional<Invoice> lookupInvoice(String paymentHash);
+
     DecodedInvoicetDTO decodePaymentRequest(String invoice);
+
     boolean existsSettledInvoiceByPaymentHash(String paymentHash);
 }

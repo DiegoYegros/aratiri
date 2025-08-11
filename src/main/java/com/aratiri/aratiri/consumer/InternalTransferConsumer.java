@@ -1,4 +1,3 @@
-
 package com.aratiri.aratiri.consumer;
 
 import com.aratiri.aratiri.event.InternalTransferInitiatedEvent;
@@ -7,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -18,10 +18,11 @@ public class InternalTransferConsumer {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "internal.transfer.initiated", groupId = "internal-transfer-group")
-    public void handleInternalTransfer(String message) {
+    public void handleInternalTransfer(String message, Acknowledgment acknowledgment) {
         try {
             InternalTransferInitiatedEvent event = objectMapper.readValue(message, InternalTransferInitiatedEvent.class);
             transactionsService.processInternalTransfer(event);
+            acknowledgment.acknowledge();
         } catch (Exception e) {
             log.error("Failed to process internal transfer: {}", message, e);
         }

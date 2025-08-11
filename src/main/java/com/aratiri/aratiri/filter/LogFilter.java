@@ -27,8 +27,8 @@ import java.util.List;
 public class LogFilter extends OncePerRequestFilter {
 
     private static final Logger logger = LoggerFactory.getLogger(LogFilter.class);
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private static final List<String> SENSITIVE_FIELDS = Arrays.asList("password", "token", "accessToken", "refreshToken", "jwt");
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -49,8 +49,8 @@ public class LogFilter extends OncePerRequestFilter {
         logger.info(LogUtils.formatSectionHeader("START REQUEST LOG"));
         logger.info(LogUtils.formatKeyValue("Method", request.getMethod()));
         logger.info(LogUtils.formatKeyValue("URI", request.getRequestURI()));
-        logger.info(LogUtils.formatKeyValue("Query String", request.getQueryString()));
-        logger.info(LogUtils.formatKeyValue("Content Type", request.getContentType()));
+        logger.debug(LogUtils.formatKeyValue("Query String", request.getQueryString()));
+        logger.debug(LogUtils.formatKeyValue("Content Type", request.getContentType()));
         logHeaders(request);
         String requestBody = getRequestBody(request);
         if (!requestBody.isEmpty()) {
@@ -67,17 +67,17 @@ public class LogFilter extends OncePerRequestFilter {
 
         String responseBody = getResponseBody(response);
         if (!responseBody.isEmpty()) {
-            logger.info(LogUtils.formatKeyValue("Response Body", maskSensitiveData(responseBody)));
+            logger.debug(LogUtils.formatKeyValue("Response Body", maskSensitiveData(responseBody)));
         }
         logger.info(LogUtils.formatSectionHeader("END RESPONSE LOG"));
     }
 
     private void logHeaders(HttpServletRequest request) {
-        logger.info(LogUtils.formatKeyValue("Headers", ""));
+        logger.debug(LogUtils.formatKeyValue("Headers", ""));
         Enumeration<String> headerNames = request.getHeaderNames();
         while (headerNames.hasMoreElements()) {
             String headerName = headerNames.nextElement();
-            logger.info(LogUtils.formatKeyValue("  " + headerName, request.getHeader(headerName)));
+            logger.debug(LogUtils.formatKeyValue("  " + headerName, request.getHeader(headerName)));
         }
     }
 

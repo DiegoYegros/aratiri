@@ -2,7 +2,6 @@ package com.aratiri.aratiri.jobs;
 
 import com.aratiri.aratiri.entity.OutboxEventEntity;
 import com.aratiri.aratiri.enums.KafkaTopics;
-import com.aratiri.aratiri.event.InternalTransferInitiatedEvent;
 import com.aratiri.aratiri.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.aratiri.event.PaymentInitiatedEvent;
 import com.aratiri.aratiri.producer.InvoiceEventProducer;
@@ -50,6 +49,8 @@ public class OutboxEventPoller {
                     paymentService.initiateGrpcOnChainPayment(eventPayload.getTransactionId(), eventPayload.getUserId(), eventPayload.getPaymentRequest());
                 } else if ("INTERNAL_TRANSFER_INITIATED".equals(eventType)) {
                     invoiceEventProducer.sendInternalTransferEvent(event.getPayload());
+                } else if (KafkaTopics.PAYMENT_SENT.getCode().equals(eventType)) {
+                    invoiceEventProducer.sendPaymentSentEvent(event.getPayload());
                 } else {
                     log.error("Couldn't find a way to process this event type: [{}] -- Ignoring.", eventType);
                     continue;

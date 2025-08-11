@@ -1,7 +1,6 @@
 package com.aratiri.aratiri.service;
 
 import com.aratiri.aratiri.entity.UserEntity;
-import com.aratiri.aratiri.enums.AuthProvider;
 import com.aratiri.aratiri.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -23,7 +22,7 @@ public class AratiriUserDetailsService implements UserDetailsService {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
         String passwd;
-        if (user.getPassword() == null||user.getPassword().isEmpty()){
+        if (user.getPassword() == null || user.getPassword().isEmpty()) {
             passwd = UUID.randomUUID().toString();
         } else {
             passwd = user.getPassword();

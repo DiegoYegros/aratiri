@@ -1,9 +1,9 @@
 package com.aratiri.aratiri.service.processor;
 
 import com.aratiri.aratiri.constants.BitcoinConstants;
+import com.aratiri.aratiri.dto.transactions.TransactionType;
 import com.aratiri.aratiri.entity.AccountEntity;
 import com.aratiri.aratiri.entity.TransactionEntity;
-import com.aratiri.aratiri.dto.transactions.TransactionType;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;

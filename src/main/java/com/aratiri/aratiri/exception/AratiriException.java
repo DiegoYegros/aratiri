@@ -13,10 +13,11 @@ public class AratiriException extends RuntimeException {
     private String message;
     private HttpStatus httpStatus;
 
-    public AratiriException(String message){
+    public AratiriException(String message) {
         this.message = message;
     }
-    public AratiriException(String message, HttpStatus httpStatus){
+
+    public AratiriException(String message, HttpStatus httpStatus) {
         this.message = message;
         this.httpStatus = httpStatus;
     }

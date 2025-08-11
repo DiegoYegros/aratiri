@@ -1,6 +1,7 @@
 package com.aratiri.aratiri.config;
 
 import com.aratiri.aratiri.interceptor.GrpcLoggingInterceptor;
+import invoicesrpc.InvoicesGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
@@ -49,6 +50,17 @@ public class GrpcClientConfig {
                 .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroonPath()));
     }
 
+    @Bean
+    public InvoicesGrpc.InvoicesBlockingStub invoicesBlockingStub(ManagedChannel channel) {
+        return InvoicesGrpc.newBlockingStub(channel)
+                .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroonPath()));
+    }
+
+    @Bean
+    public InvoicesGrpc.InvoicesStub invoicesAsyncStub(ManagedChannel channel) {
+        return InvoicesGrpc.newStub(channel)
+                .withCallCredentials(new MacaroonCallCredentials(properties.getAdminMacaroonPath()));
+    }
 
     @Bean
     public ManagedChannel lndChannel() throws SSLException {

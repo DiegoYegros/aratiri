@@ -24,14 +24,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class LightningListener {
 
     private static final Logger logger = LoggerFactory.getLogger(LightningListener.class);
-
-    private StreamObserver<Invoice> invoiceStreamObserver;
     private final LightningGrpc.LightningStub lightningAsyncStub;
     private final AtomicBoolean isListening = new AtomicBoolean(false);
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(false);
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private final InvoiceProcessorService invoiceProcessorService;
     private final InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
+    private StreamObserver<Invoice> invoiceStreamObserver;
 
     public LightningListener(LightningGrpc.LightningStub lightningAsyncStub, InvoiceProcessorService invoiceProcessorService, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.lightningAsyncStub = lightningAsyncStub;

@@ -21,6 +21,7 @@ import com.aratiri.aratiri.service.PaymentService;
 import com.aratiri.aratiri.service.TransactionsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lnrpc.LightningGrpc;
 import lnrpc.Payment;
@@ -45,11 +46,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 
-    @Value("${aratiri.payment.default.fee.limit.sat:50}")
-    private int defaultFeeLimitSat;
-    @Value("${aratiri.payment.default.timeout.seconds:200}")
-    private int defaultTimeoutSeconds;
-
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountRepository accountRepository;
     private final TransactionsService transactionsService;
@@ -59,6 +55,10 @@ public class PaymentServiceImpl implements PaymentService {
     private final ObjectMapper objectMapper;
     private final LightningGrpc.LightningBlockingStub lightningStub;
     private final LightningInvoiceRepository lightningInvoiceRepository;
+    @Value("${aratiri.payment.default.fee.limit.sat:200}")
+    private int defaultFeeLimitSat;
+    @Value("${aratiri.payment.default.timeout.seconds:200}")
+    private int defaultTimeoutSeconds;
 
     @Override
     @Transactional
@@ -131,9 +131,11 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private PaymentResponseDTO processInternalTransfer(PayInvoiceRequestDTO request, String senderId, DecodedInvoicetDTO decodedInvoice, LightningInvoiceEntity internalInvoice) {
+        if (internalInvoice.getInvoiceState() == LightningInvoiceEntity.InvoiceState.SETTLED) {
+            throw new AratiriException("The invoice is already paid", HttpStatus.BAD_REQUEST);
+        }
         long amountSat = decodedInvoice.getNumSatoshis();
         AccountEntity senderAccount = accountRepository.findByUserId(senderId);
-
         if (senderAccount.getBalance() < amountSat) {
             throw new AratiriException("Insufficient balance for internal transfer", HttpStatus.BAD_REQUEST);
         }
@@ -177,6 +179,9 @@ public class PaymentServiceImpl implements PaymentService {
     @Async
     public void initiateGrpcLightningPayment(String transactionId, String userId, PayInvoiceRequestDTO payRequest) {
         try {
+            if (payRequest.getInvoice().toLowerCase().startsWith("lightning:")) {
+                payRequest.setInvoice(payRequest.getInvoice().substring(10));
+            }
             SendPaymentRequest grpcRequest = SendPaymentRequest.newBuilder()
                     .setPaymentRequest(payRequest.getInvoice())
                     .setFeeLimitSat(payRequest.getFeeLimitSat() != null ? payRequest.getFeeLimitSat() : defaultFeeLimitSat)
@@ -224,7 +229,7 @@ public class PaymentServiceImpl implements PaymentService {
             }
             return Optional.empty();
         } catch (StatusRuntimeException e) {
-            if (e.getStatus().getCode() == io.grpc.Status.Code.NOT_FOUND) {
+            if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
                 logger.debug("Payment with hash {} not found on LND node. Safe to proceed.", paymentHash);
                 return Optional.empty();
             }
@@ -235,6 +240,9 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public OnChainPaymentDTOs.SendOnChainResponseDTO sendOnChain(OnChainPaymentDTOs.SendOnChainRequestDTO request, String userId) {
+        if (request.getAddress().toLowerCase().startsWith("bitcoin:")) {
+            request.setAddress(request.getAddress().substring(8));
+        }
         AccountEntity account = accountRepository.findByUserId(userId);
         if (account.getBalance() < request.getSatsAmount()) {
             throw new AratiriException("Insufficient balance", HttpStatus.BAD_REQUEST);

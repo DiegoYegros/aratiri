@@ -7,6 +7,7 @@ import java.util.List;
 public class LnurlBech32Util {
 
     private static final String CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+    private static final int[] GENERATOR = {0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3};
 
     public static String encodeLnurl(String url) {
         byte[] data = convertTo5Bit(url.getBytes(StandardCharsets.UTF_8));
@@ -47,8 +48,6 @@ public class LnurlBech32Util {
         }
         return sb.toString();
     }
-
-    private static final int[] GENERATOR = {0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3};
 
     private static byte[] createChecksum(String hrp, byte[] data) {
         byte[] values = new byte[hrpExpand(hrp).length + data.length + 6];

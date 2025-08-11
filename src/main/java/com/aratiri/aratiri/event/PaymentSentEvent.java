@@ -9,10 +9,10 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class InternalTransferCompletedEvent {
-    private String senderId;
-    private String receiverId;
-    private Long amountSat;
+public class PaymentSentEvent {
+    private String userId;
+    private String transactionId;
+    private Long amount;
     private String paymentHash;
     private LocalDateTime timestamp;
     private String memo;

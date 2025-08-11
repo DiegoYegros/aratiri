@@ -135,7 +135,7 @@ public class OnChainTransactionListener {
         logger.info("Received on-chain transaction: {}", transaction.getTxHash());
 
         for (OutputDetail output : transaction.getOutputDetailsList()) {
-            if (!output.getIsOurAddress()){
+            if (!output.getIsOurAddress()) {
                 logger.info("[{}] Is not our address. Skipping.", output.getAddress());
                 continue;
             }
