@@ -2,7 +2,9 @@ package com.aratiri.aratiri.utils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 public class LnurlBech32Util {
 
@@ -84,5 +86,52 @@ public class LnurlBech32Util {
             }
         }
         return chk;
+    }
+
+    public static String decode(String bech32) {
+        if (!bech32.equals(bech32.toLowerCase(Locale.ROOT)) && !bech32.equals(bech32.toUpperCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("bech32 cannot mix case");
+        }
+        bech32 = bech32.toLowerCase(Locale.ROOT);
+        int pos = bech32.lastIndexOf('1');
+        if (pos < 1 || pos + 7 > bech32.length()) {
+            throw new IllegalArgumentException("Invalid bech32 string");
+        }
+        String hrp = bech32.substring(0, pos);
+        byte[] data = new byte[bech32.length() - pos - 1];
+        for (int i = 0, j = pos + 1; j < bech32.length(); i++, j++) {
+            data[i] = (byte) CHARSET.indexOf(bech32.charAt(j));
+        }
+
+        if (!verifyChecksum(hrp, data)) {
+            throw new IllegalArgumentException("Invalid checksum");
+        }
+        byte[] dataBytes = Arrays.copyOfRange(data, 0, data.length - 6);
+        return new String(convertFrom5Bit(dataBytes), StandardCharsets.UTF_8);
+    }
+
+    private static boolean verifyChecksum(String hrp, byte[] data) {
+        byte[] exp = hrpExpand(hrp);
+        byte[] values = new byte[exp.length + data.length];
+        System.arraycopy(exp, 0, values, 0, exp.length);
+        System.arraycopy(data, 0, values, exp.length, data.length);
+        return polymod(values) == 1;
+    }
+
+    private static byte[] convertFrom5Bit(byte[] data) {
+        int value = 0;
+        int bits = 0;
+        List<Byte> result = new ArrayList<>();
+        for (byte b : data) {
+            value = (value << 5) | (b & 31);
+            bits += 5;
+            if (bits >= 8) {
+                bits -= 8;
+                result.add((byte) ((value >> bits) & 0xFF));
+            }
+        }
+        byte[] out = new byte[result.size()];
+        for (int i = 0; i < out.length; i++) out[i] = result.get(i);
+        return out;
     }
 }

@@ -1,13 +1,16 @@
 package com.aratiri.aratiri.controller;
 
+import com.aratiri.aratiri.context.AratiriContext;
+import com.aratiri.aratiri.context.AratiriCtx;
+import com.aratiri.aratiri.dto.lnurl.LnurlPayRequestDTO;
+import com.aratiri.aratiri.dto.payments.PaymentResponseDTO;
 import com.aratiri.aratiri.service.LnurlService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @Tag(name = "LNURL", description = "Lightning Network URL (LNURL) protocol endpoints for Bitcoin Lightning payments")
@@ -47,5 +50,15 @@ public class LnurlController {
         Object response = lnurlService.lnurlCallback(alias, amount, comment);
         return ResponseEntity.ok(response);
     }
-
+    @PostMapping("/v1/lnurl/pay")
+    @Operation(
+            summary = "Execute LNURL-pay request",
+            description = "Handles the final step of an LNURL-pay flow. The backend fetches the invoice from the provided callback URL and then pays it."
+    )
+    public ResponseEntity<PaymentResponseDTO> pay(
+            @Valid @RequestBody LnurlPayRequestDTO request,
+            @AratiriCtx AratiriContext ctx) {
+        PaymentResponseDTO response = lnurlService.handlePayRequest(request, ctx.getUser().getId());
+        return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
+    }
 }
