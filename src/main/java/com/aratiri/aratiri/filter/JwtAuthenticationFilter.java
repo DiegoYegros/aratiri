@@ -1,6 +1,6 @@
 package com.aratiri.aratiri.filter;
 
-import com.aratiri.aratiri.utils.JwtUtil;
+import com.aratiri.aratiri.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

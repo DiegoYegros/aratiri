@@ -4,7 +4,8 @@ import com.aratiri.aratiri.config.AratiriProperties;
 import com.aratiri.aratiri.dto.decoder.DecodedResultDTO;
 import com.aratiri.aratiri.dto.lnurl.LnurlpResponseDTO;
 import com.aratiri.aratiri.exception.AratiriException;
-import com.aratiri.aratiri.utils.LnurlBech32Util;
+import com.aratiri.aratiri.nostr.NostrService;
+import com.aratiri.aratiri.util.Bech32Util;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,13 +15,14 @@ public class DecoderService {
 
     private final InvoiceService invoiceService;
     private final LnurlService lnurlService;
+    private final NostrService nostrService;
     private final AratiriProperties aratiriProperties;
 
     public DecodedResultDTO decode(String input) {
         input = input.trim().toLowerCase();
         if (input.startsWith("lnurl")) {
             try {
-                String decodedUrl = LnurlBech32Util.decode(input);
+                String decodedUrl = Bech32Util.decode(input);
                 LnurlpResponseDTO lnurlMetadata;
                 if (decodedUrl.contains(aratiriProperties.getAratiriBaseUrl())) {
                     lnurlMetadata = lnurlService.getLnurlMetadata(decodedUrl.substring(decodedUrl.lastIndexOf('/') + 1));
@@ -43,6 +45,26 @@ public class DecoderService {
                         .build();
             } catch (Exception e) {
                 return DecodedResultDTO.builder().type("error").error("Invalid Lightning Invoice").build();
+            }
+        }
+        if (input.startsWith("npub1")) {
+            try {
+                String lightningAddress = nostrService.getLud16FromNpub(input).get();
+                if (lightningAddress != null && !lightningAddress.isEmpty()) {
+                    String[] parts = lightningAddress.split("@");
+                    if (parts.length == 2) {
+                        String username = parts[0];
+                        String domain = parts[1];
+                        String lnurlpUrl = "https://" + domain + "/.well-known/lnurlp/" + username;
+                        return DecodedResultDTO.builder()
+                                .type("lnurl_params")
+                                .data(lnurlService.getExternalLnurlMetadata(lnurlpUrl))
+                                .build();
+                    }
+                }
+                return DecodedResultDTO.builder().type("error").error("No Lightning Address found for this npub.").build();
+            } catch (Exception e) {
+                return DecodedResultDTO.builder().type("error").error("Could not resolve npub.").build();
             }
         }
         if (input.startsWith("bitcoin:") || input.startsWith("bc1") || input.startsWith("tb1") || input.startsWith("1") || input.startsWith("3")) {

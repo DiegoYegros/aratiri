@@ -2,7 +2,7 @@ package com.aratiri.aratiri.handler;
 
 import com.aratiri.aratiri.entity.UserEntity;
 import com.aratiri.aratiri.service.UserService;
-import com.aratiri.aratiri.utils.JwtUtil;
+import com.aratiri.aratiri.util.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

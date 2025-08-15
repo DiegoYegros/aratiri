@@ -1,4 +1,4 @@
-package com.aratiri.aratiri.constants;
+package com.aratiri.aratiri.constant;
 
 import java.math.BigDecimal;
 

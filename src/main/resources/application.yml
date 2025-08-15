@@ -83,6 +83,9 @@ aratiri:
   accounts:
     fiat:
       currencies: ${ARATIRI_ACCOUNTS_FIAT_CURRENCIES:usd,pyg,ars,eur}
+nostr:
+  relay:
+    url: ${NOSTR_RELAY_URL:wss://relay.primal.net}
 
   payment:
     default:

@@ -1,6 +1,6 @@
 package com.aratiri.aratiri.service.impl;
 
-import com.aratiri.aratiri.constants.BitcoinConstants;
+import com.aratiri.aratiri.constant.BitcoinConstants;
 import com.aratiri.aratiri.dto.transactions.*;
 import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.entity.TransactionEntity;

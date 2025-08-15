@@ -1,4 +1,4 @@
-package com.aratiri.aratiri.utils;
+package com.aratiri.aratiri.util;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -17,18 +17,12 @@ public class InvoiceUtils {
         return digest.digest(data);
     }
 
-    public static String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) sb.append(String.format("%02x", b));
-        return sb.toString();
-    }
-
     public static void main(String[] args) throws NoSuchAlgorithmException {
         byte[] preimage = generatePreimage();
         byte[] paymentHash = sha256(preimage);
 
-        System.out.println("Preimage: " + bytesToHex(preimage));
-        System.out.println("Payment Hash: " + bytesToHex(paymentHash));
+        System.out.println("Preimage: " + Bech32Util.bytesToHex(preimage));
+        System.out.println("Payment Hash: " + Bech32Util.bytesToHex(paymentHash));
     }
 
 }

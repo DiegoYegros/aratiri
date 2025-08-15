@@ -1,4 +1,4 @@
-package com.aratiri.aratiri.utils;
+package com.aratiri.aratiri.util;
 
 public class LogUtils {
 

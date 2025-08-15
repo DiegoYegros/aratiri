@@ -26,6 +26,7 @@
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
         <jakarta.annotation-api.version>2.1.1</jakarta.annotation-api.version>
         <google-api-client.version>2.2.0</google-api-client.version>
+        <Java-WebSocket.version>1.5.3</Java-WebSocket.version>
     </properties>
 
     <dependencyManagement>
@@ -168,6 +169,12 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.java-websocket</groupId>
+            <artifactId>Java-WebSocket</artifactId>
+            <version>${Java-WebSocket.version}</version>
+        </dependency>
+
     </dependencies>
 
     <build>

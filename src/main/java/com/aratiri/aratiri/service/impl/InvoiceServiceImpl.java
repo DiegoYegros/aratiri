@@ -8,7 +8,7 @@ import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
 import com.aratiri.aratiri.service.AccountsService;
 import com.aratiri.aratiri.service.InvoiceService;
-import com.aratiri.aratiri.utils.InvoiceUtils;
+import com.aratiri.aratiri.util.InvoiceUtils;
 import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import lnrpc.*;

@@ -1,6 +1,6 @@
 package com.aratiri.aratiri.service.processor;
 
-import com.aratiri.aratiri.constants.BitcoinConstants;
+import com.aratiri.aratiri.constant.BitcoinConstants;
 import com.aratiri.aratiri.dto.transactions.TransactionType;
 import com.aratiri.aratiri.entity.AccountEntity;
 import com.aratiri.aratiri.entity.TransactionEntity;

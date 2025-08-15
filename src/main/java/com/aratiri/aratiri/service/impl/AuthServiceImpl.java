@@ -9,7 +9,7 @@ import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.AuthService;
 import com.aratiri.aratiri.service.RefreshTokenService;
-import com.aratiri.aratiri.utils.JwtUtil;
+import com.aratiri.aratiri.util.JwtUtil;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;

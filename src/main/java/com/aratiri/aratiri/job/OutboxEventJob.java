@@ -1,4 +1,4 @@
-package com.aratiri.aratiri.jobs;
+package com.aratiri.aratiri.job;
 
 import com.aratiri.aratiri.entity.OutboxEventEntity;
 import com.aratiri.aratiri.enums.KafkaTopics;
@@ -21,7 +21,7 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class OutboxEventPoller {
+public class OutboxEventJob {
     private final OutboxEventRepository outboxEventRepository;
     private final InvoiceEventProducer invoiceEventProducer;
     private final PaymentService paymentService;

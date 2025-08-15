@@ -10,7 +10,7 @@ import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.repository.VerificationDataRepository;
 import com.aratiri.aratiri.service.*;
-import com.aratiri.aratiri.utils.JwtUtil;
+import com.aratiri.aratiri.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
