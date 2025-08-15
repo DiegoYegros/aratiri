@@ -1,4 +1,4 @@
-package com.aratiri.aratiri.service;
+package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.entity.UserEntity;
 import com.aratiri.aratiri.repository.UserRepository;
@@ -12,7 +12,7 @@ import java.util.Collections;
 import java.util.UUID;
 
 @Service
-public class AratiriUserDetailsService implements UserDetailsService {
+public class AratiriUserDetailsServiceImpl implements UserDetailsService {
 
     @Autowired
     private UserRepository userRepository;

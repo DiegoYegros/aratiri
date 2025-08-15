@@ -5,9 +5,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CompletableFuture;
 
-public class NostrServiceDisabled implements NostrService {
+public class NoopNostrService implements NostrService {
 
-    private static final Logger logger = LoggerFactory.getLogger(NostrServiceDisabled.class);
+    private static final Logger logger = LoggerFactory.getLogger(NoopNostrService.class);
 
     @Override
     public CompletableFuture<String> getLud16FromNpub(String npub) {

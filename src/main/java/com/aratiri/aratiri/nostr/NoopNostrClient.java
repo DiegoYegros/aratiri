@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.concurrent.CompletableFuture;
 
-public class NostrClientDisabled implements NostrClient {
+public class NoopNostrClient implements NostrClient {
     @Override
     public void connectWithRetry() {
     }

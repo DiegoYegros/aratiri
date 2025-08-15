@@ -1,7 +1,7 @@
 package com.aratiri.aratiri.controller;
 
 import com.aratiri.aratiri.dto.decoder.DecodedResultDTO;
-import com.aratiri.aratiri.service.DecoderService;
+import com.aratiri.aratiri.service.impl.DecoderServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -15,9 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Decoder", description = "Decodes lnurl, Lightning Invoices, on-chain invoices, aliases")
 public class DecoderController {
 
-    private final DecoderService decoderService;
+    private final DecoderServiceImpl decoderService;
 
-    public DecoderController(DecoderService decoderService) {
+    public DecoderController(DecoderServiceImpl decoderService) {
         this.decoderService = decoderService;
     }
 

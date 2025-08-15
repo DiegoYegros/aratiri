@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 
 public final class BitcoinConstants {
     public static final long SATOSHIS_PER_BTC_LONG = 100_000_000L;
-    public static final int SATOSHIS_PER_BTC_INTEGER = 100_000_000;
     public static final BigDecimal SATOSHIS_PER_BTC = new BigDecimal(SATOSHIS_PER_BTC_LONG);
 
     private BitcoinConstants() {

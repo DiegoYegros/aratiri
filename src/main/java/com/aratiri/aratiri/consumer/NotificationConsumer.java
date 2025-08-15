@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
@@ -24,7 +25,7 @@ public class NotificationConsumer {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = {"invoice.settled", "internal.transfer.completed", "payment.sent"}, groupId = "notification-group")
-    public void handlePaymentSettledForNotification(String message, @Header(KafkaHeaders.RECEIVED_TOPIC) String topic) {
+    public void handlePaymentSettledForNotification(String message, @Header(KafkaHeaders.RECEIVED_TOPIC) String topic, Acknowledgment ack) {
         log.info("In NotificationConsumer, received the topic [{}]", topic);
         try {
             String userId;
@@ -67,8 +68,8 @@ public class NotificationConsumer {
                 log.warn("Unknown topic in NotificationConsumer: {}", topic);
                 return;
             }
-
             notificationsService.sendNotification(userId, eventName, notificationPayload);
+            ack.acknowledge();
         } catch (Exception e) {
             log.error("Failed to process event for notification from topic {}: {}", topic, message, e);
         }

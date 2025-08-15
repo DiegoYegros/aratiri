@@ -12,7 +12,7 @@ public class NostrConfig {
     @Bean
     public NostrClient nostrClient(@Value("${nostr.active:false}") boolean active) {
         if (!active) {
-            return new NostrClientDisabled();
+            return new NoopNostrClient();
         }
         return new NostrClientImpl();
     }
@@ -26,7 +26,7 @@ public class NostrConfig {
         if (active) {
             return new NostrServiceImpl(restTemplate, nostrClient, objectMapper);
         } else {
-            return new NostrServiceDisabled();
+            return new NoopNostrService();
         }
     }
 
