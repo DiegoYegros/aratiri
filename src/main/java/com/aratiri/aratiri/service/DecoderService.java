@@ -22,7 +22,7 @@ public class DecoderService {
         input = input.trim().toLowerCase();
         if (input.startsWith("lnurl")) {
             try {
-                String decodedUrl = Bech32Util.decode(input);
+                String decodedUrl = Bech32Util.bech32Decode(input).hrp;
                 LnurlpResponseDTO lnurlMetadata;
                 if (decodedUrl.contains(aratiriProperties.getAratiriBaseUrl())) {
                     lnurlMetadata = lnurlService.getLnurlMetadata(decodedUrl.substring(decodedUrl.lastIndexOf('/') + 1));

@@ -1,25 +1,15 @@
-// src/main/java/com/aratiri/aratiri/util/Bech32Util.java
 package com.aratiri.aratiri.util;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 
-/**
- * A utility class for Bech32 encoding and decoding, adapted for both LNURL and Nostr npub formats.
- * This implementation is self-contained and does not require external dependencies.
- */
 public class Bech32Util {
 
     private static final String CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
     private static final int[] GENERATOR = {0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3};
 
-    /**
-     * A simple container for the decoded parts of a Bech32 string.
-     */
     public static class Bech32Data {
         public final String hrp;
         public final byte[] data;
@@ -30,12 +20,26 @@ public class Bech32Util {
         }
     }
 
-    /**
-     * Decodes a Bech32 string into its human-readable part and data payload.
-     *
-     * @param bech32 The Bech32 string to decode.
-     * @return A Bech32Data object containing the hrp and data.
-     */
+    public static String encodeLnurl(String url) {
+        byte[] data = convertBits(url.getBytes(StandardCharsets.UTF_8), 8, 5, true);
+        return bech32Encode("lnurl", data);
+    }
+
+    private static String bech32Encode(String hrp, byte[] data) {
+        byte[] checksum = createChecksum(hrp, data);
+        byte[] combined = new byte[data.length + checksum.length];
+        System.arraycopy(data, 0, combined, 0, data.length);
+        System.arraycopy(checksum, 0, combined, data.length, checksum.length);
+
+        StringBuilder sb = new StringBuilder(hrp.length() + 1 + combined.length);
+        sb.append(hrp);
+        sb.append('1');
+        for (byte b : combined) {
+            sb.append(CHARSET.charAt(b));
+        }
+        return sb.toString();
+    }
+
     public static Bech32Data bech32Decode(final String bech32) {
         if (!bech32.equals(bech32.toLowerCase(Locale.ROOT)) && !bech32.equals(bech32.toUpperCase(Locale.ROOT))) {
             throw new IllegalArgumentException("Bech32 cannot mix case");
@@ -68,15 +72,6 @@ public class Bech32Util {
         return new Bech32Data(hrp, Arrays.copyOfRange(data, 0, data.length - 6));
     }
 
-    /**
-     * Converts an array of bytes from one base to another, e.g., 5-bit to 8-bit.
-     *
-     * @param in       The input byte array.
-     * @param fromBits The number of bits per input value.
-     * @param toBits   The number of bits per output value.
-     * @param pad      Whether to pad the output.
-     * @return The converted byte array.
-     */
     public static byte[] convertBits(final byte[] in, final int fromBits, final int toBits, final boolean pad) {
         int acc = 0;
         int bits = 0;
@@ -142,5 +137,17 @@ public class Bech32Util {
             sb.append(String.format("%02x", b));
         }
         return sb.toString();
+    }
+
+    private static byte[] createChecksum(String hrp, byte[] data) {
+        byte[] values = new byte[hrpExpand(hrp).length + data.length + 6];
+        System.arraycopy(hrpExpand(hrp), 0, values, 0, hrpExpand(hrp).length);
+        System.arraycopy(data, 0, values, hrpExpand(hrp).length, data.length);
+        int polymod = polymod(values) ^ 1;
+        byte[] checksum = new byte[6];
+        for (int i = 0; i < 6; ++i) {
+            checksum[i] = (byte) ((polymod >> 5 * (5 - i)) & 31);
+        }
+        return checksum;
     }
 }
