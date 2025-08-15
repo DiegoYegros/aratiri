@@ -16,6 +16,7 @@ import java.net.URI;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class NostrClient {
@@ -71,15 +72,30 @@ public class NostrClient {
         }
     }
 
+    public CompletableFuture<JsonNode> fetchProfileByHex(String hexKey) {
+        String subscriptionId = UUID.randomUUID().toString();
+        String request = NostrUtil.createSubscriptionRequest(hexKey, subscriptionId);
+        CompletableFuture<JsonNode> future = new CompletableFuture<JsonNode>()
+                .orTimeout(10, TimeUnit.SECONDS);
+        pendingRequests.put(subscriptionId, future);
+        if (client != null && client.isOpen()) {
+            logger.info("Sending profile request for hexKey: {}, subId: {}", hexKey, subscriptionId);
+            client.send(request);
+        } else {
+            logger.error("Cannot fetch profile, Nostr client is not connected.");
+            future.completeExceptionally(new IllegalStateException("Nostr client not connected."));
+        }
+
+        return future;
+    }
+
     public CompletableFuture<JsonNode> fetchProfile(String npub) {
         String hexKey = NostrUtil.npubToHex(npub);
         String subscriptionId = UUID.randomUUID().toString();
         String request = NostrUtil.createSubscriptionRequest(hexKey, subscriptionId);
         CompletableFuture<JsonNode> future = new CompletableFuture<>();
         pendingRequests.put(subscriptionId, future);
-
         client.send(request);
-
         return future;
     }
 
