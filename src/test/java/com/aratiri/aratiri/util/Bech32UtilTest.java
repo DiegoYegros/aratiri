@@ -2,21 +2,22 @@ package com.aratiri.aratiri.util;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class Bech32UtilTest {
 
     @Test
     void testEncodeLnurl() {
-        String url = "https://service.com/api?q=123";
-        String expectedLnurl = "lnurl1dp68gurn8ghj7mrww4exctt5dahkccn00qhxget8wfjk2um0veca2";
+        String url = "https://aratiri.diegoyegros.com/.well-known/lnurlp/silentkoala91";
+        String expectedLnurl = "lnurl1dp68gurn8ghj7ctjv96xjunf9ejxjet8dauk2emjdaejucm0d5hjuam9d3kz66mwdamkutmvde6hymrs9aekjmr9de6xkmmpd3snjvgxlxfwt";
         assertEquals(expectedLnurl, Bech32Util.encodeLnurl(url));
     }
 
     @Test
     void testBech32Decode() {
-        String lnurl = "lnurl1dp68gurn8ghj7mrww4exctt5dahkccn00qhxget8wfjk2um0veca2";
-        String expectedUrl = "https://service.com/api?q=123";
+        String lnurl = "lnurl1dp68gurn8ghj7ctjv96xjunf9ejxjet8dauk2emjdaejucm0d5hjuam9d3kz66mwdamkutmvde6hymrs9aekjmr9de6xkmmpd3snjvgxlxfwt";
+        String expectedUrl = "https://aratiri.diegoyegros.com/.well-known/lnurlp/silentkoala91";
         Bech32Util.Bech32Data decoded = Bech32Util.bech32Decode(lnurl);
         assertEquals("lnurl", decoded.hrp);
         assertEquals(expectedUrl, new String(Bech32Util.convertBits(decoded.data, 5, 8, false)));
@@ -24,8 +25,8 @@ public class Bech32UtilTest {
 
     @Test
     void testNpubToHex() {
-        String npub = "npub180cvv07tjdrrr6pln0v7wgyut40005sflkn8000l2h7kv7wdv4rqs0ftfk";
-        String expectedHex = "0000000000000000000000000000000000000000000000000000000000000001";
+        String npub = "npub1p3rfw7wscmzfn9z3fa74nzgyqe70p57j8mws0e88dh7awjepmzcq7jgxl9";
+        String expectedHex = "0c469779d0c6c49994514f7d598904067cf0d3d23edd07e4e76dfdd74b21d8b0";
         assertEquals(expectedHex, NostrUtil.npubToHex(npub));
     }
 
