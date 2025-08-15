@@ -46,7 +46,7 @@ public class Bech32Util {
         }
         String lowerBech32 = bech32.toLowerCase(Locale.ROOT);
         int pos = lowerBech32.lastIndexOf('1');
-        if (pos < 1 || pos + 7 > lowerBech32.length() || lowerBech32.length() > 90) {
+        if (pos < 1 || pos + 7 > lowerBech32.length()) {
             throw new IllegalArgumentException("Invalid Bech32 string");
         }
         for (int i = 0; i < pos; ++i) {
