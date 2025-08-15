@@ -10,6 +10,7 @@ import org.java_websocket.handshake.ServerHandshake;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -17,6 +18,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 public class NostrClient {
@@ -26,17 +28,38 @@ public class NostrClient {
     @Value("${nostr.relay.url}")
     private String relayUrl;
 
+    @Value("${nostr.retry.max-retries:5}")
+    private int maxRetries;
+
+    @Value("${nostr.retry.initial-delay:2000}")
+    private long initialDelay;
+
+    @Value("${nostr.retry.max-delay:300000}")
+    private long maxDelay;
+
     private WebSocketClient client;
     private final ConcurrentHashMap<String, CompletableFuture<JsonNode>> pendingRequests = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final AtomicInteger retryCount = new AtomicInteger(0);
+    private volatile boolean connected = false;
 
     @PostConstruct
-    public void connect() {
+    public void init() {
+        connectWithRetry();
+    }
+
+    public void connectWithRetry() {
+        if (connected) {
+            return;
+        }
+
         try {
             client = new WebSocketClient(new URI(relayUrl)) {
                 @Override
                 public void onOpen(ServerHandshake handshakedata) {
                     logger.info("Connected to Nostr relay: {}", relayUrl);
+                    connected = true;
+                    retryCount.set(0);
                 }
 
                 @Override
@@ -59,44 +82,68 @@ public class NostrClient {
                 @Override
                 public void onClose(int code, String reason, boolean remote) {
                     logger.warn("Disconnected from Nostr relay: {}. Reason: {}", relayUrl, reason);
+                    connected = false;
+                    if (retryCount.get() < maxRetries) {
+                        scheduleReconnection();
+                    } else {
+                        logger.error("Max retries reached. Could not connect to Nostr relay.");
+                    }
                 }
 
                 @Override
                 public void onError(Exception ex) {
                     logger.error("Nostr WebSocket error", ex);
+                    connected = false;
                 }
             };
+
+            logger.info("Attempting to connect to Nostr relay: {}", relayUrl);
             client.connect();
         } catch (Exception e) {
             logger.error("Failed to connect to Nostr relay", e);
+            if (retryCount.get() < maxRetries) {
+                scheduleReconnection();
+            } else {
+                logger.error("Max retries reached. Could not connect to Nostr relay.");
+            }
+        }
+    }
+
+    private void scheduleReconnection() {
+        long delay = (long) (initialDelay * Math.pow(2, retryCount.getAndIncrement()));
+        delay = Math.min(delay, maxDelay);
+
+        logger.info("Scheduling reconnection attempt in {} ms", delay);
+        CompletableFuture.delayedExecutor(delay, TimeUnit.MILLISECONDS).execute(this::connectWithRetry);
+    }
+
+    @Scheduled(fixedDelay = 10000)
+    public void checkConnection() {
+        if (!connected) {
+            logger.warn("Nostr client is not connected. Attempting to reconnect...");
+            connectWithRetry();
         }
     }
 
     public CompletableFuture<JsonNode> fetchProfileByHex(String hexKey) {
+        if (!connected) {
+            return CompletableFuture.failedFuture(new IllegalStateException("Nostr client not connected."));
+        }
         String subscriptionId = UUID.randomUUID().toString();
         String request = NostrUtil.createSubscriptionRequest(hexKey, subscriptionId);
         CompletableFuture<JsonNode> future = new CompletableFuture<JsonNode>()
                 .orTimeout(10, TimeUnit.SECONDS);
         pendingRequests.put(subscriptionId, future);
-        if (client != null && client.isOpen()) {
-            logger.info("Sending profile request for hexKey: {}, subId: {}", hexKey, subscriptionId);
-            client.send(request);
-        } else {
-            logger.error("Cannot fetch profile, Nostr client is not connected.");
-            future.completeExceptionally(new IllegalStateException("Nostr client not connected."));
-        }
+
+        logger.info("Sending profile request for hexKey: {}, subId: {}", hexKey, subscriptionId);
+        client.send(request);
 
         return future;
     }
 
     public CompletableFuture<JsonNode> fetchProfile(String npub) {
         String hexKey = NostrUtil.npubToHex(npub);
-        String subscriptionId = UUID.randomUUID().toString();
-        String request = NostrUtil.createSubscriptionRequest(hexKey, subscriptionId);
-        CompletableFuture<JsonNode> future = new CompletableFuture<>();
-        pendingRequests.put(subscriptionId, future);
-        client.send(request);
-        return future;
+        return fetchProfileByHex(hexKey);
     }
 
     @PreDestroy
