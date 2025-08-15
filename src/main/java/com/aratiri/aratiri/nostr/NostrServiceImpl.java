@@ -7,12 +7,10 @@ import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.concurrent.CompletableFuture;
 
-@Service
 @AllArgsConstructor
 public class NostrServiceImpl implements NostrService {
 
@@ -20,7 +18,6 @@ public class NostrServiceImpl implements NostrService {
     private RestTemplate restTemplate;
     private NostrClient nostrClient;
     private ObjectMapper objectMapper;
-
 
     @Override
     public CompletableFuture<String> getLud16FromNpub(String npub) {

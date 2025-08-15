@@ -84,6 +84,7 @@ aratiri:
     fiat:
       currencies: ${ARATIRI_ACCOUNTS_FIAT_CURRENCIES:usd,pyg,ars,eur}
 nostr:
+  active: ${NOSTR_ACTIVE:true}
   relay:
     url: ${NOSTR_RELAY_URL:wss://relay.primal.net}
   retry:
