@@ -26,6 +26,11 @@ public class OnChainTransactionConsumer {
     public void handleOnChainTransactionReceived(String message, Acknowledgment acknowledgment) {
         try {
             OnChainTransactionReceivedEvent event = objectMapper.readValue(message, OnChainTransactionReceivedEvent.class);
+            if (transactionsService.existsByReferenceId(event.getTxHash())) {
+                log.warn("Transaction with reference ID {} already processed. Skipping.", event.getTxHash());
+                acknowledgment.acknowledge();
+                return;
+            }
             CreateTransactionRequest creditRequest = new CreateTransactionRequest(
                     event.getUserId(),
                     BitcoinConstants.satoshisToBtc(event.getAmount()),

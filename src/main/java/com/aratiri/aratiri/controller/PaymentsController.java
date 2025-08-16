@@ -52,4 +52,16 @@ public class PaymentsController {
         OnChainPaymentDTOs.SendOnChainResponseDTO response = paymentService.sendOnChain(request, ctx.getUser().getId());
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
+
+    @PostMapping("/onchain/estimate-fee")
+    @Operation(
+            summary = "Estimate on-chain fee",
+            description = "Estimates the fee for a Bitcoin on-chain transaction."
+    )
+    public ResponseEntity<OnChainPaymentDTOs.EstimateFeeResponseDTO> estimateOnChainFee(
+            @Valid @RequestBody OnChainPaymentDTOs.EstimateFeeRequestDTO request,
+            @AratiriCtx AratiriContext ctx) {
+        OnChainPaymentDTOs.EstimateFeeResponseDTO response = paymentService.estimateOnChainFee(request, ctx.getUser().getId());
+        return ResponseEntity.ok(response);
+    }
 }

@@ -28,4 +28,26 @@ public class OnChainPaymentDTOs {
         private String txid;
         private String transactionId;
     }
+
+    @Data
+    public static class EstimateFeeRequestDTO {
+        @NotBlank(message = "Bitcoin address cannot be blank")
+        private String address;
+
+        @NotNull(message = "Amount in satoshis cannot be null")
+        @JsonProperty("sats_amount")
+        private Long satsAmount;
+
+        @JsonProperty("target_conf")
+        private Integer targetConf;
+    }
+
+    @Data
+    public static class EstimateFeeResponseDTO {
+        @JsonProperty("fee_sat")
+        private long feeSat;
+
+        @JsonProperty("sat_per_vbyte")
+        private long satPerVbyte;
+    }
 }

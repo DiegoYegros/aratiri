@@ -24,10 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import lnrpc.LightningGrpc;
-import lnrpc.Payment;
-import lnrpc.SendCoinsRequest;
-import lnrpc.SendCoinsResponse;
+import lnrpc.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -251,6 +248,9 @@ public class PaymentServiceImpl implements PaymentService {
         if (account.getBalance() < request.getSatsAmount()) {
             throw new AratiriException("Insufficient balance", HttpStatus.BAD_REQUEST);
         }
+        if (account.getBitcoinAddress().equals(request.getAddress())){
+            throw new AratiriException("Payment to self not allowed.", HttpStatus.BAD_REQUEST);
+        }
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
                 .userId(userId)
                 .amount(BitcoinConstants.satoshisToBtc(request.getSatsAmount()))
@@ -281,6 +281,26 @@ public class PaymentServiceImpl implements PaymentService {
         OnChainPaymentDTOs.SendOnChainResponseDTO response = new OnChainPaymentDTOs.SendOnChainResponseDTO();
         response.setTransactionId(txDto.getId());
         return response;
+    }
+
+    @Override
+    public OnChainPaymentDTOs.EstimateFeeResponseDTO estimateOnChainFee(OnChainPaymentDTOs.EstimateFeeRequestDTO request, String userId) {
+        try {
+            EstimateFeeRequest.Builder grpcRequestBuilder = EstimateFeeRequest.newBuilder()
+                    .putAddrToAmount(request.getAddress(), request.getSatsAmount());
+            if (request.getTargetConf() != null) {
+                grpcRequestBuilder.setTargetConf(request.getTargetConf());
+            } else {
+                grpcRequestBuilder.setTargetConf(1);
+            }
+            EstimateFeeResponse response = lightningStub.estimateFee(grpcRequestBuilder.build());
+            OnChainPaymentDTOs.EstimateFeeResponseDTO responseDTO = new OnChainPaymentDTOs.EstimateFeeResponseDTO();
+            responseDTO.setFeeSat(response.getFeeSat());
+            responseDTO.setSatPerVbyte(response.getSatPerVbyte());
+            return responseDTO;
+        } catch (StatusRuntimeException e) {
+            throw new AratiriException("Error estimating fee: " + e.getStatus().getDescription(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     @Async

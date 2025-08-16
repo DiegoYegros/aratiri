@@ -44,18 +44,16 @@ public class TransactionsServiceImpl implements TransactionsService {
     private final TransactionsRepository transactionsRepository;
     private final Map<TransactionType, TransactionProcessor> processors;
     private final LightningInvoiceRepository lightningInvoiceRepository;
-    private final OutboxEventProducer outboxEventProducer;
     private final ObjectMapper objectMapper;
     private final InvoicesGrpc.InvoicesBlockingStub invoiceBlockingStub;
     private final OutboxEventRepository outboxEventRepository;
 
-    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, ObjectMapper objectMapper, OutboxEventProducer outboxEventProducer, InvoicesGrpc.InvoicesBlockingStub invoiceStub, OutboxEventRepository outboxEventRepository) {
+    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, ObjectMapper objectMapper, InvoicesGrpc.InvoicesBlockingStub invoiceStub, OutboxEventRepository outboxEventRepository) {
         this.transactionsRepository = transactionsRepository;
         this.processors = processorList.stream()
                 .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.objectMapper = objectMapper;
-        this.outboxEventProducer = outboxEventProducer;
         this.invoiceBlockingStub = invoiceStub;
         this.outboxEventRepository = outboxEventRepository;
     }
