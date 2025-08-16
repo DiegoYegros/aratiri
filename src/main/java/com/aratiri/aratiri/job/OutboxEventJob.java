@@ -2,13 +2,8 @@ package com.aratiri.aratiri.job;
 
 import com.aratiri.aratiri.entity.OutboxEventEntity;
 import com.aratiri.aratiri.enums.KafkaTopics;
-import com.aratiri.aratiri.event.OnChainPaymentInitiatedEvent;
-import com.aratiri.aratiri.event.PaymentInitiatedEvent;
-import com.aratiri.aratiri.producer.InvoiceEventProducer;
+import com.aratiri.aratiri.producer.OutboxEventProducer;
 import com.aratiri.aratiri.repository.OutboxEventRepository;
-import com.aratiri.aratiri.service.PaymentService;
-import com.aratiri.aratiri.service.TransactionsService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,10 +18,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OutboxEventJob {
     private final OutboxEventRepository outboxEventRepository;
-    private final InvoiceEventProducer invoiceEventProducer;
-    private final PaymentService paymentService;
-    private final ObjectMapper objectMapper;
-    private final TransactionsService transactionsService;
+    private final OutboxEventProducer outboxEventProducer;
 
     @Scheduled(fixedDelay = 1000)
     @Transactional
@@ -40,21 +32,22 @@ public class OutboxEventJob {
             try {
                 String eventType = event.getEventType();
                 if (KafkaTopics.INVOICE_SETTLED.getCode().equals(eventType)) {
-                    invoiceEventProducer.sendInvoiceSettledEventFromString(event.getPayload());
-                } else if ("PAYMENT_INITIATED".equals(eventType)) {
-                    PaymentInitiatedEvent eventPayload = objectMapper.readValue(event.getPayload(), PaymentInitiatedEvent.class);
-                    paymentService.initiateGrpcLightningPayment(eventPayload.getTransactionId(), eventPayload.getUserId(), eventPayload.getPayRequest());
-                } else if ("ONCHAIN_PAYMENT_INITIATED".equals(eventType)) {
-                    OnChainPaymentInitiatedEvent eventPayload = objectMapper.readValue(event.getPayload(), OnChainPaymentInitiatedEvent.class);
-                    paymentService.initiateGrpcOnChainPayment(eventPayload.getTransactionId(), eventPayload.getUserId(), eventPayload.getPaymentRequest());
-                } else if ("INTERNAL_TRANSFER_INITIATED".equals(eventType)) {
-                    invoiceEventProducer.sendInternalTransferEvent(event.getPayload());
+                    outboxEventProducer.sendEvent(KafkaTopics.INVOICE_SETTLED, event.getPayload());
+                } else if (KafkaTopics.PAYMENT_INITIATED.getCode().equals(eventType)) {
+                    outboxEventProducer.sendEvent(KafkaTopics.PAYMENT_INITIATED, event.getPayload());
+                } else if (KafkaTopics.ONCHAIN_PAYMENT_INITIATED.getCode().equals(eventType)) {
+                    outboxEventProducer.sendEvent(KafkaTopics.ONCHAIN_PAYMENT_INITIATED, event.getPayload());
+                } else if (KafkaTopics.INTERNAL_TRANSFER_INITIATED.getCode().equals(eventType)) {
+                    outboxEventProducer.sendEvent(KafkaTopics.INTERNAL_TRANSFER_INITIATED, event.getPayload());
                 } else if (KafkaTopics.PAYMENT_SENT.getCode().equals(eventType)) {
-                    invoiceEventProducer.sendPaymentSentEvent(event.getPayload());
+                    outboxEventProducer.sendEvent(KafkaTopics.PAYMENT_SENT, event.getPayload());
+                } else if (KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED.getCode().equals(eventType)) {
+                    outboxEventProducer.sendEvent(KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED, event.getPayload());
                 } else {
-                    log.error("Couldn't find a way to process this event type: [{}] -- Ignoring.", eventType);
+                    log.error("Couldn't find a Kafka topic for event type: [{}] -- Ignoring.", eventType);
                     continue;
                 }
+
                 event.setProcessedAt(Instant.now());
                 outboxEventRepository.save(event);
             } catch (Exception e) {

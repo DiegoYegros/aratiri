@@ -9,6 +9,7 @@ import com.aratiri.aratiri.dto.transactions.*;
 import com.aratiri.aratiri.entity.AccountEntity;
 import com.aratiri.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.aratiri.entity.OutboxEventEntity;
+import com.aratiri.aratiri.enums.KafkaTopics;
 import com.aratiri.aratiri.event.InternalTransferInitiatedEvent;
 import com.aratiri.aratiri.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.aratiri.event.PaymentInitiatedEvent;
@@ -115,7 +116,7 @@ public class PaymentServiceImpl implements PaymentService {
             OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
                     .aggregateType("LIGHTNING_INVOICE_PAYMENT")
                     .aggregateId(txDto.getId())
-                    .eventType("PAYMENT_INITIATED")
+                    .eventType(KafkaTopics.PAYMENT_INITIATED.getCode())
                     .payload(objectMapper.writeValueAsString(eventPayload))
                     .build();
             outboxEventRepository.save(outboxEvent);
@@ -161,7 +162,7 @@ public class PaymentServiceImpl implements PaymentService {
             OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
                     .aggregateType("INTERNAL_TRANSFER")
                     .aggregateId(txDto.getId())
-                    .eventType("INTERNAL_TRANSFER_INITIATED")
+                    .eventType(KafkaTopics.INTERNAL_TRANSFER_INITIATED.getCode())
                     .payload(objectMapper.writeValueAsString(eventPayload))
                     .build();
             outboxEventRepository.save(outboxEvent);
@@ -265,7 +266,7 @@ public class PaymentServiceImpl implements PaymentService {
             OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
                     .aggregateType("ONCHAIN_PAYMENT")
                     .aggregateId(txDto.getId())
-                    .eventType("ONCHAIN_PAYMENT_INITIATED")
+                    .eventType(KafkaTopics.ONCHAIN_PAYMENT_INITIATED.getCode())
                     .payload(objectMapper.writeValueAsString(eventPayload))
                     .build();
             outboxEventRepository.save(outboxEvent);

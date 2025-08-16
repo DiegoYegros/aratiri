@@ -3,12 +3,15 @@ package com.aratiri.aratiri.service.impl;
 import com.aratiri.aratiri.constant.BitcoinConstants;
 import com.aratiri.aratiri.dto.transactions.*;
 import com.aratiri.aratiri.entity.LightningInvoiceEntity;
+import com.aratiri.aratiri.entity.OutboxEventEntity;
 import com.aratiri.aratiri.entity.TransactionEntity;
+import com.aratiri.aratiri.enums.KafkaTopics;
 import com.aratiri.aratiri.event.InternalTransferCompletedEvent;
 import com.aratiri.aratiri.event.InternalTransferInitiatedEvent;
 import com.aratiri.aratiri.exception.AratiriException;
-import com.aratiri.aratiri.producer.InvoiceEventProducer;
+import com.aratiri.aratiri.producer.OutboxEventProducer;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
+import com.aratiri.aratiri.repository.OutboxEventRepository;
 import com.aratiri.aratiri.repository.TransactionsRepository;
 import com.aratiri.aratiri.service.TransactionsService;
 import com.aratiri.aratiri.service.processor.TransactionProcessor;
@@ -41,18 +44,20 @@ public class TransactionsServiceImpl implements TransactionsService {
     private final TransactionsRepository transactionsRepository;
     private final Map<TransactionType, TransactionProcessor> processors;
     private final LightningInvoiceRepository lightningInvoiceRepository;
-    private final InvoiceEventProducer invoiceEventProducer;
+    private final OutboxEventProducer outboxEventProducer;
     private final ObjectMapper objectMapper;
     private final InvoicesGrpc.InvoicesBlockingStub invoiceBlockingStub;
+    private final OutboxEventRepository outboxEventRepository;
 
-    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, ObjectMapper objectMapper, InvoiceEventProducer invoiceEventProducer, InvoicesGrpc.InvoicesBlockingStub invoiceStub) {
+    public TransactionsServiceImpl(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, ObjectMapper objectMapper, OutboxEventProducer outboxEventProducer, InvoicesGrpc.InvoicesBlockingStub invoiceStub, OutboxEventRepository outboxEventRepository) {
         this.transactionsRepository = transactionsRepository;
         this.processors = processorList.stream()
                 .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.objectMapper = objectMapper;
-        this.invoiceEventProducer = invoiceEventProducer;
+        this.outboxEventProducer = outboxEventProducer;
         this.invoiceBlockingStub = invoiceStub;
+        this.outboxEventRepository = outboxEventRepository;
     }
 
     @Override
@@ -222,10 +227,15 @@ public class TransactionsServiceImpl implements TransactionsService {
                 invoice.getMemo()
         );
         try {
-            String eventPayload = objectMapper.writeValueAsString(completedEvent);
-            invoiceEventProducer.sendInternalTransferCompletedEvent(eventPayload);
+            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
+                    .aggregateType("INTERNAL_TRANSFER")
+                    .aggregateId(event.getTransactionId())
+                    .eventType(KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode())
+                    .payload(objectMapper.writeValueAsString(completedEvent))
+                    .build();
+            outboxEventRepository.save(outboxEvent);
         } catch (Exception e) {
-            logger.error("Failed to send InternalTransferCompletedEvent", e);
+            logger.error("Failed to create outbox event for InternalTransferCompletedEvent", e);
             throw new AratiriException("Failed to publish settlement event for internal transfer.");
         }
 

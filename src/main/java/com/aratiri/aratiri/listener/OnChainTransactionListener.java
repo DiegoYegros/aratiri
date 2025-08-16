@@ -1,12 +1,12 @@
 package com.aratiri.aratiri.listener;
 
-import com.aratiri.aratiri.constant.BitcoinConstants;
-import com.aratiri.aratiri.dto.transactions.CreateTransactionRequest;
-import com.aratiri.aratiri.dto.transactions.TransactionCurrency;
-import com.aratiri.aratiri.dto.transactions.TransactionStatus;
-import com.aratiri.aratiri.dto.transactions.TransactionType;
+import com.aratiri.aratiri.entity.OutboxEventEntity;
+import com.aratiri.aratiri.enums.KafkaTopics;
+import com.aratiri.aratiri.event.OnChainTransactionReceivedEvent;
 import com.aratiri.aratiri.repository.AccountRepository;
+import com.aratiri.aratiri.repository.OutboxEventRepository;
 import com.aratiri.aratiri.service.TransactionsService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.grpc.stub.StreamObserver;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -33,15 +33,24 @@ public class OnChainTransactionListener {
     private final LightningGrpc.LightningStub lightningAsyncStub;
     private final AccountRepository accountRepository;
     private final TransactionsService transactionsService;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
     private final AtomicBoolean isListening = new AtomicBoolean(false);
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(true);
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private StreamObserver<Transaction> transactionStreamObserver;
 
-    public OnChainTransactionListener(LightningGrpc.LightningStub lightningAsyncStub, AccountRepository accountRepository, TransactionsService transactionsService) {
+    public OnChainTransactionListener(
+            LightningGrpc.LightningStub lightningAsyncStub,
+            AccountRepository accountRepository,
+            TransactionsService transactionsService,
+            OutboxEventRepository outboxEventRepository,
+            ObjectMapper objectMapper) {
         this.lightningAsyncStub = lightningAsyncStub;
         this.accountRepository = accountRepository;
         this.transactionsService = transactionsService;
+        this.outboxEventRepository = outboxEventRepository;
+        this.objectMapper = objectMapper;
     }
 
     @PostConstruct
@@ -145,17 +154,23 @@ public class OnChainTransactionListener {
                     return;
                 }
                 if (transaction.getNumConfirmations() > 0) {
-                    CreateTransactionRequest creditRequest = new CreateTransactionRequest(
+                    OnChainTransactionReceivedEvent eventPayload = new OnChainTransactionReceivedEvent(
                             account.getUser().getId(),
-                            BitcoinConstants.satoshisToBtc(output.getAmount()),
-                            TransactionCurrency.BTC,
-                            TransactionType.ONCHAIN_CREDIT,
-                            TransactionStatus.COMPLETED,
-                            "On-chain payment received",
+                            output.getAmount(),
                             transaction.getTxHash()
                     );
-                    transactionsService.createAndSettleTransaction(creditRequest);
-                    logger.info("Credited account {} with {} sats.", account.getId(), output.getAmount());
+                    try {
+                        OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
+                                .aggregateType("ONCHAIN_TRANSACTION")
+                                .aggregateId(transaction.getTxHash())
+                                .eventType(KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED.getCode())
+                                .payload(objectMapper.writeValueAsString(eventPayload))
+                                .build();
+                        outboxEventRepository.save(outboxEvent);
+                        logger.info("Saved ONCHAIN_TRANSACTION_RECEIVED event to outbox for txHash: {}", transaction.getTxHash());
+                    } catch (Exception e) {
+                        logger.error("Failed to create outbox event for on-chain transaction.", e);
+                    }
                 }
             });
         }
