@@ -245,15 +245,24 @@ public class PaymentServiceImpl implements PaymentService {
             request.setAddress(request.getAddress().substring(8));
         }
         AccountEntity account = accountRepository.findByUserId(userId);
-        if (account.getBalance() < request.getSatsAmount()) {
-            throw new AratiriException("Insufficient balance", HttpStatus.BAD_REQUEST);
+
+        OnChainPaymentDTOs.EstimateFeeRequestDTO feeRequest = new OnChainPaymentDTOs.EstimateFeeRequestDTO();
+        feeRequest.setAddress(request.getAddress());
+        feeRequest.setSatsAmount(request.getSatsAmount());
+        feeRequest.setTargetConf(request.getTargetConf());
+
+        OnChainPaymentDTOs.EstimateFeeResponseDTO feeResponse = estimateOnChainFee(feeRequest, userId);
+        long totalAmount = request.getSatsAmount() + feeResponse.getFeeSat();
+
+        if (account.getBalance() < totalAmount) {
+            throw new AratiriException("Insufficient balance to cover amount and fee", HttpStatus.BAD_REQUEST);
         }
-        if (account.getBitcoinAddress().equals(request.getAddress())){
+        if (account.getBitcoinAddress().equals(request.getAddress())) {
             throw new AratiriException("Payment to self not allowed.", HttpStatus.BAD_REQUEST);
         }
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
                 .userId(userId)
-                .amount(BitcoinConstants.satoshisToBtc(request.getSatsAmount()))
+                .amount(BitcoinConstants.satoshisToBtc(totalAmount))
                 .currency(TransactionCurrency.BTC)
                 .type(TransactionType.ONCHAIN_DEBIT)
                 .status(TransactionStatus.PENDING)
@@ -280,6 +289,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         OnChainPaymentDTOs.SendOnChainResponseDTO response = new OnChainPaymentDTOs.SendOnChainResponseDTO();
         response.setTransactionId(txDto.getId());
+        response.setTransactionStatus(txDto.getStatus());
         return response;
     }
 

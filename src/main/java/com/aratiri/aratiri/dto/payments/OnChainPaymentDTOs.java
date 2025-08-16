@@ -1,5 +1,6 @@
 package com.aratiri.aratiri.dto.payments;
 
+import com.aratiri.aratiri.dto.transactions.TransactionStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -25,8 +26,8 @@ public class OnChainPaymentDTOs {
 
     @Data
     public static class SendOnChainResponseDTO {
-        private String txid;
         private String transactionId;
+        private TransactionStatus transactionStatus;
     }
 
     @Data
