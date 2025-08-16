@@ -140,6 +140,9 @@ public class PaymentServiceImpl implements PaymentService {
         if (senderAccount.getBalance() < amountSat) {
             throw new AratiriException("Insufficient balance for internal transfer", HttpStatus.BAD_REQUEST);
         }
+        if (internalInvoice.getUserId().equals(senderId)) {
+            throw new AratiriException("Payment to self is not allowed.", HttpStatus.BAD_REQUEST);
+        }
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
                 .userId(senderId)
                 .amount(BitcoinConstants.satoshisToBtc(amountSat))
