@@ -23,12 +23,4 @@ public class OutboxEventProducer {
             throw e;
         }
     }
-    public void sendInternalTransferCompletedEvent(String payload) {
-        try {
-            sendEvent(KafkaTopics.INTERNAL_TRANSFER_COMPLETED, payload);
-        } catch (Exception e) {
-            logger.error("Failed to send InternalTransferCompletedEvent to Kafka.", e);
-            throw e;
-        }
-    }
 }
