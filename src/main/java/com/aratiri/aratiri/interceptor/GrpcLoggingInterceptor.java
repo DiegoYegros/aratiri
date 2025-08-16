@@ -14,8 +14,6 @@ public class GrpcLoggingInterceptor implements ClientInterceptor {
             MethodDescriptor<ReqT, RespT> method,
             CallOptions callOptions,
             Channel next) {
-
-        log.info(LogUtils.formatSectionHeader("START gRPC CALL"));
         log.info(LogUtils.formatKeyValue("METHOD", method.getFullMethodName()));
 
         return new ForwardingClientCall.SimpleForwardingClientCall<>(next.newCall(method, callOptions)) {
@@ -41,7 +39,6 @@ public class GrpcLoggingInterceptor implements ClientInterceptor {
                         } else {
                             log.debug(LogUtils.formatKeyValue("gRPC CALL STATUS", "SUCCESSFULLY CLOSED"));
                         }
-                        log.debug(LogUtils.formatSectionHeader("END gRPC CALL"));
                         super.onClose(status, trailers);
                     }
                 };

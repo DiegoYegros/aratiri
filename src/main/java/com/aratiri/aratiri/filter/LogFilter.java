@@ -46,7 +46,6 @@ public class LogFilter extends OncePerRequestFilter {
     }
 
     private void logRequest(ContentCachingRequestWrapper request) {
-        logger.info(LogUtils.formatSectionHeader("START REQUEST LOG"));
         logger.info(LogUtils.formatKeyValue("Method", request.getMethod()));
         logger.info(LogUtils.formatKeyValue("URI", request.getRequestURI()));
         logger.debug(LogUtils.formatKeyValue("Query String", request.getQueryString()));
@@ -56,20 +55,15 @@ public class LogFilter extends OncePerRequestFilter {
         if (!requestBody.isEmpty()) {
             logger.info(LogUtils.formatKeyValue("Request Body", maskSensitiveData(requestBody)));
         }
-        logger.info(LogUtils.formatSectionHeader("END REQUEST LOG"));
-
     }
 
     private void logResponse(ContentCachingResponseWrapper response, long timeTaken) {
-        logger.info(LogUtils.formatSectionHeader("START RESPONSE LOG"));
         logger.info(LogUtils.formatKeyValue("Status", response.getStatus()));
         logger.info(LogUtils.formatKeyValue("Time Taken", timeTaken + " ms"));
-
         String responseBody = getResponseBody(response);
         if (!responseBody.isEmpty()) {
             logger.debug(LogUtils.formatKeyValue("Response Body", maskSensitiveData(responseBody)));
         }
-        logger.info(LogUtils.formatSectionHeader("END RESPONSE LOG"));
     }
 
     private void logHeaders(HttpServletRequest request) {
