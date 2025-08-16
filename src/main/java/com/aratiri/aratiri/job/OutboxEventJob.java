@@ -39,6 +39,8 @@ public class OutboxEventJob {
                     outboxEventProducer.sendEvent(KafkaTopics.ONCHAIN_PAYMENT_INITIATED, event.getPayload());
                 } else if (KafkaTopics.INTERNAL_TRANSFER_INITIATED.getCode().equals(eventType)) {
                     outboxEventProducer.sendEvent(KafkaTopics.INTERNAL_TRANSFER_INITIATED, event.getPayload());
+                } else if (KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode().equals(eventType)) {
+                    outboxEventProducer.sendEvent(KafkaTopics.INTERNAL_TRANSFER_COMPLETED, event.getPayload());
                 } else if (KafkaTopics.PAYMENT_SENT.getCode().equals(eventType)) {
                     outboxEventProducer.sendEvent(KafkaTopics.PAYMENT_SENT, event.getPayload());
                 } else if (KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED.getCode().equals(eventType)) {
@@ -47,7 +49,6 @@ public class OutboxEventJob {
                     log.error("Couldn't find a Kafka topic for event type: [{}] -- Ignoring.", eventType);
                     continue;
                 }
-
                 event.setProcessedAt(Instant.now());
                 outboxEventRepository.save(event);
             } catch (Exception e) {
