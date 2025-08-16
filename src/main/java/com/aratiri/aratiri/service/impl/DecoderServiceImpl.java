@@ -31,7 +31,7 @@ public class DecoderServiceImpl implements DecoderService {
         input = input.trim().toLowerCase();
 
         if (input.startsWith("lnurl")) return decodeLnurl(input);
-        if (input.startsWith("ln")) return decodeLightningInvoice(input);
+        if (input.startsWith("ln") || input.startsWith("lightning:")) return decodeLightningInvoice(input);
         if (input.startsWith("npub1")) return decodeNpub(input);
         if (isBitcoinAddress(input)) return decodeBitcoinAddress(input);
 
