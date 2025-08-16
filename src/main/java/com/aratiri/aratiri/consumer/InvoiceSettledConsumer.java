@@ -1,6 +1,6 @@
 package com.aratiri.aratiri.consumer;
 
-import com.aratiri.aratiri.constants.BitcoinConstants;
+import com.aratiri.aratiri.constant.BitcoinConstants;
 import com.aratiri.aratiri.dto.transactions.CreateTransactionRequest;
 import com.aratiri.aratiri.dto.transactions.TransactionCurrency;
 import com.aratiri.aratiri.dto.transactions.TransactionStatus;

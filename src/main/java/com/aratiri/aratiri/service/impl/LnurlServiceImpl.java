@@ -1,7 +1,7 @@
 package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.config.AratiriProperties;
-import com.aratiri.aratiri.constants.BitcoinConstants;
+import com.aratiri.aratiri.constant.BitcoinConstants;
 import com.aratiri.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.aratiri.dto.lnurl.LnurlCallbackResponseDTO;
 import com.aratiri.aratiri.dto.lnurl.LnurlPayRequestDTO;

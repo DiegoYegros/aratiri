@@ -1,6 +1,6 @@
 package com.aratiri.aratiri.service.impl;
 
-import com.aratiri.aratiri.constants.BitcoinConstants;
+import com.aratiri.aratiri.constant.BitcoinConstants;
 import com.aratiri.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.aratiri.dto.payments.OnChainPaymentDTOs;
 import com.aratiri.aratiri.dto.payments.PayInvoiceRequestDTO;

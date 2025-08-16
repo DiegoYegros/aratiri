@@ -5,7 +5,7 @@ import com.aratiri.aratiri.dto.auth.*;
 import com.aratiri.aratiri.entity.RefreshTokenEntity;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.service.*;
-import com.aratiri.aratiri.utils.JwtUtil;
+import com.aratiri.aratiri.util.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

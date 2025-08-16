@@ -1,4 +1,4 @@
-package com.aratiri.aratiri.utils;
+package com.aratiri.aratiri.util;
 
 import java.util.Random;
 

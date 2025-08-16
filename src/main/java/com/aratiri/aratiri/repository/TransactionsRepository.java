@@ -19,4 +19,7 @@ public interface TransactionsRepository extends JpaRepository<TransactionEntity,
     );
 
     boolean existsByReferenceId(String referenceId);
+
+    @Query("SELECT t FROM TransactionEntity t WHERE t.status = 'PENDING' AND t.createdAt < :timestamp")
+    List<TransactionEntity> findPendingTransactionsOlderThan(@Param("timestamp") Instant timestamp);
 }

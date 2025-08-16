@@ -1,6 +1,6 @@
 package com.aratiri.aratiri.filter;
 
-import com.aratiri.aratiri.utils.LogUtils;
+import com.aratiri.aratiri.util.LogUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;

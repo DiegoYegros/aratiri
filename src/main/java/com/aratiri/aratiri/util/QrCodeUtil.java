@@ -1,4 +1,4 @@
-package com.aratiri.aratiri.utils;
+package com.aratiri.aratiri.util;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.client.j2se.MatrixToImageWriter;

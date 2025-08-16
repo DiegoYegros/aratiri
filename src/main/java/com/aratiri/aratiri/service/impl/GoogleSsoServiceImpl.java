@@ -9,7 +9,7 @@ import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.AccountsService;
 import com.aratiri.aratiri.service.GoogleSsoService;
 import com.aratiri.aratiri.service.RefreshTokenService;
-import com.aratiri.aratiri.utils.JwtUtil;
+import com.aratiri.aratiri.util.JwtUtil;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;

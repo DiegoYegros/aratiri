@@ -1,7 +1,7 @@
 package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.config.AratiriProperties;
-import com.aratiri.aratiri.constants.BitcoinConstants;
+import com.aratiri.aratiri.constant.BitcoinConstants;
 import com.aratiri.aratiri.dto.accounts.*;
 import com.aratiri.aratiri.dto.transactions.TransactionDTOResponse;
 import com.aratiri.aratiri.dto.transactions.TransactionType;
@@ -13,9 +13,9 @@ import com.aratiri.aratiri.repository.UserRepository;
 import com.aratiri.aratiri.service.AccountsService;
 import com.aratiri.aratiri.service.CurrencyConversionService;
 import com.aratiri.aratiri.service.TransactionsService;
-import com.aratiri.aratiri.utils.AliasGenerator;
-import com.aratiri.aratiri.utils.LnurlBech32Util;
-import com.aratiri.aratiri.utils.QrCodeUtil;
+import com.aratiri.aratiri.util.AliasGenerator;
+import com.aratiri.aratiri.util.Bech32Util;
+import com.aratiri.aratiri.util.QrCodeUtil;
 import lnrpc.AddressType;
 import lnrpc.LightningGrpc;
 import lnrpc.NewAddressRequest;
@@ -169,7 +169,7 @@ public class AccountsServiceImpl implements AccountsService {
 
     private String buildLnurlForAlias(String alias) {
         String url = properties.getAratiriBaseUrl() + "/.well-known/lnurlp/" + alias;
-        return LnurlBech32Util.encodeLnurl(url);
+        return Bech32Util.encodeLnurl(url);
     }
 
     private String buildAlias(String alias) {
