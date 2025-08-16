@@ -65,7 +65,7 @@ public class LnurlServiceImpl implements LnurlService {
             throw new AratiriException("Alias does not match any account.", HttpStatus.NOT_FOUND);
         }
         long satoshis = amount / 1000;
-        String memo = "LNURL-pay to " + alias + (comment != null ? ": " + comment : "");
+        String memo = comment != null ?  comment : "No description";
         GenerateInvoiceDTO generateInvoiceDTO = invoiceService.generateInvoice(alias, satoshis, memo);
         String bolt11 = generateInvoiceDTO.getPaymentRequest();
         return Map.of(
