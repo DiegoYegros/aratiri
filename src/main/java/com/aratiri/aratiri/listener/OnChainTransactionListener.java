@@ -148,6 +148,7 @@ public class OnChainTransactionListener {
                 logger.info("[{}] Is not our address. Skipping.", output.getAddress());
                 continue;
             }
+            logger.info("[{}] is our address. Processing.", output.getAddress());
             accountRepository.findByBitcoinAddress(output.getAddress()).ifPresent(account -> {
                 if (transactionsService.existsByReferenceId(transaction.getTxHash())) {
                     logger.warn("Transaction already processed: {}", transaction.getTxHash());

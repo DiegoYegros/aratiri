@@ -12,7 +12,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "TRANSACTIONS")
+@Table(name = "TRANSACTIONS", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"reference_id", "user_id"})
+})
 @Data
 @Builder
 @NoArgsConstructor

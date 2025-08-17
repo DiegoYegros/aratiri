@@ -34,11 +34,11 @@ public class TransactionReconciliationJob {
 
     @Scheduled(fixedDelay = 60000)
     public void reconcilePendingPayments() {
-        logger.info("Starting pending payments reconciliation task.");
+        logger.debug("Starting pending payments reconciliation task.");
         Instant fiveMinutesAgo = Instant.now().minus(5, ChronoUnit.MINUTES);
         List<TransactionEntity> pendingTransactions = transactionsRepository.findPendingTransactionsOlderThan(fiveMinutesAgo);
         if (pendingTransactions.isEmpty()) {
-            logger.info("No pending transactions to reconcile.");
+            logger.debug("No pending transactions to reconcile.");
             return;
         }
         logger.info("Found {} pending transactions to reconcile.", pendingTransactions.size());

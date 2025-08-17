@@ -10,6 +10,7 @@ import com.aratiri.aratiri.service.TransactionsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
@@ -41,6 +42,9 @@ public class OnChainTransactionConsumer {
                     event.getTxHash()
             );
             transactionsService.createAndSettleTransaction(creditRequest);
+            acknowledgment.acknowledge();
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Data integrity violation for transaction. Processed by another instance. Acknowledging message. Error: {}", e.getMessage());
             acknowledgment.acknowledge();
         } catch (Exception e) {
             log.error("Failed to process on-chain transaction received event: {}", message, e);

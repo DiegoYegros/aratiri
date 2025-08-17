@@ -63,6 +63,17 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentResponseDTO payLightningInvoice(PayInvoiceRequestDTO request, String userId) {
         DecodedInvoicetDTO decodedInvoice = invoiceService.decodePaymentRequest(request.getInvoice());
         String paymentHash = decodedInvoice.getPaymentHash();
+        Optional<Payment> existingPayment = checkPaymentStatusOnNode(paymentHash);
+        if (existingPayment.isPresent()) {
+            Payment.PaymentStatus status = existingPayment.get().getStatus();
+            if (status == Payment.PaymentStatus.SUCCEEDED || status == Payment.PaymentStatus.IN_FLIGHT) {
+                logger.warn("User {} attempted to pay an invoice that is already paid or in-flight on the node. PaymentHash: {}", userId, paymentHash);
+                throw new AratiriException(
+                        "Invoice payment is already in progress or has been settled.",
+                        HttpStatus.CONFLICT
+                );
+            }
+        }
         Optional<LightningInvoiceEntity> internalInvoiceOpt = lightningInvoiceRepository.findByPaymentHash(paymentHash);
         if (internalInvoiceOpt.isPresent()) {
             return processInternalTransfer(request, userId, decodedInvoice, internalInvoiceOpt.get());
