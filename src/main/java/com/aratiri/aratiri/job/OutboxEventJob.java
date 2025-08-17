@@ -23,7 +23,7 @@ public class OutboxEventJob {
     @Scheduled(fixedDelay = 1000)
     @Transactional
     public void processOutboxEvents() {
-        List<OutboxEventEntity> pendingEvents = outboxEventRepository.findByProcessedAtIsNullOrderByCreatedAtAsc();
+        List<OutboxEventEntity> pendingEvents = outboxEventRepository.findAndLockByProcessedAtIsNullOrderByCreatedAtAsc();
         if (pendingEvents.isEmpty()) {
             return;
         }
