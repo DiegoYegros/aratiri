@@ -21,11 +21,9 @@ public class GrpcLoggingInterceptor implements ClientInterceptor {
             @Override
             public void start(Listener<RespT> responseListener, Metadata headers) {
                 log.info(LogUtils.formatKeyValue("METADATA (HEADERS) SENT", ""));
-                headers.keys().forEach(key -> {
-                    log.info(LogUtils.formatKeyValue("  " + key, headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER))));
-                });
+                headers.keys().forEach(key -> log.info(LogUtils.formatKeyValue("  " + key, headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)))));
 
-                Listener<RespT> forwardingListener = new ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(responseListener) {
+                Listener<RespT> forwardingListener = new ForwardingClientCallListener.SimpleForwardingClientCallListener<>(responseListener) {
                     @Override
                     public void onMessage(RespT message) {
                         log.debug(LogUtils.formatKeyValue("SERVER'S RESPONSE", "\n" + message.toString()));

@@ -9,7 +9,6 @@ import com.aratiri.aratiri.enums.KafkaTopics;
 import com.aratiri.aratiri.event.InternalTransferCompletedEvent;
 import com.aratiri.aratiri.event.InternalTransferInitiatedEvent;
 import com.aratiri.aratiri.exception.AratiriException;
-import com.aratiri.aratiri.producer.OutboxEventProducer;
 import com.aratiri.aratiri.repository.LightningInvoiceRepository;
 import com.aratiri.aratiri.repository.OutboxEventRepository;
 import com.aratiri.aratiri.repository.TransactionsRepository;
@@ -98,14 +97,7 @@ public class TransactionsServiceImpl implements TransactionsService {
                     HttpStatus.BAD_REQUEST
             );
         }
-        TransactionEntity transaction = new TransactionEntity();
-        transaction.setUserId(request.getUserId());
-        transaction.setAmount(request.getAmount());
-        transaction.setCurrency(request.getCurrency());
-        transaction.setType(request.getType());
-        transaction.setDescription(request.getDescription());
-        transaction.setReferenceId(request.getReferenceId());
-        transaction.setStatus(TransactionStatus.COMPLETED);
+        TransactionEntity transaction = buildTransactionEntity(request, TransactionStatus.COMPLETED);
         TransactionProcessor processor = processors.get(transaction.getType());
         if (processor == null) {
             throw new AratiriException("No processor configured for type: " + transaction.getType());
@@ -113,7 +105,7 @@ public class TransactionsServiceImpl implements TransactionsService {
         BigDecimal newBalance = processor.process(transaction);
         transaction.setBalanceAfter(newBalance);
         TransactionEntity savedTransaction = transactionsRepository.save(transaction);
-        logger.info("Saved the transaction with new state. This is the saved transaction: [{}]", savedTransaction);
+        logger.info("Created and settled transaction. This is the saved transaction: [{}]", savedTransaction);
         return mapToDto(savedTransaction);
     }
 
@@ -122,14 +114,7 @@ public class TransactionsServiceImpl implements TransactionsService {
     @Transactional
     public TransactionDTOResponse createTransaction(CreateTransactionRequest request) {
         logger.info("In createTransaction. Received request to create transaction: [{}]", request);
-        TransactionEntity transaction = new TransactionEntity();
-        transaction.setUserId(request.getUserId());
-        transaction.setAmount(request.getAmount());
-        transaction.setCurrency(request.getCurrency());
-        transaction.setType(request.getType());
-        transaction.setDescription(request.getDescription());
-        transaction.setReferenceId(request.getReferenceId());
-        transaction.setStatus(request.getStatus());
+        TransactionEntity transaction = buildTransactionEntity(request, request.getStatus());
         TransactionEntity savedTransaction = transactionsRepository.save(transaction);
         logger.info("Successfully created new transaction record with status [{}]. Transaction: [{}]",
                 savedTransaction.getStatus(), savedTransaction);
@@ -238,5 +223,17 @@ public class TransactionsServiceImpl implements TransactionsService {
         }
 
         logger.info("Successfully processed internal transfer for transactionId: {}", event.getTransactionId());
+    }
+
+    private TransactionEntity buildTransactionEntity(CreateTransactionRequest request, TransactionStatus transactionStatus) {
+        TransactionEntity transaction = new TransactionEntity();
+        transaction.setUserId(request.getUserId());
+        transaction.setAmount(request.getAmount());
+        transaction.setCurrency(request.getCurrency());
+        transaction.setType(request.getType());
+        transaction.setDescription(request.getDescription());
+        transaction.setReferenceId(request.getReferenceId());
+        transaction.setStatus(transactionStatus);
+        return transaction;
     }
 }

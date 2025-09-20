@@ -13,8 +13,11 @@ import java.util.List;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @Autowired
-    private AratiriContextArgumentResolver aratiriContextArgumentResolver;
+    private final AratiriContextArgumentResolver aratiriContextArgumentResolver;
+
+    public WebConfig(AratiriContextArgumentResolver aratiriContextArgumentResolver) {
+        this.aratiriContextArgumentResolver = aratiriContextArgumentResolver;
+    }
 
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {

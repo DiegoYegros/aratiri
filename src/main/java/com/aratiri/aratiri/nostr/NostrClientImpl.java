@@ -102,7 +102,7 @@ public class NostrClientImpl implements NostrClient {
             if (retryCount.get() < maxRetries) {
                 scheduleReconnection();
             } else {
-                logger.error("Max retries reached. Could not connect to Nostr relay.");
+                logger.error("Got exception. Could not connect to Nostr relay. Message is: {}", e.getMessage());
             }
         }
     }

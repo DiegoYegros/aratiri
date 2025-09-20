@@ -4,7 +4,7 @@ public class NostrUtil {
 
     public static String npubToHex(String npub) {
         Bech32Util.Bech32Data decoded = Bech32Util.bech32Decode(npub);
-        byte[] data = decoded.data;
+        byte[] data = decoded.data();
         byte[] bytes = Bech32Util.convertBits(data, 5, 8, false);
         return Bech32Util.bytesToHex(bytes);
     }

@@ -24,7 +24,7 @@ public class TransactionsController {
 
     @PostMapping("/{id}/confirm")
     public ResponseEntity<TransactionDTOResponse> confirmTransaction(@PathVariable("id") String id, @AratiriCtx AratiriContext aratiriContext) {
-        String userId = aratiriContext.getUser().getId();
+        String userId = aratiriContext.user().getId();
         return ResponseEntity.ok(transactionsService.confirmTransaction(id, userId));
     }
 }

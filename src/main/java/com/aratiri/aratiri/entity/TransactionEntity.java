@@ -47,13 +47,13 @@ public class TransactionEntity {
     @Column(length = 20, nullable = false)
     private TransactionCurrency currency;
 
-    @Column(length = 255)
+    @Column
     private String description;
 
     @Column(name = "reference_id", length = 64)
     private String referenceId;
 
-    @Column(name = "failure_reason", length = 255)
+    @Column(name = "failure_reason")
     private String failureReason;
 
     @CreationTimestamp

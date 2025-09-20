@@ -58,7 +58,7 @@ public class LnurlController {
     public ResponseEntity<PaymentResponseDTO> pay(
             @Valid @RequestBody LnurlPayRequestDTO request,
             @AratiriCtx AratiriContext ctx) {
-        PaymentResponseDTO response = lnurlService.handlePayRequest(request, ctx.getUser().getId());
+        PaymentResponseDTO response = lnurlService.handlePayRequest(request, ctx.user().getId());
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 }

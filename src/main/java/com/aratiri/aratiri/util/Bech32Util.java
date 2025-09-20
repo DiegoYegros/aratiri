@@ -10,14 +10,7 @@ public class Bech32Util {
     private static final String CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
     private static final int[] GENERATOR = {0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3};
 
-    public static class Bech32Data {
-        public final String hrp;
-        public final byte[] data;
-
-        public Bech32Data(String hrp, byte[] data) {
-            this.hrp = hrp;
-            this.data = data;
-        }
+    public record Bech32Data(String hrp, byte[] data) {
     }
 
     public static String encodeLnurl(String url) {

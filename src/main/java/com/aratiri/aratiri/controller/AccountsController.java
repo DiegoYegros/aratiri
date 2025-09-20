@@ -49,7 +49,7 @@ public class AccountsController {
             )
     })
     public ResponseEntity<AccountDTO> getAccount(@AratiriCtx AratiriContext ctx) {
-        return ResponseEntity.ok(accountsService.getAccountByUserId(ctx.getUser().getId()));
+        return ResponseEntity.ok(accountsService.getAccountByUserId(ctx.user().getId()));
     }
 
     @GetMapping("/account/{id}")
@@ -108,7 +108,7 @@ public class AccountsController {
             )
     })
     public ResponseEntity<AccountDTO> createAccount(@Validated @RequestBody CreateAccountRequestDTO request, @AratiriCtx AratiriContext ctx) {
-        String userId = ctx.getUser().getId();
+        String userId = ctx.user().getId();
         return new ResponseEntity<>(accountsService.createAccount(request, userId), HttpStatus.CREATED);
     }
 
@@ -129,7 +129,7 @@ public class AccountsController {
     public ResponseEntity<AccountTransactionsDTOResponse> getTransactions(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                                                           @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
                                                                           @AratiriCtx AratiriContext ctx) {
-        String userId = ctx.getUser().getId();
+        String userId = ctx.user().getId();
         return new ResponseEntity<>(AccountTransactionsDTOResponse.builder().transactions(accountsService.getTransactions(from, to, userId)).build(), HttpStatus.OK);
     }
 }

@@ -108,7 +108,7 @@ public class CurrencyConversionServiceImpl implements CurrencyConversionService 
             });
             if (response != null && response.containsKey("bitcoin") && response.get("bitcoin").containsKey(currency.toLowerCase())) {
                 Double price = response.get("bitcoin").get(currency.toLowerCase());
-                logger.info("Successfully fetched BTC price in {}: {}", currency.toUpperCase(), price);
+                logger.info("Successfully fetched BTC price from CoinGecko. {}: {}", currency.toUpperCase(), price);
                 return BigDecimal.valueOf(price);
             } else {
                 logger.warn("Invalid response format or currency not found from Currency Conversion API for: {}", currency);

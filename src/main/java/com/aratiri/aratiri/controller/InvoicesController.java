@@ -31,7 +31,7 @@ public class InvoicesController {
                     "the specified amount in satoshis and an optional memo description. The invoice expires."
     )
     public ResponseEntity<GenerateInvoiceDTO> generateInvoice(@Valid @RequestBody GenerateInvoiceRequestDTO request, @AratiriCtx AratiriContext aratiriContext) {
-        String userId = aratiriContext.getUser().getId();
+        String userId = aratiriContext.user().getId();
         return new ResponseEntity<>(invoiceService.generateInvoice(request.getSatsAmount(), request.getMemo(), userId), HttpStatus.CREATED);
     }
 
@@ -43,7 +43,7 @@ public class InvoicesController {
                     "for validating invoices before payment or displaying payment details to users."
     )
     public ResponseEntity<DecodedInvoicetDTO> getDecodedInvoice(@PathVariable String paymentRequest, @AratiriCtx AratiriContext ctx) {
-        String userId = ctx.getUser().getId();
+        String userId = ctx.user().getId();
         return new ResponseEntity<>(invoiceService.decodeAratiriPaymentRequest(paymentRequest, userId), HttpStatus.OK);
     }
 }

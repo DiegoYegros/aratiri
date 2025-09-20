@@ -48,7 +48,7 @@ public class DecoderServiceImpl implements DecoderService {
     private DecodedResultDTO decodeLnurl(String input) {
         try {
             logger.info("Decoding LNURL: {}", input);
-            String decodedUrl = Bech32Util.bech32Decode(input).hrp;
+            String decodedUrl = Bech32Util.bech32Decode(input).hrp();
             LnurlpResponseDTO lnurlMetadata = decodedUrl.contains(aratiriProperties.getAratiriBaseUrl())
                     ? lnurlService.getLnurlMetadata(decodedUrl.substring(decodedUrl.lastIndexOf('/') + 1))
                     : lnurlService.getExternalLnurlMetadata(decodedUrl);

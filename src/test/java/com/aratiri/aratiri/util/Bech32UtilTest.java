@@ -19,8 +19,8 @@ public class Bech32UtilTest {
         String lnurl = "lnurl1dp68gurn8ghj7ctjv96xjunf9ejxjet8dauk2emjdaejucm0d5hjuam9d3kz66mwdamkutmvde6hymrs9aekjmr9de6xkmmpd3snjvgxlxfwt";
         String expectedUrl = "https://aratiri.diegoyegros.com/.well-known/lnurlp/silentkoala91";
         Bech32Util.Bech32Data decoded = Bech32Util.bech32Decode(lnurl);
-        assertEquals("lnurl", decoded.hrp);
-        assertEquals(expectedUrl, new String(Bech32Util.convertBits(decoded.data, 5, 8, false)));
+        assertEquals("lnurl", decoded.hrp());
+        assertEquals(expectedUrl, new String(Bech32Util.convertBits(decoded.data(), 5, 8, false)));
     }
 
     @Test

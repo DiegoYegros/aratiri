@@ -36,7 +36,7 @@ public class PaymentsController {
     public ResponseEntity<PaymentResponseDTO> payInvoice(
             @Valid @RequestBody PayInvoiceRequestDTO request,
             @AratiriCtx AratiriContext ctx) {
-        PaymentResponseDTO response = paymentService.payLightningInvoice(request, ctx.getUser().getId());
+        PaymentResponseDTO response = paymentService.payLightningInvoice(request, ctx.user().getId());
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
@@ -49,7 +49,7 @@ public class PaymentsController {
     public ResponseEntity<OnChainPaymentDTOs.SendOnChainResponseDTO> sendOnChain(
             @Valid @RequestBody OnChainPaymentDTOs.SendOnChainRequestDTO request,
             @AratiriCtx AratiriContext ctx) {
-        OnChainPaymentDTOs.SendOnChainResponseDTO response = paymentService.sendOnChain(request, ctx.getUser().getId());
+        OnChainPaymentDTOs.SendOnChainResponseDTO response = paymentService.sendOnChain(request, ctx.user().getId());
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
@@ -61,7 +61,7 @@ public class PaymentsController {
     public ResponseEntity<OnChainPaymentDTOs.EstimateFeeResponseDTO> estimateOnChainFee(
             @Valid @RequestBody OnChainPaymentDTOs.EstimateFeeRequestDTO request,
             @AratiriCtx AratiriContext ctx) {
-        OnChainPaymentDTOs.EstimateFeeResponseDTO response = paymentService.estimateOnChainFee(request, ctx.getUser().getId());
+        OnChainPaymentDTOs.EstimateFeeResponseDTO response = paymentService.estimateOnChainFee(request, ctx.user().getId());
         return ResponseEntity.ok(response);
     }
 }
