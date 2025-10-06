@@ -2,6 +2,7 @@ package com.aratiri.aratiri.controller;
 
 import com.aratiri.aratiri.dto.admin.CloseChannelRequestDTO;
 import com.aratiri.aratiri.dto.admin.ListChannelsResponseDTO;
+import com.aratiri.aratiri.dto.admin.NodeInfoDTO;
 import com.aratiri.aratiri.dto.admin.OpenChannelRequestDTO;
 import com.aratiri.aratiri.service.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/v1/admin/channels")
+@RequestMapping("/v1/admin")
 public class AdminController {
 
     private final AdminService adminService;
@@ -25,7 +26,7 @@ public class AdminController {
         this.adminService = adminService;
     }
 
-    @GetMapping
+    @GetMapping("/channels")
     @Operation(
             summary = "List all open Lightning channels",
             description = "Retrieves all currently open channels for the node, including local and remote balances, " +
@@ -43,7 +44,7 @@ public class AdminController {
         return ResponseEntity.ok(new ListChannelsResponseDTO(channels));
     }
 
-    @PostMapping("/open")
+    @PostMapping("/channels/open")
     @Operation(
             summary = "Open a new Lightning channel",
             description = "Opens a new channel to the specified remote node with the requested funding amount. " +
@@ -61,7 +62,7 @@ public class AdminController {
         return ResponseEntity.ok(adminService.openChannel(request));
     }
 
-    @PostMapping("/close")
+    @PostMapping("/channels/close")
     @Operation(
             summary = "Close a Lightning channel",
             description = "Closes an existing channel. Can request a cooperative close or a forced close. " +
@@ -76,5 +77,10 @@ public class AdminController {
     )
     public ResponseEntity<CloseStatusUpdate> closeChannel(@RequestBody CloseChannelRequestDTO request) {
         return ResponseEntity.ok(adminService.closeChannel(request));
+    }
+
+    @GetMapping("/remotes")
+    public ResponseEntity<List<NodeInfoDTO>> listNodes() {
+        return ResponseEntity.ok(adminService.listNodes());
     }
 }

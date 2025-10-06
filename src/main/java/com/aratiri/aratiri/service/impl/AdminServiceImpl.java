@@ -1,6 +1,7 @@
 package com.aratiri.aratiri.service.impl;
 
 import com.aratiri.aratiri.dto.admin.CloseChannelRequestDTO;
+import com.aratiri.aratiri.dto.admin.NodeInfoDTO;
 import com.aratiri.aratiri.dto.admin.OpenChannelRequestDTO;
 import com.aratiri.aratiri.exception.AratiriException;
 import com.aratiri.aratiri.service.AdminService;
@@ -11,7 +12,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class AdminServiceImpl implements AdminService {
@@ -58,5 +62,54 @@ public class AdminServiceImpl implements AdminService {
                 .setForce(request.isForce())
                 .build();
         return lightningStub.closeChannel(closeChannelRequest).next();
+    }
+
+    /**
+     * Retrieves all nodes from the Lightning Network graph, enriched with key metrics.
+     * Each node's information includes its betweenness centrality (a measure of its
+     * importance in routing), total channel capacity, and the number of channels it has.
+     *
+     * @return A list of {@link NodeInfoDTO} objects with comprehensive details
+     * for each node, useful for identifying potential channel peers.
+     */
+    @Override
+    public List<NodeInfoDTO> listNodes() {
+        ChannelGraph channelGraph = lightningStub.describeGraph(ChannelGraphRequest.newBuilder().build());
+        NodeMetricsResponse nodeMetrics = lightningStub.getNodeMetrics(NodeMetricsRequest.newBuilder()
+                .addTypes(NodeMetricType.BETWEENNESS_CENTRALITY)
+                .build());
+        Map<String, NodeInfoDTO> nodeInfoMap = channelGraph.getNodesList().stream()
+                .collect(Collectors.toMap(
+                        LightningNode::getPubKey,
+                        node -> NodeInfoDTO.builder()
+                                .pubKey(node.getPubKey())
+                                .alias(node.getAlias())
+                                .color(node.getColor())
+                                .addresses(node.getAddressesList().stream().map(NodeAddress::getAddr).collect(Collectors.toList()))
+                                .capacity(0L)
+                                .numChannels(0)
+                                .betweennessCentrality(nodeMetrics.getBetweennessCentralityOrDefault(
+                                        node.getPubKey(),
+                                        FloatMetric.newBuilder().setNormalizedValue(0.0f).build()
+                                ).getNormalizedValue())
+                                .build()
+                ));
+        for (ChannelEdge edge : channelGraph.getEdgesList()) {
+            NodeInfoDTO node1 = nodeInfoMap.get(edge.getNode1Pub());
+            if (node1 != null) {
+                node1.setNumChannels(node1.getNumChannels() + 1);
+                node1.setCapacity(node1.getCapacity() + edge.getCapacity());
+            }
+            NodeInfoDTO node2 = nodeInfoMap.get(edge.getNode2Pub());
+            if (node2 != null) {
+                node2.setNumChannels(node2.getNumChannels() + 1);
+                node2.setCapacity(node2.getCapacity() + edge.getCapacity());
+            }
+        }
+        return nodeInfoMap.values().stream()
+                .sorted(Comparator.comparing(NodeInfoDTO::getBetweennessCentrality).reversed()
+                        .thenComparing(NodeInfoDTO::getCapacity).reversed()
+                        .thenComparing(NodeInfoDTO::getNumChannels).reversed())
+                .collect(Collectors.toList());
     }
 }
