@@ -2,8 +2,8 @@ package com.aratiri.aratiri.controller;
 
 import com.aratiri.aratiri.dto.admin.CloseChannelRequestDTO;
 import com.aratiri.aratiri.dto.admin.ListChannelsResponseDTO;
-import com.aratiri.aratiri.dto.admin.NodeInfoDTO;
 import com.aratiri.aratiri.dto.admin.OpenChannelRequestDTO;
+import com.aratiri.aratiri.dto.admin.RemotesResponseDTO;
 import com.aratiri.aratiri.service.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -80,7 +80,7 @@ public class AdminController {
     }
 
     @GetMapping("/remotes")
-    public ResponseEntity<List<NodeInfoDTO>> listNodes() {
-        return ResponseEntity.ok(adminService.listNodes());
+    public ResponseEntity<RemotesResponseDTO> listNodes() {
+        return ResponseEntity.ok(new RemotesResponseDTO(adminService.listNodes()));
     }
 }
