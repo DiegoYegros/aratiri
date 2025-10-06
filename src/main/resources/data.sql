@@ -1,10 +1,9 @@
-INSERT INTO USERS (id, name, password, email)
+INSERT INTO USERS (id, name, password, email, auth_provider)
 VALUES ('123e4567-e89b-12d3-a456-426614174002', 'Alice',
-        '$2a$10$0.288I1XbzewtUFqgE.hTu.b4GBRO36yIN3ZvpQby0MoPVeEbd02u', 'alice@example.com');
-INSERT INTO USERS (id, name, password, email)
+        '$2a$10$0.288I1XbzewtUFqgE.hTu.b4GBRO36yIN3ZvpQby0MoPVeEbd02u', 'alice@example.com', 'LOCAL');
+INSERT INTO USERS (id, name, password, email, auth_provider)
 VALUES ('123e4567-e89b-12d3-a456-426614174003', 'Bob', '$2a$10$0.288I1XbzewtUFqgE.hTu.b4GBRO36yIN3ZvpQby0MoPVeEbd02u',
-        'bob@example.com');
-
+        'bob@example.com', 'LOCAL');
 INSERT INTO ACCOUNTS (id, bitcoin_address, alias, balance, user_id)
 VALUES ('123e4567-e89b-12d3-a456-426614174000', 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh', 'silentkoala91', 5000,
         '123e4567-e89b-12d3-a456-426614174002');
