@@ -114,6 +114,7 @@ public class AdminServiceImpl implements AdminService {
             }
         }
         return nodeInfoMap.values().stream()
+                .filter(e -> e.getBetweennessCentrality() !=0.0)
                 .sorted(Comparator.comparing(NodeInfoDTO::getBetweennessCentrality).reversed()
                         .thenComparing(NodeInfoDTO::getCapacity).reversed()
                         .thenComparing(NodeInfoDTO::getNumChannels).reversed())
