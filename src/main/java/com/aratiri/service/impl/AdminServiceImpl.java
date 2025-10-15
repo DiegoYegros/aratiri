@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -40,8 +41,9 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     public String openChannel(OpenChannelRequestDTO request) {
+        byte[] pubkeyBytes = HexFormat.of().parseHex(request.getNodePubkey());
         OpenChannelRequest openChannelRequest = OpenChannelRequest.newBuilder()
-                .setNodePubkey(ByteString.copyFrom(request.getNodePubkey(), StandardCharsets.UTF_8))
+                .setNodePubkey(ByteString.copyFrom(pubkeyBytes))
                 .setLocalFundingAmount(request.getLocalFundingAmount())
                 .setPushSat(request.getPushSat())
                 .setPrivate(request.isPrivateChannel())
