@@ -1,0 +1,14 @@
+package com.aratiri.repository;
+
+import com.aratiri.entity.PasswordResetData;
+import com.aratiri.entity.UserEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface PasswordResetDataRepository extends JpaRepository<PasswordResetData, String> {
+    Optional<PasswordResetData> findByUser(UserEntity user);
+
+}
