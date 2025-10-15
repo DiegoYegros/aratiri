@@ -135,4 +135,22 @@ public class AdminServiceImpl implements AdminService {
     public List<TransactionStatsDTO> getTransactionStats(Instant from, Instant to) {
         return transactionsRepository.findTransactionStats(from, to);
     }
+
+    @Override
+    public void connectPeer(String pubkey, String host) {
+        try {
+            ConnectPeerRequest request = ConnectPeerRequest.newBuilder()
+                    .setAddr(LightningAddress.newBuilder().setPubkey(pubkey).setHost(host).build())
+                    .build();
+            lightningStub.connectPeer(request);
+        } catch (StatusRuntimeException e) {
+            throw new AratiriException("Failed to connect to peer: " + e.getStatus().getDescription(), HttpStatus.BAD_GATEWAY);
+        }
+    }
+
+    @Override
+    public List<Peer> listPeers() {
+        return lightningStub.listPeers(ListPeersRequest.newBuilder().build()).getPeersList();
+    }
+
 }

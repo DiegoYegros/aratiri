@@ -4,10 +4,7 @@ import com.aratiri.dto.admin.CloseChannelRequestDTO;
 import com.aratiri.dto.admin.NodeInfoDTO;
 import com.aratiri.dto.admin.OpenChannelRequestDTO;
 import com.aratiri.dto.admin.TransactionStatsDTO;
-import lnrpc.Channel;
-import lnrpc.ChannelBalanceResponse;
-import lnrpc.CloseStatusUpdate;
-import lnrpc.GetInfoResponse;
+import lnrpc.*;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,5 +17,6 @@ public interface AdminService {
     GetInfoResponse getNodeInfo();
     ChannelBalanceResponse getChannelBalance();
     List<TransactionStatsDTO> getTransactionStats(Instant from, Instant to);
-
+    void connectPeer(String pubkey, String host);
+    List<Peer> listPeers();
 }

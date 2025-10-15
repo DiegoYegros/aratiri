@@ -30,6 +30,24 @@ public class AdminController {
         this.adminService = adminService;
     }
 
+
+    @PostMapping("/connect-peer")
+    @Operation(
+            summary = "Connect to a Lightning peer",
+            description = "Establishes a network connection to a remote peer."
+    )
+    public ResponseEntity<Void> connectPeer(@RequestBody ConnectPeerRequestDTO request) {
+        adminService.connectPeer(request.getPubkey(), request.getHost());
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/peers")
+    @Operation(summary = "List all connected peers")
+    public ResponseEntity<List<PeerDTO>> listPeers() {
+        List<PeerDTO> peerDTOs = adminService.listPeers().stream().map(PeerDTO::fromGrpc).collect(Collectors.toList());
+        return ResponseEntity.ok(peerDTOs);
+    }
+
     @GetMapping("/node-info")
     @Operation(
             summary = "Get Lightning Node information",
