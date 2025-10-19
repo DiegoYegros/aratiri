@@ -1,10 +1,10 @@
 package com.aratiri.job;
 
-import com.aratiri.dto.admin.NodeInfoDTO;
-import com.aratiri.entity.NodeSettingsEntity;
+import com.aratiri.admin.application.port.in.AdminPort;
 import com.aratiri.core.exception.AratiriException;
-import com.aratiri.repository.NodeSettingsRepository;
-import com.aratiri.service.AdminService;
+import com.aratiri.dto.admin.ConnectPeerRequestDTO;
+import com.aratiri.dto.admin.NodeInfoDTO;
+import com.aratiri.dto.admin.NodeSettingsDTO;
 import lnrpc.Peer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,7 +13,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -22,22 +21,20 @@ public class PeerManagementJob {
 
     private static final Logger logger = LoggerFactory.getLogger(PeerManagementJob.class);
 
-    private final AdminService adminService;
-    private final NodeSettingsRepository nodeSettingsRepository;
+    private final AdminPort adminPort;
 
     @Value("${aratiri.peer.management.target.count:20}")
     private int targetPeerCount;
 
-    public PeerManagementJob(AdminService adminService, NodeSettingsRepository nodeSettingsRepository) {
-        this.adminService = adminService;
-        this.nodeSettingsRepository = nodeSettingsRepository;
+    public PeerManagementJob(AdminPort adminPort) {
+        this.adminPort = adminPort;
     }
 
     // once a day
     @Scheduled(fixedDelayString = "${aratiri.peer.management.interval:86400000}")
     public void managePeers() {
-        Optional<NodeSettingsEntity> settingsOpt = nodeSettingsRepository.findById("singleton");
-        if (settingsOpt.isEmpty() || !settingsOpt.get().isAutoManagePeers()) {
+        NodeSettingsDTO settings = adminPort.getNodeSettings();
+        if (settings == null || !settings.isAutoManagePeers()) {
             logger.debug("Automatic peer management is disabled in node settings. Skipping job.");
             return;
         }
@@ -45,7 +42,7 @@ public class PeerManagementJob {
         logger.info("Starting automatic peer management job. Target peer count: {}", targetPeerCount);
 
         try {
-            List<Peer> currentPeers = adminService.listPeers();
+            List<Peer> currentPeers = adminPort.listPeers();
             Set<String> currentPeerPubkeys = currentPeers.stream()
                     .map(Peer::getPubKey)
                     .collect(Collectors.toSet());
@@ -58,7 +55,7 @@ public class PeerManagementJob {
 
             logger.info("Need to connect to {} more peers.", peersToConnect);
 
-            List<NodeInfoDTO> recommendedNodes = adminService.listNodes();
+            List<NodeInfoDTO> recommendedNodes = adminPort.listNodes().getNodes();
             int connectedCount = 0;
             for (NodeInfoDTO node : recommendedNodes) {
                 if (connectedCount >= peersToConnect) {
@@ -73,7 +70,10 @@ public class PeerManagementJob {
                     String host = node.getAddresses().get(0);
                     try {
                         logger.info("Attempting to connect to peer: {} ({}) at {}", node.getAlias(), node.getPubKey(), host);
-                        adminService.connectPeer(node.getPubKey(), host);
+                        ConnectPeerRequestDTO connectRequest = new ConnectPeerRequestDTO();
+                        connectRequest.setPubkey(node.getPubKey());
+                        connectRequest.setHost(host);
+                        adminPort.connectPeer(connectRequest);
                         logger.info("Successfully initiated connection to {}", node.getAlias());
                         connectedCount++;
                         currentPeerPubkeys.add(node.getPubKey());

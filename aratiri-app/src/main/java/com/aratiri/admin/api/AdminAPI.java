@@ -1,20 +1,35 @@
-package com.aratiri.controller;
+package com.aratiri.admin.api;
 
-import com.aratiri.dto.admin.*;
+import com.aratiri.admin.application.port.in.AdminPort;
 import com.aratiri.core.exception.AratiriException;
-import com.aratiri.service.AdminService;
+import com.aratiri.dto.admin.ChannelBalanceResponseDTO;
+import com.aratiri.dto.admin.CloseChannelRequestDTO;
+import com.aratiri.dto.admin.ConnectPeerRequestDTO;
+import com.aratiri.dto.admin.ListChannelsResponseDTO;
+import com.aratiri.dto.admin.NodeInfoResponseDTO;
+import com.aratiri.dto.admin.NodeSettingsDTO;
+import com.aratiri.dto.admin.OpenChannelRequestDTO;
+import com.aratiri.dto.admin.PeerDTO;
+import com.aratiri.dto.admin.RemotesResponseDTO;
+import com.aratiri.dto.admin.TransactionStatsResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import lnrpc.ChannelBalanceResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lnrpc.CloseStatusUpdate;
 import lnrpc.GetInfoResponse;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -26,14 +41,14 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/v1/admin")
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-public class AdminController {
+@Tag(name = "Admin", description = "Administrative operations for the Lightning node")
+public class AdminAPI {
 
-    private final AdminService adminService;
+    private final AdminPort adminPort;
 
-    public AdminController(AdminService adminService) {
-        this.adminService = adminService;
+    public AdminAPI(AdminPort adminPort) {
+        this.adminPort = adminPort;
     }
-
 
     @PostMapping("/connect-peer")
     @Operation(
@@ -41,14 +56,14 @@ public class AdminController {
             description = "Establishes a network connection to a remote peer."
     )
     public ResponseEntity<Void> connectPeer(@RequestBody ConnectPeerRequestDTO request) {
-        adminService.connectPeer(request.getPubkey(), request.getHost());
+        adminPort.connectPeer(request);
         return ResponseEntity.ok().build();
     }
 
     @GetMapping("/peers")
     @Operation(summary = "List all connected peers")
     public ResponseEntity<List<PeerDTO>> listPeers() {
-        List<PeerDTO> peerDTOs = adminService.listPeers().stream().map(PeerDTO::fromGrpc).collect(Collectors.toList());
+        List<PeerDTO> peerDTOs = adminPort.listPeers().stream().map(PeerDTO::fromGrpc).collect(Collectors.toList());
         return ResponseEntity.ok(peerDTOs);
     }
 
@@ -58,9 +73,9 @@ public class AdminController {
             description = "Gets general information about the connected Lightning node"
     )
     public ResponseEntity<NodeInfoResponseDTO> getNodeInfo() {
-        GetInfoResponse info = adminService.getNodeInfo();
-        List<ChainDTO> chains = info.getChainsList().stream()
-                .map(chain -> new ChainDTO(chain.getChain(), chain.getNetwork()))
+        GetInfoResponse info = adminPort.getNodeInfo();
+        List<com.aratiri.dto.admin.ChainDTO> chains = info.getChainsList().stream()
+                .map(chain -> new com.aratiri.dto.admin.ChainDTO(chain.getChain(), chain.getNetwork()))
                 .collect(Collectors.toList());
         NodeInfoResponseDTO response = NodeInfoResponseDTO.builder()
                 .version(info.getVersion())
@@ -96,7 +111,7 @@ public class AdminController {
             }
     )
     public ResponseEntity<ListChannelsResponseDTO> listChannels() {
-        return ResponseEntity.ok(adminService.listChannels());
+        return ResponseEntity.ok(adminPort.listChannels());
     }
 
     @PostMapping("/channels/open")
@@ -114,7 +129,7 @@ public class AdminController {
             }
     )
     public ResponseEntity<String> openChannel(@RequestBody OpenChannelRequestDTO request) {
-        return ResponseEntity.ok(adminService.openChannel(request));
+        return ResponseEntity.ok(adminPort.openChannel(request));
     }
 
     @PostMapping("/channels/close")
@@ -131,23 +146,18 @@ public class AdminController {
             }
     )
     public ResponseEntity<CloseStatusUpdate> closeChannel(@RequestBody CloseChannelRequestDTO request) {
-        return ResponseEntity.ok(adminService.closeChannel(request));
+        return ResponseEntity.ok(adminPort.closeChannel(request));
     }
 
     @GetMapping("/remotes")
     public ResponseEntity<RemotesResponseDTO> listNodes() {
-        return ResponseEntity.ok(new RemotesResponseDTO(adminService.listNodes()));
+        return ResponseEntity.ok(adminPort.listNodes());
     }
 
     @GetMapping("/channel-balance")
     @Operation(summary = "Get channel balance", description = "Gets the channel balance of the LND node")
     public ResponseEntity<ChannelBalanceResponseDTO> getChannelBalance() {
-        ChannelBalanceResponse balance = adminService.getChannelBalance();
-        ChannelBalanceResponseDTO response = ChannelBalanceResponseDTO.builder()
-                .localBalance(new AmountDTO(balance.getLocalBalance().getSat(), balance.getLocalBalance().getMsat()))
-                .remoteBalance(new AmountDTO(balance.getRemoteBalance().getSat(), balance.getRemoteBalance().getMsat()))
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(adminPort.getChannelBalance());
     }
 
     @GetMapping("/transaction-stats")
@@ -157,14 +167,13 @@ public class AdminController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         Instant fromInstant = from.atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant toInstant = to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
-        List<TransactionStatsDTO> stats = adminService.getTransactionStats(fromInstant, toInstant);
-        return ResponseEntity.ok(new TransactionStatsResponseDTO(stats));
+        return ResponseEntity.ok(adminPort.getTransactionStats(fromInstant, toInstant));
     }
 
     @GetMapping("/settings")
     @Operation(summary = "Get current node settings")
     public ResponseEntity<NodeSettingsDTO> getNodeSettings() {
-        return ResponseEntity.ok(adminService.getNodeSettings());
+        return ResponseEntity.ok(adminPort.getNodeSettings());
     }
 
     @PutMapping("/settings/auto-manage-peers")
@@ -174,6 +183,6 @@ public class AdminController {
         if (enabled == null) {
             throw new AratiriException("Request body must contain 'enabled' field (true/false)", HttpStatus.BAD_REQUEST);
         }
-        return ResponseEntity.ok(adminService.updateAutoManagePeers(enabled));
+        return ResponseEntity.ok(adminPort.updateAutoManagePeers(enabled));
     }
 }
