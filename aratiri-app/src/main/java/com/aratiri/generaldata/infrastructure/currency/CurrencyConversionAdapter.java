@@ -1,13 +1,12 @@
-package com.aratiri.service.impl;
+package com.aratiri.generaldata.infrastructure.currency;
 
 import com.aratiri.config.AratiriProperties;
-import com.aratiri.service.CurrencyConversionService;
+import com.aratiri.generaldata.application.port.out.CurrencyConversionPort;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -15,35 +14,35 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Service
-public class CurrencyConversionServiceImpl implements CurrencyConversionService {
+@Component
+public class CurrencyConversionAdapter implements CurrencyConversionPort {
 
-    private static final Logger logger = LoggerFactory.getLogger(CurrencyConversionServiceImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(CurrencyConversionAdapter.class);
+
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final AratiriProperties aratiriProperties;
 
-    public CurrencyConversionServiceImpl(RestTemplate restTemplate, ObjectMapper objectMapper, AratiriProperties aratiriProperties) {
+    public CurrencyConversionAdapter(RestTemplate restTemplate, ObjectMapper objectMapper, AratiriProperties aratiriProperties) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
         this.aratiriProperties = aratiriProperties;
     }
 
-    @Cacheable(value = "btcPrice", key = "'allCurrencies'")
-    public Map<String, BigDecimal> getCurrentBtcPrice() {
-        List<String> fiatCurrencies = aratiriProperties.getFiatCurrencies();
-        Map<String, BigDecimal> currencies = new HashMap<>();
-        fiatCurrencies.forEach(currency -> {
+    @Override
+    public Map<String, BigDecimal> getCurrentBtcPrice(List<String> currencies) {
+        Map<String, BigDecimal> prices = new HashMap<>();
+        currencies.forEach(currency -> {
             logger.info("Fetching current BTC price in {} from Currency Conversion API...", currency.toUpperCase());
             BigDecimal fromCoinGecko = getFromCoinGecko(currency);
             if (fromCoinGecko != null) {
-                currencies.put(currency, fromCoinGecko);
+                prices.put(currency, fromCoinGecko);
             } else {
                 BigDecimal btcPriceFromFallback = getBtcPriceFromFallback(currency);
-                currencies.put(currency, btcPriceFromFallback);
+                prices.put(currency, btcPriceFromFallback);
             }
         });
-        return currencies;
+        return prices;
     }
 
     private BigDecimal getBtcPriceFromFallback(String currency) {
@@ -118,10 +117,5 @@ public class CurrencyConversionServiceImpl implements CurrencyConversionService 
             logger.error("Failed to fetch BTC price in {} from Currency Conversion API. Returning null.", currency.toUpperCase(), e);
             return null;
         }
-    }
-
-    @Override
-    public List<String> getFiatCurrencies() {
-        return aratiriProperties.getFiatCurrencies();
     }
 }
