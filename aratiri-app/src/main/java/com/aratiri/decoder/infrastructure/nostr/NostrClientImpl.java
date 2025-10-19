@@ -1,4 +1,4 @@
-package com.aratiri.nostr;
+package com.aratiri.decoder.infrastructure.nostr;
 
 import com.aratiri.core.util.NostrUtil;
 import com.fasterxml.jackson.databind.JsonNode;

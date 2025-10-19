@@ -5,7 +5,7 @@ import com.aratiri.payments.domain.DecodedInvoice;
 import com.aratiri.service.InvoiceService;
 import org.springframework.stereotype.Component;
 
-@Component
+@Component("paymentsInvoiceServiceAdapter")
 public class InvoiceServiceAdapter implements InvoicesPort {
 
     private final InvoiceService invoiceService;

@@ -1,14 +1,14 @@
-package com.aratiri.service.impl;
+package com.aratiri.decoder.application;
 
 import com.aratiri.config.AratiriProperties;
-import com.aratiri.dto.decoder.DecodedResultDTO;
-import com.aratiri.dto.lnurl.LnurlpResponseDTO;
 import com.aratiri.core.exception.AratiriException;
-import com.aratiri.nostr.NostrService;
-import com.aratiri.service.DecoderService;
-import com.aratiri.service.InvoiceService;
-import com.aratiri.service.LnurlService;
 import com.aratiri.core.util.Bech32Util;
+import com.aratiri.decoder.api.dto.DecodedResultDTO;
+import com.aratiri.decoder.application.port.in.DecoderPort;
+import com.aratiri.decoder.application.port.out.InvoiceDecodingPort;
+import com.aratiri.decoder.application.port.out.LnurlPort;
+import com.aratiri.decoder.application.port.out.NostrPort;
+import com.aratiri.dto.lnurl.LnurlpResponseDTO;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,30 +18,31 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
-public class DecoderServiceImpl implements DecoderService {
+public class DecoderAdapter implements DecoderPort {
 
-    private static final Logger logger = LoggerFactory.getLogger(DecoderServiceImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(DecoderAdapter.class);
 
-    private final InvoiceService invoiceService;
-    private final LnurlService lnurlService;
-    private final NostrService nostrService;
+    private final InvoiceDecodingPort invoiceDecodingPort;
+    private final LnurlPort lnurlPort;
+    private final NostrPort nostrPort;
     private final AratiriProperties aratiriProperties;
 
+    @Override
     public DecodedResultDTO decode(String input) {
-        input = input.trim().toLowerCase();
+        String workingInput = input.trim().toLowerCase();
 
-        if (input.startsWith("lnurl")) return decodeLnurl(input);
-        if (input.startsWith("ln") || input.startsWith("lightning:")) return decodeLightningInvoice(input);
-        if (input.startsWith("npub1")) return decodeNpub(input);
-        if (isBitcoinAddress(input)) return decodeBitcoinAddress(input);
+        if (workingInput.startsWith("lnurl")) return decodeLnurl(workingInput);
+        if (workingInput.startsWith("ln") || workingInput.startsWith("lightning:")) return decodeLightningInvoice(workingInput);
+        if (workingInput.startsWith("npub1")) return decodeNpub(workingInput);
+        if (isBitcoinAddress(workingInput)) return decodeBitcoinAddress(workingInput);
 
-        DecodedResultDTO aliasResult = tryAliasOrLightningAddress(input);
+        DecodedResultDTO aliasResult = tryAliasOrLightningAddress(workingInput);
         if (aliasResult != null) return aliasResult;
 
-        DecodedResultDTO nip05Result = tryNip05(input);
+        DecodedResultDTO nip05Result = tryNip05(workingInput);
         if (nip05Result != null) return nip05Result;
 
-        logger.info("Unsupported or invalid format: {}", input);
+        logger.info("Unsupported or invalid format: {}", workingInput);
         return error("Unsupported or invalid format");
     }
 
@@ -50,8 +51,8 @@ public class DecoderServiceImpl implements DecoderService {
             logger.info("Decoding LNURL: {}", input);
             String decodedUrl = Bech32Util.bech32Decode(input).hrp();
             LnurlpResponseDTO lnurlMetadata = decodedUrl.contains(aratiriProperties.getAratiriBaseUrl())
-                    ? lnurlService.getLnurlMetadata(decodedUrl.substring(decodedUrl.lastIndexOf('/') + 1))
-                    : lnurlService.getExternalLnurlMetadata(decodedUrl);
+                    ? lnurlPort.getInternalMetadata(decodedUrl.substring(decodedUrl.lastIndexOf('/') + 1))
+                    : lnurlPort.getExternalMetadata(decodedUrl);
             return success("lnurl_params", lnurlMetadata);
         } catch (Exception e) {
             return error(e.getMessage());
@@ -61,7 +62,7 @@ public class DecoderServiceImpl implements DecoderService {
     private DecodedResultDTO decodeLightningInvoice(String input) {
         try {
             logger.info("Decoding Lightning Invoice: {}", input);
-            return success("lightning_invoice", invoiceService.decodePaymentRequest(input));
+            return success("lightning_invoice", invoiceDecodingPort.decodeInvoice(input));
         } catch (Exception e) {
             return error("Invalid Lightning Invoice");
         }
@@ -70,7 +71,7 @@ public class DecoderServiceImpl implements DecoderService {
     private DecodedResultDTO decodeNpub(String input) {
         try {
             logger.info("Resolving npub to Lightning Address: {}", input);
-            String lightningAddress = nostrService.getLud16FromNpub(input).get();
+            String lightningAddress = nostrPort.getLud16FromNpub(input).get();
             if (lightningAddress != null && !lightningAddress.isEmpty()) {
                 return resolveLightningAddress(lightningAddress);
             }
@@ -94,7 +95,7 @@ public class DecoderServiceImpl implements DecoderService {
         try {
             String aliasOnly = input.contains("@") ? input.split("@")[0] : input;
             logger.info("Trying alias lookup: {}", aliasOnly);
-            return success("alias", lnurlService.getLnurlMetadata(aliasOnly));
+            return success("alias", lnurlPort.getInternalMetadata(aliasOnly));
         } catch (AratiriException e) {
             if (input.contains("@")) {
                 try {
@@ -112,7 +113,7 @@ public class DecoderServiceImpl implements DecoderService {
             if (input.contains(".") && !input.contains(" ")) {
                 String nip05Identifier = input.contains("@") ? input : "_@" + input;
                 logger.info("Trying NIP-05 lookup: {}", nip05Identifier);
-                String lightningAddress = nostrService.resolveNip05ToLud16(nip05Identifier).get(3, TimeUnit.SECONDS);
+                String lightningAddress = nostrPort.resolveNip05ToLud16(nip05Identifier).get(3, TimeUnit.SECONDS);
                 if (lightningAddress != null && !lightningAddress.isEmpty()) {
                     return resolveLightningAddress(lightningAddress);
                 }
@@ -128,7 +129,7 @@ public class DecoderServiceImpl implements DecoderService {
         String[] parts = lightningAddress.split("@");
         if (parts.length == 2) {
             String lnurlpUrl = "https://" + parts[1] + "/.well-known/lnurlp/" + parts[0];
-            return success("lnurl_params", lnurlService.getExternalLnurlMetadata(lnurlpUrl));
+            return success("lnurl_params", lnurlPort.getExternalMetadata(lnurlpUrl));
         }
         throw new AratiriException("Invalid Lightning Address format.");
     }

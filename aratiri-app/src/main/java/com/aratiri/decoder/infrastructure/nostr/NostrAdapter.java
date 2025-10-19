@@ -1,6 +1,7 @@
-package com.aratiri.nostr;
+package com.aratiri.decoder.infrastructure.nostr;
 
 import com.aratiri.core.exception.AratiriException;
+import com.aratiri.decoder.application.port.out.NostrPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
@@ -12,7 +13,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.concurrent.CompletableFuture;
 
 @AllArgsConstructor
-public class NostrServiceImpl implements NostrService {
+public class NostrAdapter implements NostrPort {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private RestTemplate restTemplate;
@@ -37,8 +38,7 @@ public class NostrServiceImpl implements NostrService {
         });
     }
 
-    @Override
-    public CompletableFuture<String> getLud16FromPubkey(String hexKey) {
+    private CompletableFuture<String> getLud16FromPubkey(String hexKey) {
         return nostrClient.fetchProfileByHex(hexKey).thenApply(profileEvent -> {
             if (profileEvent != null && profileEvent.has("content")) {
                 try {
