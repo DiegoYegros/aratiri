@@ -4,6 +4,7 @@ import com.aratiri.dto.accounts.CreateAccountRequestDTO;
 import com.aratiri.dto.auth.AuthResponseDTO;
 import com.aratiri.entity.UserEntity;
 import com.aratiri.enums.AuthProvider;
+import com.aratiri.enums.Role;
 import com.aratiri.exception.AratiriException;
 import com.aratiri.repository.UserRepository;
 import com.aratiri.service.AccountsService;
@@ -69,6 +70,7 @@ public class GoogleSsoServiceImpl implements GoogleSsoService {
                 newUser.setName(name);
                 newUser.setPassword(null);
                 newUser.setAuthProvider(AuthProvider.GOOGLE);
+                newUser.setRole(Role.USER);
                 user = userRepository.save(newUser);
                 CreateAccountRequestDTO createAccountRequestDTO = new CreateAccountRequestDTO();
                 createAccountRequestDTO.setUserId(user.getId());

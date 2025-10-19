@@ -2,6 +2,7 @@ package com.aratiri.service.impl;
 
 import com.aratiri.entity.UserEntity;
 import com.aratiri.repository.UserRepository;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -29,8 +30,11 @@ public class AratiriUserDetailsServiceImpl implements UserDetailsService {
         } else {
             passwd = user.getPassword();
         }
+        var authorities = Collections.singletonList(
+                new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
+        );
         return new org.springframework.security.core.userdetails.User(
-                user.getEmail(), passwd, Collections.emptyList());
+                user.getEmail(), passwd, authorities);
     }
 }
 

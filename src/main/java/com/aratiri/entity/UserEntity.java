@@ -1,6 +1,7 @@
 package com.aratiri.entity;
 
 import com.aratiri.enums.AuthProvider;
+import com.aratiri.enums.Role;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -33,8 +34,15 @@ public class UserEntity {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role;
+
     @PrePersist
     public void prePersist() {
         createdAt = LocalDateTime.now();
+        if (role == null) {
+            role = Role.USER;
+        }
     }
 }
