@@ -1,10 +1,11 @@
-package com.aratiri.service;
+package com.aratiri.lnurl.application.port.in;
 
 import com.aratiri.dto.lnurl.LnurlPayRequestDTO;
 import com.aratiri.dto.lnurl.LnurlpResponseDTO;
 import com.aratiri.payments.api.dto.PaymentResponseDTO;
 
-public interface LnurlService {
+public interface LnurlApplicationPort {
+
     LnurlpResponseDTO getLnurlMetadata(String alias);
 
     LnurlpResponseDTO getExternalLnurlMetadata(String url);
@@ -12,5 +13,4 @@ public interface LnurlService {
     Object lnurlCallback(String alias, long amount, String comment);
 
     PaymentResponseDTO handlePayRequest(LnurlPayRequestDTO request, String userId);
-
 }
