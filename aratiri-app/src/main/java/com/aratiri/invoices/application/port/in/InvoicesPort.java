@@ -1,4 +1,4 @@
-package com.aratiri.service;
+package com.aratiri.invoices.application.port.in;
 
 import com.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.dto.invoices.GenerateInvoiceDTO;
@@ -6,7 +6,7 @@ import lnrpc.Invoice;
 
 import java.util.Optional;
 
-public interface InvoiceService {
+public interface InvoicesPort {
     GenerateInvoiceDTO generateInvoice(long satsAmount, String memo, String userId);
 
     GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo);

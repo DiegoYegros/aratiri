@@ -11,7 +11,7 @@ import com.aratiri.payments.api.dto.PaymentResponseDTO;
 import com.aratiri.core.exception.AratiriException;
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.accounts.application.port.in.AccountsPort;
-import com.aratiri.service.InvoiceService;
+import com.aratiri.invoices.application.port.in.InvoicesPort;
 import com.aratiri.service.LnurlService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,7 +27,7 @@ import java.util.Map;
 public class LnurlServiceImpl implements LnurlService {
 
     private final AccountsPort accountsPort;
-    private final InvoiceService invoiceService;
+    private final InvoicesPort invoicesPort;
     private final PaymentsPort paymentsPort;
     private final AratiriProperties properties;
     private final RestTemplate restTemplate;
@@ -66,7 +66,7 @@ public class LnurlServiceImpl implements LnurlService {
         }
         long satoshis = amount / 1000;
         String memo = comment != null ?  comment : "No description";
-        GenerateInvoiceDTO generateInvoiceDTO = invoiceService.generateInvoice(alias, satoshis, memo);
+        GenerateInvoiceDTO generateInvoiceDTO = invoicesPort.generateInvoice(alias, satoshis, memo);
         String bolt11 = generateInvoiceDTO.getPaymentRequest();
         return Map.of(
                 "pr", bolt11,

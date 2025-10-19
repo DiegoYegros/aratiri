@@ -1,22 +1,21 @@
 package com.aratiri.payments.infrastructure.invoice;
 
-import com.aratiri.payments.application.port.out.InvoicesPort;
 import com.aratiri.payments.domain.DecodedInvoice;
-import com.aratiri.service.InvoiceService;
+import com.aratiri.invoices.application.port.in.InvoicesPort;
 import org.springframework.stereotype.Component;
 
 @Component("paymentsInvoiceServiceAdapter")
-public class InvoiceServiceAdapter implements InvoicesPort {
+public class InvoiceServiceAdapter implements com.aratiri.payments.application.port.out.InvoicesPort {
 
-    private final InvoiceService invoiceService;
+    private final InvoicesPort invoicesPort;
 
-    public InvoiceServiceAdapter(InvoiceService invoiceService) {
-        this.invoiceService = invoiceService;
+    public InvoiceServiceAdapter(InvoicesPort invoicesPort) {
+        this.invoicesPort = invoicesPort;
     }
 
     @Override
     public DecodedInvoice decodeInvoice(String paymentRequest) {
-        var decoded = invoiceService.decodePaymentRequest(paymentRequest);
+        var decoded = invoicesPort.decodePaymentRequest(paymentRequest);
         return new DecodedInvoice(
                 decoded.getPaymentHash(),
                 decoded.getNumSatoshis(),
@@ -26,6 +25,6 @@ public class InvoiceServiceAdapter implements InvoicesPort {
 
     @Override
     public boolean existsSettledInvoice(String paymentHash) {
-        return invoiceService.existsSettledInvoiceByPaymentHash(paymentHash);
+        return invoicesPort.existsSettledInvoiceByPaymentHash(paymentHash);
     }
 }

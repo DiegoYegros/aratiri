@@ -1,11 +1,11 @@
-package com.aratiri.controller;
+package com.aratiri.invoices.api;
 
 import com.aratiri.context.AratiriContext;
 import com.aratiri.context.AratiriCtx;
 import com.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.dto.invoices.GenerateInvoiceRequestDTO;
-import com.aratiri.service.InvoiceService;
+import com.aratiri.invoices.application.port.in.InvoicesPort;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -16,11 +16,11 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/v1/invoices")
 @Tag(name = "Invoices", description = "Invoice management endpoints for generating and decoding Bitcoin Lightning payment requests")
-public class InvoicesController {
-    private final InvoiceService invoiceService;
+public class InvoicesAPI {
+    private final InvoicesPort invoicesPort;
 
-    public InvoicesController(InvoiceService invoiceService) {
-        this.invoiceService = invoiceService;
+    public InvoicesAPI(InvoicesPort invoicesPort) {
+        this.invoicesPort = invoicesPort;
     }
 
     @PostMapping
@@ -32,7 +32,7 @@ public class InvoicesController {
     )
     public ResponseEntity<GenerateInvoiceDTO> generateInvoice(@Valid @RequestBody GenerateInvoiceRequestDTO request, @AratiriCtx AratiriContext aratiriContext) {
         String userId = aratiriContext.user().getId();
-        return new ResponseEntity<>(invoiceService.generateInvoice(request.getSatsAmount(), request.getMemo(), userId), HttpStatus.CREATED);
+        return new ResponseEntity<>(invoicesPort.generateInvoice(request.getSatsAmount(), request.getMemo(), userId), HttpStatus.CREATED);
     }
 
     @GetMapping("/invoice/decode/{paymentRequest}")
@@ -44,6 +44,6 @@ public class InvoicesController {
     )
     public ResponseEntity<DecodedInvoicetDTO> getDecodedInvoice(@PathVariable String paymentRequest, @AratiriCtx AratiriContext ctx) {
         String userId = ctx.user().getId();
-        return new ResponseEntity<>(invoiceService.decodeAratiriPaymentRequest(paymentRequest, userId), HttpStatus.OK);
+        return new ResponseEntity<>(invoicesPort.decodeAratiriPaymentRequest(paymentRequest, userId), HttpStatus.OK);
     }
 }

@@ -1,14 +1,14 @@
-package com.aratiri.service.impl;
+package com.aratiri.invoices.application.port;
 
+import com.aratiri.accounts.application.port.in.AccountsPort;
+import com.aratiri.core.exception.AratiriException;
+import com.aratiri.core.util.InvoiceUtils;
 import com.aratiri.dto.accounts.AccountDTO;
 import com.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.entity.LightningInvoiceEntity;
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.invoices.application.port.in.InvoicesPort;
 import com.aratiri.repository.LightningInvoiceRepository;
-import com.aratiri.accounts.application.port.in.AccountsPort;
-import com.aratiri.service.InvoiceService;
-import com.aratiri.core.util.InvoiceUtils;
 import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import lnrpc.*;
@@ -24,15 +24,15 @@ import java.util.Base64;
 import java.util.Optional;
 
 @Service
-public class InvoiceServiceImpl implements InvoiceService {
+public class InvoicesAdapter implements InvoicesPort {
 
-    private final Logger logger = LoggerFactory.getLogger(InvoiceServiceImpl.class);
+    private final Logger logger = LoggerFactory.getLogger(InvoicesAdapter.class);
 
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final LightningGrpc.LightningBlockingStub lightningStub;
     private final AccountsPort accountsPort;
 
-    public InvoiceServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, LightningInvoiceRepository lightningInvoiceRepository, AccountsPort accountsPort) {
+    public InvoicesAdapter(LightningGrpc.LightningBlockingStub lightningStub, LightningInvoiceRepository lightningInvoiceRepository, AccountsPort accountsPort) {
         this.lightningStub = lightningStub;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.accountsPort = accountsPort;
