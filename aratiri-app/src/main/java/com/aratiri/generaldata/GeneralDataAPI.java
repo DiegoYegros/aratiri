@@ -1,4 +1,4 @@
-package com.aratiri.generaldata.api;
+package com.aratiri.generaldata;
 
 import com.aratiri.context.AratiriContext;
 import com.aratiri.context.AratiriCtx;
