@@ -1,15 +1,18 @@
 package com.aratiri.auth.infrastructure.persistence;
 
 import com.aratiri.auth.application.port.out.LoadUserPort;
+import com.aratiri.auth.application.port.out.UserCommandPort;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.entity.UserEntity;
+import com.aratiri.enums.AuthProvider;
+import com.aratiri.enums.Role;
 import com.aratiri.repository.UserRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
 @Component
-public class UserRepositoryAdapter implements LoadUserPort {
+public class UserRepositoryAdapter implements LoadUserPort, UserCommandPort {
 
     private final UserRepository userRepository;
 
@@ -20,6 +23,42 @@ public class UserRepositoryAdapter implements LoadUserPort {
     @Override
     public Optional<AuthUser> findByEmail(String email) {
         return userRepository.findByEmail(email).map(this::toDomain);
+    }
+
+    @Override
+    public Optional<AuthUser> findById(String id) {
+        return userRepository.findById(id).map(this::toDomain);
+    }
+
+    @Override
+    public AuthUser registerLocalUser(String name, String email, String encodedPassword) {
+        UserEntity entity = new UserEntity();
+        entity.setName(name);
+        entity.setEmail(email);
+        entity.setPassword(encodedPassword);
+        entity.setAuthProvider(AuthProvider.LOCAL);
+        entity.setRole(Role.USER);
+        return toDomain(userRepository.save(entity));
+    }
+
+    @Override
+    public AuthUser registerSocialUser(String name, String email, AuthProvider provider) {
+        UserEntity entity = new UserEntity();
+        entity.setName(name);
+        entity.setEmail(email);
+        entity.setPassword(null);
+        entity.setAuthProvider(provider);
+        entity.setRole(Role.USER);
+        return toDomain(userRepository.save(entity));
+    }
+
+    @Override
+    public void updatePassword(String userId, String encodedPassword) {
+        userRepository.findById(userId).ifPresent(user -> {
+            user.setPassword(encodedPassword);
+            user.setAuthProvider(AuthProvider.LOCAL);
+            userRepository.save(user);
+        });
     }
 
     private AuthUser toDomain(UserEntity entity) {

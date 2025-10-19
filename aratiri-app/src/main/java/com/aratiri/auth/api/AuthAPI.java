@@ -1,6 +1,14 @@
 package com.aratiri.auth.api;
 
 import com.aratiri.auth.application.port.in.AuthPort;
+import com.aratiri.auth.application.port.in.GoogleAuthPort;
+import com.aratiri.auth.application.port.in.PasswordResetCompletionCommand;
+import com.aratiri.auth.application.port.in.PasswordResetPort;
+import com.aratiri.auth.application.port.in.PasswordResetRequestCommand;
+import com.aratiri.auth.application.port.in.RegistrationCommand;
+import com.aratiri.auth.application.port.in.RegistrationPort;
+import com.aratiri.auth.application.port.in.TokenRefreshPort;
+import com.aratiri.auth.application.port.in.VerificationCommand;
 import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.core.exception.ErrorResponse;
 import com.aratiri.auth.api.dto.AuthRequestDTO;
@@ -11,13 +19,6 @@ import com.aratiri.auth.api.dto.RefreshTokenRequestDTO;
 import com.aratiri.auth.api.dto.RegistrationRequestDTO;
 import com.aratiri.auth.api.dto.VerificationRequestDTO;
 import com.aratiri.dto.users.UserDTO;
-import com.aratiri.entity.RefreshTokenEntity;
-import com.aratiri.core.exception.AratiriException;
-import com.aratiri.service.GoogleSsoService;
-import com.aratiri.service.PasswordResetService;
-import com.aratiri.service.RefreshTokenService;
-import com.aratiri.service.RegistrationService;
-import com.aratiri.auth.infrastructure.jwt.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -38,26 +39,23 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Authentication", description = "User authentication endpoints for accessing the Aratiri Bitcoin Lightning middleware platform")
 public class AuthAPI {
 
-    private final GoogleSsoService googleSsoService;
     private final AuthPort authPort;
-    private final RefreshTokenService refreshTokenService;
-    private final JwtUtil jwtUtil;
-    private final RegistrationService registrationService;
-    private final PasswordResetService passwordResetService;
+    private final GoogleAuthPort googleAuthPort;
+    private final TokenRefreshPort tokenRefreshPort;
+    private final RegistrationPort registrationPort;
+    private final PasswordResetPort passwordResetPort;
 
     public AuthAPI(
-            GoogleSsoService googleSsoService,
             AuthPort authPort,
-            RefreshTokenService refreshTokenService,
-            JwtUtil jwtUtil,
-            RegistrationService registrationService,
-            PasswordResetService passwordResetService) {
-        this.googleSsoService = googleSsoService;
+            GoogleAuthPort googleAuthPort,
+            TokenRefreshPort tokenRefreshPort,
+            RegistrationPort registrationPort,
+            PasswordResetPort passwordResetPort) {
         this.authPort = authPort;
-        this.refreshTokenService = refreshTokenService;
-        this.jwtUtil = jwtUtil;
-        this.registrationService = registrationService;
-        this.passwordResetService = passwordResetService;
+        this.googleAuthPort = googleAuthPort;
+        this.tokenRefreshPort = tokenRefreshPort;
+        this.registrationPort = registrationPort;
+        this.passwordResetPort = passwordResetPort;
     }
 
     @PostMapping("/login")
@@ -81,7 +79,13 @@ public class AuthAPI {
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<Void> register(@Valid @RequestBody RegistrationRequestDTO request) {
-        registrationService.initiateRegistration(request);
+        RegistrationCommand command = new RegistrationCommand(
+                request.getName(),
+                request.getEmail(),
+                request.getPassword(),
+                request.getAlias()
+        );
+        registrationPort.initiateRegistration(command);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
@@ -96,7 +100,9 @@ public class AuthAPI {
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<AuthResponseDTO> verify(@Valid @RequestBody VerificationRequestDTO request) {
-        return ResponseEntity.ok(registrationService.completeRegistration(request));
+        VerificationCommand command = new VerificationCommand(request.getEmail(), request.getCode());
+        AuthTokens tokens = registrationPort.completeRegistration(command);
+        return ResponseEntity.ok(new AuthResponseDTO(tokens.accessToken(), tokens.refreshToken()));
     }
 
     @PostMapping("/sso/google")
@@ -105,20 +111,15 @@ public class AuthAPI {
             description = "Authenticates an user using a Google Client ID and returns an Aratiri JWT."
     )
     public ResponseEntity<AuthResponseDTO> googleLogin(@RequestBody String googleToken) {
-        return ResponseEntity.ok(googleSsoService.loginWithGoogle(googleToken));
+        AuthTokens tokens = googleAuthPort.loginWithGoogle(googleToken);
+        return ResponseEntity.ok(new AuthResponseDTO(tokens.accessToken(), tokens.refreshToken()));
     }
 
     @PostMapping("/refresh")
     @Operation(summary = "Refresh access token")
     public ResponseEntity<AuthResponseDTO> refreshToken(@RequestBody RefreshTokenRequestDTO request) {
-        return refreshTokenService.findByToken(request.getRefreshToken())
-                .map(refreshTokenService::verifyExpiration)
-                .map(RefreshTokenEntity::getUser)
-                .map(user -> {
-                    String accessToken = jwtUtil.generateTokenFromUsername(user.getEmail());
-                    return ResponseEntity.ok(new AuthResponseDTO(accessToken, request.getRefreshToken()));
-                })
-                .orElseThrow(() -> new AratiriException("Refresh token is not in database!", HttpStatus.BAD_REQUEST));
+        AuthTokens tokens = tokenRefreshPort.refreshAccessToken(request.getRefreshToken());
+        return ResponseEntity.ok(new AuthResponseDTO(tokens.accessToken(), tokens.refreshToken()));
     }
 
     @PostMapping("/logout")
@@ -145,7 +146,7 @@ public class AuthAPI {
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<Void> forgotPassword(@Valid @RequestBody PasswordResetDTOs.ForgotPasswordRequestDTO request) {
-        passwordResetService.initiatePasswordReset(request);
+        passwordResetPort.initiatePasswordReset(new PasswordResetRequestCommand(request.getEmail()));
         return ResponseEntity.ok().build();
     }
 
@@ -158,7 +159,11 @@ public class AuthAPI {
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<Void> resetPassword(@Valid @RequestBody PasswordResetDTOs.ResetPasswordRequestDTO request) {
-        passwordResetService.completePasswordReset(request);
+        passwordResetPort.completePasswordReset(new PasswordResetCompletionCommand(
+                request.getEmail(),
+                request.getCode(),
+                request.getNewPassword()
+        ));
         return ResponseEntity.ok().build();
     }
 }

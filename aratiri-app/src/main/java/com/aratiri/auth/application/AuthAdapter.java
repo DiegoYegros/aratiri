@@ -51,7 +51,7 @@ public class AuthAdapter implements AuthPort {
         }
         authenticationPort.authenticate(username, password);
         String accessToken = accessTokenPort.generateAccessToken(username);
-        String refreshToken = refreshTokenPort.createRefreshToken(user.id());
+        String refreshToken = refreshTokenPort.createRefreshToken(user.id()).token();
         return new AuthTokens(accessToken, refreshToken);
     }
 

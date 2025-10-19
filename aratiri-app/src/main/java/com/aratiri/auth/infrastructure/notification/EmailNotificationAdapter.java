@@ -1,16 +1,18 @@
-package com.aratiri.service.impl;
+package com.aratiri.auth.infrastructure.notification;
 
-import com.aratiri.service.EmailService;
-import lombok.RequiredArgsConstructor;
+import com.aratiri.auth.application.port.out.EmailNotificationPort;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
-@RequiredArgsConstructor
-public class EmailServiceImpl implements EmailService {
+@Component
+public class EmailNotificationAdapter implements EmailNotificationPort {
 
     private final JavaMailSender mailSender;
+
+    public EmailNotificationAdapter(JavaMailSender mailSender) {
+        this.mailSender = mailSender;
+    }
 
     @Override
     public void sendVerificationEmail(String to, String code) {
