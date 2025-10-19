@@ -1,7 +1,6 @@
 package com.aratiri.handler;
 
-import com.aratiri.entity.UserEntity;
-import com.aratiri.service.UserService;
+import com.aratiri.auth.application.port.out.LoadUserPort;
 import com.aratiri.auth.infrastructure.jwt.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,11 +21,11 @@ public class NotificationSocketHandler extends TextWebSocketHandler {
     private static final Logger logger = LoggerFactory.getLogger(NotificationSocketHandler.class);
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
     private final JwtUtil jwtUtil;
-    private final UserService userService;
+    private final LoadUserPort loadUserPort;
 
-    public NotificationSocketHandler(JwtUtil jwtUtil, UserService userService) {
+    public NotificationSocketHandler(JwtUtil jwtUtil, LoadUserPort loadUserPort) {
         this.jwtUtil = jwtUtil;
-        this.userService = userService;
+        this.loadUserPort = loadUserPort;
     }
 
     @Override
@@ -80,8 +79,8 @@ public class NotificationSocketHandler extends TextWebSocketHandler {
                 return null;
             }
 
-            String userId = userService.findByEmail(email)
-                    .map(UserEntity::getId)
+            String userId = loadUserPort.findByEmail(email)
+                    .map(authUser -> authUser.id())
                     .orElse(null);
 
             if (userId != null) {

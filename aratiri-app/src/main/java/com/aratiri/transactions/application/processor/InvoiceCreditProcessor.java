@@ -1,4 +1,4 @@
-package com.aratiri.service.processor;
+package com.aratiri.transactions.application.processor;
 
 import com.aratiri.core.constants.BitcoinConstants;
 import com.aratiri.dto.transactions.TransactionType;
@@ -15,9 +15,9 @@ import java.math.BigDecimal;
 
 @Component
 @RequiredArgsConstructor
-public class InvoiceDebitProcessor implements TransactionProcessor {
-
+public class InvoiceCreditProcessor implements TransactionProcessor {
     private final Logger logger = LoggerFactory.getLogger(getClass());
+
     private final AccountRepository accountRepository;
 
     @Override
@@ -26,23 +26,17 @@ public class InvoiceDebitProcessor implements TransactionProcessor {
         if (account == null) {
             throw new AratiriException("Account not found for user: " + transaction.getUserId());
         }
-
         BigDecimal amountInBTC = transaction.getAmount();
-        BigDecimal amountInSats = BitcoinConstants.btcToSatoshis(amountInBTC);
-        logger.info("Debiting {} sats from account.", amountInSats);
-        long newBalance = account.getBalance() - amountInSats.longValue();
-        if (newBalance < 0) {
-            throw new AratiriException("Insufficient funds for transaction settlement.");
-        }
+        BigDecimal amountInSats = amountInBTC.multiply(BitcoinConstants.SATOSHIS_PER_BTC);
+        logger.info("AmountInBTC = {}, AmountInSats = {}", amountInBTC, amountInSats);
+        long newBalance = account.getBalance() + amountInSats.longValue();
         account.setBalance(newBalance);
         accountRepository.save(account);
-        BigDecimal btcValue = BitcoinConstants.satoshisToBtc(newBalance);
-        logger.info("Returning new balance in BTC: [{}]", btcValue);
-        return btcValue;
+        return BitcoinConstants.satoshisToBtc(newBalance);
     }
 
     @Override
     public TransactionType supportedType() {
-        return TransactionType.LIGHTNING_DEBIT;
+        return TransactionType.LIGHTNING_CREDIT;
     }
 }

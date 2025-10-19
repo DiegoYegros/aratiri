@@ -1,4 +1,4 @@
-package com.aratiri.transactions.api;
+package com.aratiri.transactions;
 
 import com.aratiri.context.AratiriContext;
 import com.aratiri.context.AratiriCtx;

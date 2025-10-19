@@ -1,4 +1,4 @@
-package com.aratiri.invoices.api;
+package com.aratiri.invoices;
 
 import com.aratiri.context.AratiriContext;
 import com.aratiri.context.AratiriCtx;

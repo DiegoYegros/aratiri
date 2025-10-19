@@ -1,4 +1,4 @@
-package com.aratiri.service.processor;
+package com.aratiri.transactions.application.processor;
 
 import com.aratiri.core.constants.BitcoinConstants;
 import com.aratiri.dto.transactions.TransactionType;
@@ -15,9 +15,9 @@ import java.math.BigDecimal;
 
 @Component
 @RequiredArgsConstructor
-public class OnChainCreditProcessor implements TransactionProcessor {
-    private final Logger logger = LoggerFactory.getLogger(getClass());
+public class OnChainDebitProcessor implements TransactionProcessor {
 
+    private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountRepository accountRepository;
 
     @Override
@@ -26,17 +26,24 @@ public class OnChainCreditProcessor implements TransactionProcessor {
         if (account == null) {
             throw new AratiriException("Account not found for user: " + transaction.getUserId());
         }
+
         BigDecimal amountInBTC = transaction.getAmount();
-        BigDecimal amountInSats = amountInBTC.multiply(BitcoinConstants.SATOSHIS_PER_BTC);
-        logger.info("Crediting {} sats to account from on-chain transaction.", amountInSats);
-        long newBalance = account.getBalance() + amountInSats.longValue();
+        BigDecimal amountInSats = BitcoinConstants.btcToSatoshis(amountInBTC);
+        logger.info("Debiting {} sats from account for on-chain transaction.", amountInSats);
+
+        long newBalance = account.getBalance() - amountInSats.longValue();
+        if (newBalance < 0) {
+            throw new AratiriException("Insufficient funds for transaction settlement.");
+        }
         account.setBalance(newBalance);
         accountRepository.save(account);
-        return BitcoinConstants.satoshisToBtc(newBalance);
+        BigDecimal newBalanceInBtc = BitcoinConstants.satoshisToBtc(newBalance);
+        logger.info("New balance in BTC: [{}]", newBalanceInBtc);
+        return newBalanceInBtc;
     }
 
     @Override
     public TransactionType supportedType() {
-        return TransactionType.ONCHAIN_CREDIT;
+        return TransactionType.ONCHAIN_DEBIT;
     }
 }

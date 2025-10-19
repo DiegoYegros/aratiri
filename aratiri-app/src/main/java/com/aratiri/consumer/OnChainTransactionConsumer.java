@@ -6,7 +6,7 @@ import com.aratiri.dto.transactions.TransactionCurrency;
 import com.aratiri.dto.transactions.TransactionStatus;
 import com.aratiri.dto.transactions.TransactionType;
 import com.aratiri.event.OnChainTransactionReceivedEvent;
-import com.aratiri.service.TransactionsService;
+import com.aratiri.transactions.application.port.in.TransactionsPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class OnChainTransactionConsumer {
 
-    private final TransactionsService transactionsService;
+    private final TransactionsPort transactionsService;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "onchain.transaction.received", groupId = "transaction-group")

@@ -9,7 +9,7 @@ import com.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.event.InvoiceSettledEvent;
 import com.aratiri.core.exception.AratiriException;
 import com.aratiri.repository.LightningInvoiceRepository;
-import com.aratiri.service.TransactionsService;
+import com.aratiri.transactions.application.port.in.TransactionsPort;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +34,7 @@ import java.math.RoundingMode;
 @Slf4j
 public class InvoiceSettledConsumer {
 
-    private final TransactionsService transactionsService;
+    private final TransactionsPort transactionsService;
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final ObjectMapper objectMapper;
 

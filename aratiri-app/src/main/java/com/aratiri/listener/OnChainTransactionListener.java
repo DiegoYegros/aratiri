@@ -5,7 +5,7 @@ import com.aratiri.enums.KafkaTopics;
 import com.aratiri.event.OnChainTransactionReceivedEvent;
 import com.aratiri.repository.AccountRepository;
 import com.aratiri.repository.OutboxEventRepository;
-import com.aratiri.service.TransactionsService;
+import com.aratiri.transactions.application.port.in.TransactionsPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.grpc.stub.StreamObserver;
 import jakarta.annotation.PostConstruct;
@@ -32,7 +32,7 @@ public class OnChainTransactionListener {
 
     private final LightningGrpc.LightningStub lightningAsyncStub;
     private final AccountRepository accountRepository;
-    private final TransactionsService transactionsService;
+    private final TransactionsPort transactionsService;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
     private final AtomicBoolean isListening = new AtomicBoolean(false);
@@ -43,7 +43,7 @@ public class OnChainTransactionListener {
     public OnChainTransactionListener(
             LightningGrpc.LightningStub lightningAsyncStub,
             AccountRepository accountRepository,
-            TransactionsService transactionsService,
+            TransactionsPort transactionsService,
             OutboxEventRepository outboxEventRepository,
             ObjectMapper objectMapper) {
         this.lightningAsyncStub = lightningAsyncStub;

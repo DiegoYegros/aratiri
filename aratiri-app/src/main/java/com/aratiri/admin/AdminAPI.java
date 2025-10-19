@@ -1,4 +1,4 @@
-package com.aratiri.admin.api;
+package com.aratiri.admin;
 
 import com.aratiri.admin.application.port.in.AdminPort;
 import com.aratiri.core.exception.AratiriException;

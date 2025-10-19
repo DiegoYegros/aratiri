@@ -1,4 +1,4 @@
-package com.aratiri.service.impl;
+package com.aratiri.auth.infrastructure.security;
 
 import com.aratiri.entity.UserEntity;
 import com.aratiri.repository.UserRepository;
@@ -12,11 +12,11 @@ import java.util.Collections;
 import java.util.UUID;
 
 @Service
-public class AratiriUserDetailsServiceImpl implements UserDetailsService {
+public class AratiriUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
 
-    public AratiriUserDetailsServiceImpl(UserRepository userRepository) {
+    public AratiriUserDetailsService(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 

@@ -2,7 +2,7 @@ package com.aratiri.listener;
 
 import com.aratiri.entity.InvoiceSubscriptionState;
 import com.aratiri.repository.InvoiceSubscriptionStateRepository;
-import com.aratiri.service.processor.InvoiceProcessorService;
+import com.aratiri.payments.application.invoice.InvoiceProcessorService;
 import io.grpc.stub.StreamObserver;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;

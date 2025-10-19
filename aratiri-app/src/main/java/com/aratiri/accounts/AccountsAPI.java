@@ -1,4 +1,4 @@
-package com.aratiri.accounts.api;
+package com.aratiri.accounts;
 
 
 import com.aratiri.context.AratiriContext;

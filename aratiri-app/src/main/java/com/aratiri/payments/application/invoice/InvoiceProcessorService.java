@@ -1,4 +1,4 @@
-package com.aratiri.service.processor;
+package com.aratiri.payments.application.invoice;
 
 import com.aratiri.entity.InvoiceSubscriptionState;
 import com.aratiri.entity.LightningInvoiceEntity;
@@ -8,7 +8,7 @@ import com.aratiri.event.InvoiceSettledEvent;
 import com.aratiri.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.repository.LightningInvoiceRepository;
 import com.aratiri.repository.OutboxEventRepository;
-import com.aratiri.service.NotificationsService;
+import com.aratiri.notifications.application.port.out.NotificationPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lnrpc.Invoice;
 import org.slf4j.Logger;
@@ -30,11 +30,11 @@ public class InvoiceProcessorService {
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
     private final InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
-    private final NotificationsService notificationsService;
+    private final NotificationPort notificationsService;
 
     public InvoiceProcessorService(LightningInvoiceRepository lightningInvoiceRepository,
                                    OutboxEventRepository outboxEventRepository,
-                                   ObjectMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository, NotificationsService notificationsService) {
+                                   ObjectMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository, NotificationPort notificationsService) {
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.objectMapper = objectMapper;

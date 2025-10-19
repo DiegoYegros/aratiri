@@ -1,7 +1,7 @@
-package com.aratiri.service.impl;
+package com.aratiri.notifications.infrastructure;
 
 import com.aratiri.handler.NotificationSocketHandler;
-import com.aratiri.service.NotificationsService;
+import com.aratiri.notifications.application.port.out.NotificationPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 
 @Service
-public class NotificationServiceImpl implements NotificationsService {
+public class NotificationServiceImpl implements NotificationPort {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationServiceImpl.class);
 

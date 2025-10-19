@@ -1,4 +1,4 @@
-package com.aratiri.lnurl.api;
+package com.aratiri.lnurl;
 
 import com.aratiri.context.AratiriContext;
 import com.aratiri.context.AratiriCtx;

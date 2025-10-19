@@ -1,4 +1,4 @@
-package com.aratiri.service.processor;
+package com.aratiri.transactions.application.processor;
 
 import com.aratiri.core.constants.BitcoinConstants;
 import com.aratiri.dto.transactions.TransactionType;
@@ -15,9 +15,9 @@ import java.math.BigDecimal;
 
 @Component
 @RequiredArgsConstructor
-public class InvoiceCreditProcessor implements TransactionProcessor {
-    private final Logger logger = LoggerFactory.getLogger(getClass());
+public class InvoiceDebitProcessor implements TransactionProcessor {
 
+    private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountRepository accountRepository;
 
     @Override
@@ -26,17 +26,23 @@ public class InvoiceCreditProcessor implements TransactionProcessor {
         if (account == null) {
             throw new AratiriException("Account not found for user: " + transaction.getUserId());
         }
+
         BigDecimal amountInBTC = transaction.getAmount();
-        BigDecimal amountInSats = amountInBTC.multiply(BitcoinConstants.SATOSHIS_PER_BTC);
-        logger.info("AmountInBTC = {}, AmountInSats = {}", amountInBTC, amountInSats);
-        long newBalance = account.getBalance() + amountInSats.longValue();
+        BigDecimal amountInSats = BitcoinConstants.btcToSatoshis(amountInBTC);
+        logger.info("Debiting {} sats from account.", amountInSats);
+        long newBalance = account.getBalance() - amountInSats.longValue();
+        if (newBalance < 0) {
+            throw new AratiriException("Insufficient funds for transaction settlement.");
+        }
         account.setBalance(newBalance);
         accountRepository.save(account);
-        return BitcoinConstants.satoshisToBtc(newBalance);
+        BigDecimal btcValue = BitcoinConstants.satoshisToBtc(newBalance);
+        logger.info("Returning new balance in BTC: [{}]", btcValue);
+        return btcValue;
     }
 
     @Override
     public TransactionType supportedType() {
-        return TransactionType.LIGHTNING_CREDIT;
+        return TransactionType.LIGHTNING_DEBIT;
     }
 }

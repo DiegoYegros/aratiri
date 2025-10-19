@@ -2,16 +2,15 @@ package com.aratiri.payments.infrastructure.transactions;
 
 import com.aratiri.dto.transactions.CreateTransactionRequest;
 import com.aratiri.dto.transactions.TransactionDTOResponse;
-import com.aratiri.payments.application.port.out.TransactionsPort;
-import com.aratiri.service.TransactionsService;
+import com.aratiri.transactions.application.port.in.TransactionsPort;
 import org.springframework.stereotype.Component;
 
 @Component("paymentsTransactionsServiceAdapter")
-public class TransactionsServiceAdapter implements TransactionsPort {
+public class TransactionsServiceAdapter implements com.aratiri.payments.application.port.out.TransactionsPort {
 
-    private final TransactionsService transactionsService;
+    private final TransactionsPort transactionsService;
 
-    public TransactionsServiceAdapter(TransactionsService transactionsService) {
+    public TransactionsServiceAdapter(TransactionsPort transactionsService) {
         this.transactionsService = transactionsService;
     }
 

@@ -1,7 +1,7 @@
 package com.aratiri.consumer;
 
 import com.aratiri.event.InternalTransferInitiatedEvent;
-import com.aratiri.service.TransactionsService;
+import com.aratiri.transactions.application.port.in.TransactionsPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class InternalTransferConsumer {
 
-    private final TransactionsService transactionsService;
+    private final TransactionsPort transactionsService;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "internal.transfer.initiated", groupId = "internal-transfer-group")

@@ -3,7 +3,7 @@ package com.aratiri.job;
 import com.aratiri.entity.TransactionEntity;
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.repository.TransactionsRepository;
-import com.aratiri.service.TransactionsService;
+import com.aratiri.transactions.application.port.in.TransactionsPort;
 import lnrpc.Payment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,12 +21,12 @@ public class TransactionReconciliationJob {
     private static final Logger logger = LoggerFactory.getLogger(TransactionReconciliationJob.class);
     private final TransactionsRepository transactionsRepository;
     private final PaymentsPort paymentsPort;
-    private final TransactionsService transactionsService;
+    private final TransactionsPort transactionsService;
 
     public TransactionReconciliationJob(
             TransactionsRepository transactionsRepository,
             PaymentsPort paymentsPort,
-            TransactionsService transactionsService) {
+            TransactionsPort transactionsService) {
         this.transactionsRepository = transactionsRepository;
         this.paymentsPort = paymentsPort;
         this.transactionsService = transactionsService;

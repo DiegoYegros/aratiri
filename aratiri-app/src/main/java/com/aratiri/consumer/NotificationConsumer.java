@@ -4,7 +4,7 @@ import com.aratiri.enums.KafkaTopics;
 import com.aratiri.event.InternalTransferCompletedEvent;
 import com.aratiri.event.InvoiceSettledEvent;
 import com.aratiri.event.PaymentSentEvent;
-import com.aratiri.service.NotificationsService;
+import com.aratiri.notifications.application.port.out.NotificationPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +21,7 @@ import java.util.Map;
 @Slf4j
 public class NotificationConsumer {
 
-    private final NotificationsService notificationsService;
+    private final NotificationPort notificationsService;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = {"invoice.settled", "internal.transfer.completed", "payment.sent"}, groupId = "notification-group")

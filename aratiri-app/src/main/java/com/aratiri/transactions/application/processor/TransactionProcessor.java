@@ -1,4 +1,4 @@
-package com.aratiri.service.processor;
+package com.aratiri.transactions.application.processor;
 
 import com.aratiri.dto.transactions.TransactionType;
 import com.aratiri.entity.TransactionEntity;
