@@ -57,7 +57,7 @@ public class InvoiceSettledConsumer {
             InvoiceSettledEvent event = objectMapper.readValue(message, InvoiceSettledEvent.class);
             BigDecimal amountInSats = new BigDecimal(event.getAmount());
             BigDecimal amountInBTC = amountInSats.divide(BitcoinConstants.SATOSHIS_PER_BTC, 8, RoundingMode.HALF_UP);
-            log.info("Processing invoice settlement for user: {}, amount: {}, paymentHash: {}, amountInBTC = {}",
+            log.info("Processing invoice settlement for user: {}, amount: {}, paymentRequest: {}, amountInBTC = {}",
                     event.getUserId(), event.getAmount(), event.getPaymentHash(), amountInBTC);
             String description = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash())
                     .map(LightningInvoiceEntity::getMemo)
@@ -65,7 +65,7 @@ public class InvoiceSettledConsumer {
 
             boolean transactionExists = transactionsService.existsByReferenceId(event.getPaymentHash());
             if (transactionExists) {
-                log.warn("Transaction with paymentHash {} already processed. Skipping.", event.getPaymentHash());
+                log.warn("Transaction with paymentRequest {} already processed. Skipping.", event.getPaymentHash());
                 acknowledgment.acknowledge();
                 return;
             }
@@ -99,7 +99,7 @@ public class InvoiceSettledConsumer {
                 topic, message, exceptionMessage);
         try {
             InvoiceSettledEvent event = objectMapper.readValue(message, InvoiceSettledEvent.class);
-            log.error("Failed invoice: userId={}, amount={}, paymentHash={}",
+            log.error("Failed invoice: userId={}, amount={}, paymentRequest={}",
                     event.getUserId(), event.getAmount(), event.getPaymentHash());
         } catch (JsonProcessingException e) {
             log.error("Could not deserialize failed message for dead letter handling: {}", message, e);

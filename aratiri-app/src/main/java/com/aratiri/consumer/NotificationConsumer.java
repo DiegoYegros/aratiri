@@ -39,7 +39,7 @@ public class NotificationConsumer {
                 notificationPayload = Map.of(
                         "message", "Payment Received",
                         "amountSats", event.getAmount(),
-                        "paymentHash", event.getPaymentHash(),
+                        "paymentRequest", event.getPaymentHash(),
                         "memo", event.getMemo()
                 );
             } else if (topic.equals(KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode())) {
@@ -49,7 +49,7 @@ public class NotificationConsumer {
                 notificationPayload = Map.of(
                         "message", "Payment Received",
                         "amountSats", event.getAmountSat(),
-                        "paymentHash", event.getPaymentHash(),
+                        "paymentRequest", event.getPaymentHash(),
                         "memo", event.getMemo()
                 );
                 notificationsService.sendNotification(event.getSenderId(), "payment_sent", "dummy_payload");
@@ -61,7 +61,7 @@ public class NotificationConsumer {
                         "message", "Payment Sent",
                         "transactionId", event.getTransactionId(),
                         "amountSats", event.getAmount(),
-                        "paymentHash", event.getPaymentHash(),
+                        "paymentRequest", event.getPaymentHash(),
                         "memo", event.getMemo()
                 );
             } else {

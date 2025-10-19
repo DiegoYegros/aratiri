@@ -2,7 +2,7 @@ package com.aratiri.invoices.application.port.in;
 
 import com.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.dto.invoices.GenerateInvoiceDTO;
-import lnrpc.Invoice;
+import com.aratiri.invoices.domain.LightningNodeInvoice;
 
 import java.util.Optional;
 
@@ -13,7 +13,7 @@ public interface InvoicesPort {
 
     DecodedInvoicetDTO decodeAratiriPaymentRequest(String paymentRequest, String userId);
 
-    Optional<Invoice> lookupInvoice(String paymentHash);
+    Optional<LightningNodeInvoice> lookupInvoice(String paymentHash);
 
     DecodedInvoicetDTO decodePaymentRequest(String invoice);
 
