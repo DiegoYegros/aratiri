@@ -16,4 +16,6 @@ public interface AdminService {
     List<TransactionStatsDTO> getTransactionStats(Instant from, Instant to);
     void connectPeer(String pubkey, String host);
     List<Peer> listPeers();
+    NodeSettingsDTO getNodeSettings();
+    NodeSettingsDTO updateAutoManagePeers(boolean enabled);
 }

@@ -1,7 +1,9 @@
 package com.aratiri.service.impl;
 
 import com.aratiri.dto.admin.*;
+import com.aratiri.entity.NodeSettingsEntity;
 import com.aratiri.exception.AratiriException;
+import com.aratiri.repository.NodeSettingsRepository;
 import com.aratiri.repository.TransactionsRepository;
 import com.aratiri.service.AdminService;
 import com.google.protobuf.ByteString;
@@ -9,8 +11,8 @@ import io.grpc.StatusRuntimeException;
 import lnrpc.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -23,10 +25,12 @@ public class AdminServiceImpl implements AdminService {
 
     private final LightningGrpc.LightningBlockingStub lightningStub;
     private final TransactionsRepository transactionsRepository;
+    private final NodeSettingsRepository nodeSettingsRepository;
 
-    public AdminServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, TransactionsRepository transactionsRepository) {
+    public AdminServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, TransactionsRepository transactionsRepository, NodeSettingsRepository nodeSettingsRepository) {
         this.lightningStub = lightningStub;
         this.transactionsRepository = transactionsRepository;
+        this.nodeSettingsRepository = nodeSettingsRepository;
     }
 
     @Override
@@ -113,7 +117,7 @@ public class AdminServiceImpl implements AdminService {
             }
         }
         return nodeInfoMap.values().stream()
-                .filter(e -> e.getBetweennessCentrality() !=0.0)
+                .filter(e -> e.getBetweennessCentrality() != 0.0)
                 .sorted(Comparator.comparing(NodeInfoDTO::getBetweennessCentrality).reversed()
                         .thenComparing(NodeInfoDTO::getCapacity).reversed()
                         .thenComparing(NodeInfoDTO::getNumChannels).reversed())
@@ -152,4 +156,29 @@ public class AdminServiceImpl implements AdminService {
         return lightningStub.listPeers(ListPeersRequest.newBuilder().build()).getPeersList();
     }
 
+    @Override
+    public NodeSettingsDTO getNodeSettings() {
+        NodeSettingsEntity settings = nodeSettingsRepository.findById("singleton")
+                .orElseGet(() -> nodeSettingsRepository.save(new NodeSettingsEntity(false)));
+        return mapToNodeSettingsDTO(settings);
+    }
+
+    @Override
+    @Transactional
+    public NodeSettingsDTO updateAutoManagePeers(boolean enabled) {
+        NodeSettingsEntity settings = nodeSettingsRepository.findById("singleton")
+                .orElseGet(() -> new NodeSettingsEntity(false));
+
+        settings.setAutoManagePeers(enabled);
+        NodeSettingsEntity updatedSettings = nodeSettingsRepository.save(settings);
+        return mapToNodeSettingsDTO(updatedSettings);
+    }
+
+    private NodeSettingsDTO mapToNodeSettingsDTO(NodeSettingsEntity entity) {
+        NodeSettingsDTO dto = new NodeSettingsDTO();
+        dto.setAutoManagePeers(entity.isAutoManagePeers());
+        dto.setCreatedAt(entity.getCreatedAt());
+        dto.setUpdatedAt(entity.getUpdatedAt());
+        return dto;
+    }
 }
