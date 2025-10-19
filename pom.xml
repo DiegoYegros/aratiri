@@ -15,7 +15,7 @@
     <description>Integration with LND backend</description>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <grpc.version>1.72.0</grpc.version>
         <spring-grpc.version>0.8.0</spring-grpc.version>
         <protobuf.version>4.30.2</protobuf.version>
