@@ -1,9 +1,6 @@
 package com.aratiri.service.impl;
 
-import com.aratiri.dto.admin.CloseChannelRequestDTO;
-import com.aratiri.dto.admin.NodeInfoDTO;
-import com.aratiri.dto.admin.OpenChannelRequestDTO;
-import com.aratiri.dto.admin.TransactionStatsDTO;
+import com.aratiri.dto.admin.*;
 import com.aratiri.exception.AratiriException;
 import com.aratiri.repository.TransactionsRepository;
 import com.aratiri.service.AdminService;
@@ -33,10 +30,12 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
-    public List<Channel> listChannels() {
+    public ListChannelsResponseDTO listChannels() {
         ListChannelsRequest request = ListChannelsRequest.newBuilder().build();
         ListChannelsResponse response = lightningStub.listChannels(request);
-        return response.getChannelsList();
+        PendingChannelsRequest pending = PendingChannelsRequest.newBuilder().build();
+        PendingChannelsResponse pendingChannelsResponse = lightningStub.pendingChannels(pending);
+        return new ListChannelsResponseDTO(response.getChannelsList(), pendingChannelsResponse);
     }
 
     @Override

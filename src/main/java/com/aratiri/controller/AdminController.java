@@ -10,6 +10,7 @@ import lnrpc.Channel;
 import lnrpc.ChannelBalanceResponse;
 import lnrpc.CloseStatusUpdate;
 import lnrpc.GetInfoResponse;
+import lnrpc.PendingChannelsResponse;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -92,8 +93,7 @@ public class AdminController {
             }
     )
     public ResponseEntity<ListChannelsResponseDTO> listChannels() {
-        List<Channel> channels = adminService.listChannels();
-        return ResponseEntity.ok(new ListChannelsResponseDTO(channels));
+        return ResponseEntity.ok(adminService.listChannels());
     }
 
     @PostMapping("/channels/open")
