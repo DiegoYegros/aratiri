@@ -1,4 +1,4 @@
-package com.aratiri.service.impl;
+package com.aratiri.accounts.application;
 
 import com.aratiri.config.AratiriProperties;
 import com.aratiri.core.constants.BitcoinConstants;
@@ -10,11 +10,11 @@ import com.aratiri.entity.UserEntity;
 import com.aratiri.core.exception.AratiriException;
 import com.aratiri.repository.AccountRepository;
 import com.aratiri.repository.UserRepository;
-import com.aratiri.service.AccountsService;
+import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.service.CurrencyConversionService;
 import com.aratiri.service.TransactionsService;
-import com.aratiri.util.AliasGenerator;
-import com.aratiri.util.Bech32Util;
+import com.aratiri.core.util.AliasGenerator;
+import com.aratiri.core.util.Bech32Util;
 import com.aratiri.util.QrCodeUtil;
 import lnrpc.AddressType;
 import lnrpc.LightningGrpc;
@@ -37,9 +37,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
-public class AccountsServiceImpl implements AccountsService {
+public class AccountsAdapter implements AccountsPort {
 
-    private final Logger logger = LoggerFactory.getLogger(AccountsServiceImpl.class);
+    private final Logger logger = LoggerFactory.getLogger(AccountsAdapter.class);
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
     private final TransactionsService transactionsService;
@@ -47,7 +47,7 @@ public class AccountsServiceImpl implements AccountsService {
     private final AratiriProperties properties;
     private final CurrencyConversionService currencyConversionService;
 
-    public AccountsServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, AccountRepository accountRepository, UserRepository userRepository, TransactionsService transactionsService, AratiriProperties properties, CurrencyConversionService currencyConversionService) {
+    public AccountsAdapter(LightningGrpc.LightningBlockingStub lightningStub, AccountRepository accountRepository, UserRepository userRepository, TransactionsService transactionsService, AratiriProperties properties, CurrencyConversionService currencyConversionService) {
         this.lightningStub = lightningStub;
         this.accountRepository = accountRepository;
         this.transactionsService = transactionsService;

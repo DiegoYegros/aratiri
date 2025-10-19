@@ -1,7 +1,6 @@
 package com.aratiri.auth.infrastructure.jwt;
 
 import com.aratiri.auth.application.port.out.AccessTokenPort;
-import com.aratiri.util.JwtUtil;
 import org.springframework.stereotype.Component;
 
 @Component

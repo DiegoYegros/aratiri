@@ -7,10 +7,10 @@ import com.aratiri.enums.AuthProvider;
 import com.aratiri.enums.Role;
 import com.aratiri.core.exception.AratiriException;
 import com.aratiri.repository.UserRepository;
-import com.aratiri.service.AccountsService;
+import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.service.GoogleSsoService;
 import com.aratiri.service.RefreshTokenService;
-import com.aratiri.util.JwtUtil;
+import com.aratiri.auth.infrastructure.jwt.JwtUtil;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
@@ -32,16 +32,16 @@ public class GoogleSsoServiceImpl implements GoogleSsoService {
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final GoogleIdTokenVerifier verifier;
-    private final AccountsService accountsService;
+    private final AccountsPort accountsPort;
     private final RefreshTokenService refreshTokenService;
 
-    public GoogleSsoServiceImpl(UserRepository userRepository, JwtUtil jwtUtil, @Value("${spring.security.oauth2.client.registration.google.client-id}") String googleClientId, AccountsService accountsService, RefreshTokenService refreshTokenService) {
+    public GoogleSsoServiceImpl(UserRepository userRepository, JwtUtil jwtUtil, @Value("${spring.security.oauth2.client.registration.google.client-id}") String googleClientId, AccountsPort accountsPort, RefreshTokenService refreshTokenService) {
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
         this.verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
                 .setAudience(Collections.singletonList(googleClientId))
                 .build();
-        this.accountsService = accountsService;
+        this.accountsPort = accountsPort;
         this.refreshTokenService = refreshTokenService;
     }
 
@@ -74,7 +74,7 @@ public class GoogleSsoServiceImpl implements GoogleSsoService {
                 user = userRepository.save(newUser);
                 CreateAccountRequestDTO createAccountRequestDTO = new CreateAccountRequestDTO();
                 createAccountRequestDTO.setUserId(user.getId());
-                accountsService.createAccount(createAccountRequestDTO, user.getId());
+                accountsPort.createAccount(createAccountRequestDTO, user.getId());
             }
 
             String accessToken = jwtUtil.generateToken(user.getEmail());

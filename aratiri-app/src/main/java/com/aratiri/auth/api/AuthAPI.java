@@ -17,7 +17,7 @@ import com.aratiri.service.GoogleSsoService;
 import com.aratiri.service.PasswordResetService;
 import com.aratiri.service.RefreshTokenService;
 import com.aratiri.service.RegistrationService;
-import com.aratiri.util.JwtUtil;
+import com.aratiri.auth.infrastructure.jwt.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

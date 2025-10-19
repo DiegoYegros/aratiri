@@ -8,7 +8,7 @@ import com.aratiri.nostr.NostrService;
 import com.aratiri.service.DecoderService;
 import com.aratiri.service.InvoiceService;
 import com.aratiri.service.LnurlService;
-import com.aratiri.util.Bech32Util;
+import com.aratiri.core.util.Bech32Util;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

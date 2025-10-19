@@ -1,4 +1,4 @@
-package com.aratiri.util;
+package com.aratiri.core.util;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;

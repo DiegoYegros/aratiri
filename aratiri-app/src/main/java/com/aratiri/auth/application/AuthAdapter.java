@@ -1,4 +1,4 @@
-package com.aratiri.auth.application.service;
+package com.aratiri.auth.application;
 
 import com.aratiri.auth.application.port.in.AuthPort;
 import com.aratiri.auth.application.port.out.AccessTokenPort;

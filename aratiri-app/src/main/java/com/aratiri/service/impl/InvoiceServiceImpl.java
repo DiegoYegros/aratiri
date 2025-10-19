@@ -6,9 +6,9 @@ import com.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.entity.LightningInvoiceEntity;
 import com.aratiri.core.exception.AratiriException;
 import com.aratiri.repository.LightningInvoiceRepository;
-import com.aratiri.service.AccountsService;
+import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.service.InvoiceService;
-import com.aratiri.util.InvoiceUtils;
+import com.aratiri.core.util.InvoiceUtils;
 import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import lnrpc.*;
@@ -30,12 +30,12 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final LightningGrpc.LightningBlockingStub lightningStub;
-    private final AccountsService accountsService;
+    private final AccountsPort accountsPort;
 
-    public InvoiceServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, LightningInvoiceRepository lightningInvoiceRepository, AccountsService accountsService) {
+    public InvoiceServiceImpl(LightningGrpc.LightningBlockingStub lightningStub, LightningInvoiceRepository lightningInvoiceRepository, AccountsPort accountsPort) {
         this.lightningStub = lightningStub;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
-        this.accountsService = accountsService;
+        this.accountsPort = accountsPort;
     }
 
     @Override
@@ -47,7 +47,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     public GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo) {
         logger.info("Generating invoice for sats amount [{}] and with memo [{}] for alias [{}]", satsAmount, memo, alias);
-        AccountDTO accountByAlias = accountsService.getAccountByAlias(alias);
+        AccountDTO accountByAlias = accountsPort.getAccountByAlias(alias);
         return createAndSaveInvoice(accountByAlias.getUserId(), satsAmount, memo);
     }
 

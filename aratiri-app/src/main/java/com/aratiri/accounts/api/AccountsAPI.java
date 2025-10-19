@@ -1,4 +1,4 @@
-package com.aratiri.controller;
+package com.aratiri.accounts.api;
 
 
 import com.aratiri.context.AratiriContext;
@@ -6,7 +6,7 @@ import com.aratiri.context.AratiriCtx;
 import com.aratiri.dto.accounts.AccountDTO;
 import com.aratiri.dto.accounts.AccountTransactionsDTOResponse;
 import com.aratiri.dto.accounts.CreateAccountRequestDTO;
-import com.aratiri.service.AccountsService;
+import com.aratiri.accounts.application.port.in.AccountsPort;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -24,12 +24,12 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/v1/accounts")
 @Tag(name = "Accounts", description = "Bitcoin Lightning and on-chain account management operations")
-public class AccountsController {
+public class AccountsAPI {
 
-    private final AccountsService accountsService;
+    private final AccountsPort accountsPort;
 
-    public AccountsController(AccountsService accountsService) {
-        this.accountsService = accountsService;
+    public AccountsAPI(AccountsPort accountsPort) {
+        this.accountsPort = accountsPort;
     }
 
     @GetMapping("/account")
@@ -49,7 +49,7 @@ public class AccountsController {
             )
     })
     public ResponseEntity<AccountDTO> getAccount(@AratiriCtx AratiriContext ctx) {
-        return ResponseEntity.ok(accountsService.getAccountByUserId(ctx.user().getId()));
+        return ResponseEntity.ok(accountsPort.getAccountByUserId(ctx.user().getId()));
     }
 
     @GetMapping("/account/{id}")
@@ -68,7 +68,7 @@ public class AccountsController {
             )
     })
     public ResponseEntity<AccountDTO> getAccountById(@PathVariable String id) {
-        return ResponseEntity.ok(accountsService.getAccount(id));
+        return ResponseEntity.ok(accountsPort.getAccount(id));
     }
 
     @GetMapping("/account/user/{userId}")
@@ -87,7 +87,7 @@ public class AccountsController {
             )
     })
     public ResponseEntity<AccountDTO> getAccountByUserId(@PathVariable String userId) {
-        return ResponseEntity.ok(accountsService.getAccountByUserId(userId));
+        return ResponseEntity.ok(accountsPort.getAccountByUserId(userId));
     }
 
     @PostMapping
@@ -109,7 +109,7 @@ public class AccountsController {
     })
     public ResponseEntity<AccountDTO> createAccount(@Validated @RequestBody CreateAccountRequestDTO request, @AratiriCtx AratiriContext ctx) {
         String userId = ctx.user().getId();
-        return new ResponseEntity<>(accountsService.createAccount(request, userId), HttpStatus.CREATED);
+        return new ResponseEntity<>(accountsPort.createAccount(request, userId), HttpStatus.CREATED);
     }
 
     @GetMapping("/account/transactions")
@@ -130,6 +130,6 @@ public class AccountsController {
                                                                           @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
                                                                           @AratiriCtx AratiriContext ctx) {
         String userId = ctx.user().getId();
-        return new ResponseEntity<>(AccountTransactionsDTOResponse.builder().transactions(accountsService.getTransactions(from, to, userId)).build(), HttpStatus.OK);
+        return new ResponseEntity<>(AccountTransactionsDTOResponse.builder().transactions(accountsPort.getTransactions(from, to, userId)).build(), HttpStatus.OK);
     }
 }

@@ -1,4 +1,4 @@
-package com.aratiri.util;
+package com.aratiri.core.util;
 
 import com.aratiri.core.exception.AratiriException;
 import com.fasterxml.jackson.core.JsonProcessingException;

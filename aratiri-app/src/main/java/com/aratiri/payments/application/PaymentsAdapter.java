@@ -26,7 +26,7 @@ import com.aratiri.payments.domain.OnChainFeeEstimate;
 import com.aratiri.payments.domain.OutboxMessage;
 import com.aratiri.payments.domain.PaymentAccount;
 import com.aratiri.enums.KafkaTopics;
-import com.aratiri.util.JsonUtils;
+import com.aratiri.core.util.JsonUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -53,7 +53,6 @@ public class PaymentsAdapter implements PaymentsPort {
     private final LightningNodePort lightningNodePort;
     private final OutboxEventPort outboxEventPort;
     private final LightningInvoicePort lightningInvoicePort;
-    private final ObjectMapper objectMapper;
 
     @Value("${aratiri.payment.default.fee.limit.sat:200}")
     private int defaultFeeLimitSat;

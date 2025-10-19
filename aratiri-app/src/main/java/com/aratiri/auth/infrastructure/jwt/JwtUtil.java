@@ -1,4 +1,4 @@
-package com.aratiri.util;
+package com.aratiri.auth.infrastructure.jwt;
 
 import com.aratiri.config.AratiriProperties;
 import io.jsonwebtoken.Jwts;

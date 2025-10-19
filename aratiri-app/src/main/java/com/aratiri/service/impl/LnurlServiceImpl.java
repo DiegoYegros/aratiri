@@ -10,7 +10,7 @@ import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.api.dto.PaymentResponseDTO;
 import com.aratiri.core.exception.AratiriException;
 import com.aratiri.payments.application.port.in.PaymentsPort;
-import com.aratiri.service.AccountsService;
+import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.service.InvoiceService;
 import com.aratiri.service.LnurlService;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +26,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class LnurlServiceImpl implements LnurlService {
 
-    private final AccountsService accountsService;
+    private final AccountsPort accountsPort;
     private final InvoiceService invoiceService;
     private final PaymentsPort paymentsPort;
     private final AratiriProperties properties;
@@ -34,7 +34,7 @@ public class LnurlServiceImpl implements LnurlService {
 
     @Override
     public LnurlpResponseDTO getLnurlMetadata(String alias) {
-        boolean exists = accountsService.existsByAlias(alias);
+        boolean exists = accountsPort.existsByAlias(alias);
         if (!exists) {
             throw new AratiriException("Alias does not match any account.", HttpStatus.NOT_FOUND);
         }
@@ -60,7 +60,7 @@ public class LnurlServiceImpl implements LnurlService {
 
     @Override
     public Object lnurlCallback(String alias, long amount, String comment) {
-        boolean exists = accountsService.existsByAlias(alias);
+        boolean exists = accountsPort.existsByAlias(alias);
         if (!exists) {
             throw new AratiriException("Alias does not match any account.", HttpStatus.NOT_FOUND);
         }

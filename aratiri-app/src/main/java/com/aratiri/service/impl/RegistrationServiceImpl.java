@@ -1,5 +1,6 @@
 package com.aratiri.service.impl;
 
+import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.dto.accounts.CreateAccountRequestDTO;
 import com.aratiri.auth.api.dto.AuthResponseDTO;
 import com.aratiri.auth.api.dto.RegistrationRequestDTO;
@@ -10,7 +11,7 @@ import com.aratiri.core.exception.AratiriException;
 import com.aratiri.repository.UserRepository;
 import com.aratiri.repository.VerificationDataRepository;
 import com.aratiri.service.*;
-import com.aratiri.util.JwtUtil;
+import com.aratiri.auth.infrastructure.jwt.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,7 +30,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final UserService userService;
-    private final AccountsService accountsService;
+    private final AccountsPort accountsPort;
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
 
@@ -40,7 +41,7 @@ public class RegistrationServiceImpl implements RegistrationService {
             throw new AratiriException("Email is already in use", HttpStatus.BAD_REQUEST);
         }
 
-        if (accountsService.existsByAlias(request.getAlias())) {
+        if (accountsPort.existsByAlias(request.getAlias())) {
             throw new AratiriException("Alias is already in use", HttpStatus.BAD_REQUEST);
         }
 
@@ -74,7 +75,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         CreateAccountRequestDTO createAccountRequest = new CreateAccountRequestDTO();
         createAccountRequest.setUserId(user.getId());
         createAccountRequest.setAlias(verificationData.getAlias());
-        accountsService.createAccount(createAccountRequest, user.getId());
+        accountsPort.createAccount(createAccountRequest, user.getId());
         verificationDataRepository.delete(verificationData);
         String accessToken = jwtUtil.generateToken(user.getEmail());
         String refreshToken = refreshTokenService.createRefreshToken(user.getId()).getToken();

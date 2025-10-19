@@ -1,4 +1,4 @@
-package com.aratiri.service;
+package com.aratiri.accounts.application.port.in;
 
 import com.aratiri.dto.accounts.AccountDTO;
 import com.aratiri.dto.accounts.AccountTransactionDTO;
@@ -7,7 +7,7 @@ import com.aratiri.dto.accounts.CreateAccountRequestDTO;
 import java.time.LocalDate;
 import java.util.List;
 
-public interface AccountsService {
+public interface AccountsPort {
 
     AccountDTO getAccount(String id);
 

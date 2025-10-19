@@ -1,6 +1,6 @@
 package com.aratiri.interceptor;
 
-import com.aratiri.util.LogUtils;
+import com.aratiri.core.util.LogUtils;
 import io.grpc.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
