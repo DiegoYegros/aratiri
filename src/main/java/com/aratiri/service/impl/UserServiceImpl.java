@@ -2,6 +2,7 @@ package com.aratiri.service.impl;
 
 import com.aratiri.entity.UserEntity;
 import com.aratiri.enums.AuthProvider;
+import com.aratiri.enums.Role;
 import com.aratiri.repository.UserRepository;
 import com.aratiri.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class UserServiceImpl implements UserService {
         user.setEmail(email);
         user.setPassword(encodedPassowrd);
         user.setAuthProvider(AuthProvider.LOCAL);
+        user.setRole(Role.USER);
         return userRepository.save(user);
     }
 

@@ -1,27 +1,31 @@
 package com.aratiri.controller;
 
 import com.aratiri.dto.admin.*;
+import com.aratiri.exception.AratiriException;
 import com.aratiri.service.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import lnrpc.Channel;
 import lnrpc.ChannelBalanceResponse;
 import lnrpc.CloseStatusUpdate;
 import lnrpc.GetInfoResponse;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/v1/admin")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AdminController {
 
     private final AdminService adminService;
@@ -92,8 +96,7 @@ public class AdminController {
             }
     )
     public ResponseEntity<ListChannelsResponseDTO> listChannels() {
-        List<Channel> channels = adminService.listChannels();
-        return ResponseEntity.ok(new ListChannelsResponseDTO(channels));
+        return ResponseEntity.ok(adminService.listChannels());
     }
 
     @PostMapping("/channels/open")
@@ -156,5 +159,21 @@ public class AdminController {
         Instant toInstant = to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
         List<TransactionStatsDTO> stats = adminService.getTransactionStats(fromInstant, toInstant);
         return ResponseEntity.ok(new TransactionStatsResponseDTO(stats));
+    }
+
+    @GetMapping("/settings")
+    @Operation(summary = "Get current node settings")
+    public ResponseEntity<NodeSettingsDTO> getNodeSettings() {
+        return ResponseEntity.ok(adminService.getNodeSettings());
+    }
+
+    @PutMapping("/settings/auto-manage-peers")
+    @Operation(summary = "Enable or disable automatic peer management")
+    public ResponseEntity<NodeSettingsDTO> updateAutoManagePeers(@RequestBody Map<String, Boolean> payload) {
+        Boolean enabled = payload.get("enabled");
+        if (enabled == null) {
+            throw new AratiriException("Request body must contain 'enabled' field (true/false)", HttpStatus.BAD_REQUEST);
+        }
+        return ResponseEntity.ok(adminService.updateAutoManagePeers(enabled));
     }
 }
