@@ -1,7 +1,7 @@
 package com.aratiri.payments.application.port.out;
 
-import com.aratiri.dto.payments.OnChainPaymentDTOs;
-import com.aratiri.dto.payments.PayInvoiceRequestDTO;
+import com.aratiri.payments.api.dto.OnChainPaymentDTOs;
+import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.domain.OnChainFeeEstimate;
 import lnrpc.Payment;
 

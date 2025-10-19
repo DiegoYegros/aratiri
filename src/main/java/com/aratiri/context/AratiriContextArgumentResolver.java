@@ -1,7 +1,8 @@
 package com.aratiri.context;
 
+import com.aratiri.auth.application.port.in.AuthPort;
+import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.dto.users.UserDTO;
-import com.aratiri.service.AuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,11 +18,11 @@ public class AratiriContextArgumentResolver implements HandlerMethodArgumentReso
 
     private static final Logger logger = LoggerFactory.getLogger(AratiriContextArgumentResolver.class);
 
-    private final AuthService authService;
+    private final AuthPort authPort;
 
     @Autowired
-    public AratiriContextArgumentResolver(AuthService authService) {
-        this.authService = authService;
+    public AratiriContextArgumentResolver(AuthPort authPort) {
+        this.authPort = authPort;
     }
 
     @Override
@@ -35,7 +36,8 @@ public class AratiriContextArgumentResolver implements HandlerMethodArgumentReso
                                   NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
         UserDTO currentUser;
         try {
-            currentUser = authService.getCurrentUser(); // TODO: this has to be a call to a database, cache or something
+            AuthUser authUser = authPort.getCurrentUser();
+            currentUser = new UserDTO(authUser.id(), authUser.name(), authUser.email());
             logger.info("Current User: [{}]", currentUser);
         } catch (Exception e) {
             logger.warn("Could not retrieve current user for AratiriContext: {}", e.getMessage());

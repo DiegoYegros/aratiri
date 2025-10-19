@@ -1,6 +1,6 @@
 package com.aratiri.service.impl;
 
-import com.aratiri.dto.auth.PasswordResetDTOs;
+import com.aratiri.auth.api.dto.PasswordResetDTOs;
 import com.aratiri.entity.PasswordResetData;
 import com.aratiri.entity.UserEntity;
 import com.aratiri.enums.AuthProvider;

@@ -2,7 +2,7 @@ package com.aratiri.service;
 
 import com.aratiri.dto.lnurl.LnurlPayRequestDTO;
 import com.aratiri.dto.lnurl.LnurlpResponseDTO;
-import com.aratiri.dto.payments.PaymentResponseDTO;
+import com.aratiri.payments.api.dto.PaymentResponseDTO;
 
 public interface LnurlService {
     LnurlpResponseDTO getLnurlMetadata(String alias);

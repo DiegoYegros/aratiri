@@ -1,4 +1,4 @@
-package com.aratiri.dto.payments;
+package com.aratiri.payments.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;

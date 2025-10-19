@@ -1,9 +1,9 @@
 package com.aratiri.payments.application;
 
 import com.aratiri.constant.BitcoinConstants;
-import com.aratiri.dto.payments.OnChainPaymentDTOs;
-import com.aratiri.dto.payments.PayInvoiceRequestDTO;
-import com.aratiri.dto.payments.PaymentResponseDTO;
+import com.aratiri.payments.api.dto.OnChainPaymentDTOs;
+import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.api.dto.PaymentResponseDTO;
 import com.aratiri.dto.transactions.CreateTransactionRequest;
 import com.aratiri.dto.transactions.TransactionDTOResponse;
 import com.aratiri.dto.transactions.TransactionCurrency;
@@ -13,7 +13,7 @@ import com.aratiri.event.InternalTransferInitiatedEvent;
 import com.aratiri.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.event.PaymentInitiatedEvent;
 import com.aratiri.exception.AratiriException;
-import com.aratiri.payments.application.port.in.PaymentPort;
+import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.payments.application.port.out.AccountsPort;
 import com.aratiri.payments.application.port.out.InvoicesPort;
 import com.aratiri.payments.application.port.out.LightningInvoicePort;
@@ -27,7 +27,6 @@ import com.aratiri.payments.domain.OutboxMessage;
 import com.aratiri.payments.domain.PaymentAccount;
 import com.aratiri.enums.KafkaTopics;
 import com.aratiri.util.JsonUtils;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -45,7 +44,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-public class PaymentsAdapter implements PaymentPort {
+public class PaymentsAdapter implements PaymentsPort {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountsPort accountsPort;

@@ -1,4 +1,4 @@
-package com.aratiri.dto.payments;
+package com.aratiri.payments.api.dto;
 
 import com.aratiri.dto.transactions.TransactionStatus;
 import lombok.Builder;

@@ -1,13 +1,13 @@
 package com.aratiri.payments.application.port.in;
 
-import com.aratiri.dto.payments.OnChainPaymentDTOs;
-import com.aratiri.dto.payments.PayInvoiceRequestDTO;
-import com.aratiri.dto.payments.PaymentResponseDTO;
+import com.aratiri.payments.api.dto.OnChainPaymentDTOs;
+import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.api.dto.PaymentResponseDTO;
 import lnrpc.Payment;
 
 import java.util.Optional;
 
-public interface PaymentPort {
+public interface PaymentsPort {
 
     PaymentResponseDTO payLightningInvoice(PayInvoiceRequestDTO request, String userId);
 

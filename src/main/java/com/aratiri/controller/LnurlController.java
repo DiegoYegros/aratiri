@@ -3,7 +3,7 @@ package com.aratiri.controller;
 import com.aratiri.context.AratiriContext;
 import com.aratiri.context.AratiriCtx;
 import com.aratiri.dto.lnurl.LnurlPayRequestDTO;
-import com.aratiri.dto.payments.PaymentResponseDTO;
+import com.aratiri.payments.api.dto.PaymentResponseDTO;
 import com.aratiri.service.LnurlService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

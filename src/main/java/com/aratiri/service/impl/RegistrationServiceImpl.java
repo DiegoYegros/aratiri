@@ -1,9 +1,9 @@
 package com.aratiri.service.impl;
 
 import com.aratiri.dto.accounts.CreateAccountRequestDTO;
-import com.aratiri.dto.auth.AuthResponseDTO;
-import com.aratiri.dto.auth.RegistrationRequestDTO;
-import com.aratiri.dto.auth.VerificationRequestDTO;
+import com.aratiri.auth.api.dto.AuthResponseDTO;
+import com.aratiri.auth.api.dto.RegistrationRequestDTO;
+import com.aratiri.auth.api.dto.VerificationRequestDTO;
 import com.aratiri.entity.UserEntity;
 import com.aratiri.entity.VerificationData;
 import com.aratiri.exception.AratiriException;

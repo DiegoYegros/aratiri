@@ -6,10 +6,10 @@ import com.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.dto.lnurl.LnurlCallbackResponseDTO;
 import com.aratiri.dto.lnurl.LnurlPayRequestDTO;
 import com.aratiri.dto.lnurl.LnurlpResponseDTO;
-import com.aratiri.dto.payments.PayInvoiceRequestDTO;
-import com.aratiri.dto.payments.PaymentResponseDTO;
+import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.api.dto.PaymentResponseDTO;
 import com.aratiri.exception.AratiriException;
-import com.aratiri.payments.application.port.in.PaymentPort;
+import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.service.AccountsService;
 import com.aratiri.service.InvoiceService;
 import com.aratiri.service.LnurlService;
@@ -28,7 +28,7 @@ public class LnurlServiceImpl implements LnurlService {
 
     private final AccountsService accountsService;
     private final InvoiceService invoiceService;
-    private final PaymentPort paymentPort;
+    private final PaymentsPort paymentsPort;
     private final AratiriProperties properties;
     private final RestTemplate restTemplate;
 
@@ -93,6 +93,6 @@ public class LnurlServiceImpl implements LnurlService {
         }
         PayInvoiceRequestDTO payRequest = new PayInvoiceRequestDTO();
         payRequest.setInvoice(callbackResponse.getPaymentRequest());
-        return paymentPort.payLightningInvoice(payRequest, userId);
+        return paymentsPort.payLightningInvoice(payRequest, userId);
     }
 }

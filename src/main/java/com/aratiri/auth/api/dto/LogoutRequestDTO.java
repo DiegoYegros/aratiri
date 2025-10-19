@@ -1,4 +1,4 @@
-package com.aratiri.dto.auth;
+package com.aratiri.auth.api.dto;
 
 import lombok.Data;
 

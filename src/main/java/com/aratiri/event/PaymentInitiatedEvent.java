@@ -1,6 +1,6 @@
 package com.aratiri.event;
 
-import com.aratiri.dto.payments.PayInvoiceRequestDTO;
+import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

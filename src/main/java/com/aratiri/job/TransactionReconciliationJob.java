@@ -1,7 +1,7 @@
 package com.aratiri.job;
 
 import com.aratiri.entity.TransactionEntity;
-import com.aratiri.payments.application.port.in.PaymentPort;
+import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.repository.TransactionsRepository;
 import com.aratiri.service.TransactionsService;
 import lnrpc.Payment;
@@ -20,15 +20,15 @@ public class TransactionReconciliationJob {
 
     private static final Logger logger = LoggerFactory.getLogger(TransactionReconciliationJob.class);
     private final TransactionsRepository transactionsRepository;
-    private final PaymentPort paymentPort;
+    private final PaymentsPort paymentsPort;
     private final TransactionsService transactionsService;
 
     public TransactionReconciliationJob(
             TransactionsRepository transactionsRepository,
-            PaymentPort paymentPort,
+            PaymentsPort paymentsPort,
             TransactionsService transactionsService) {
         this.transactionsRepository = transactionsRepository;
-        this.paymentPort = paymentPort;
+        this.paymentsPort = paymentsPort;
         this.transactionsService = transactionsService;
     }
 
@@ -55,7 +55,7 @@ public class TransactionReconciliationJob {
     private void reconcileTransaction(TransactionEntity transaction) {
         String paymentHash = transaction.getReferenceId();
         logger.info("Reconciling transaction ID: {}, Payment Hash: {}", transaction.getId(), paymentHash);
-        Optional<Payment> paymentStatusOpt = paymentPort.checkPaymentStatusOnNode(paymentHash);
+        Optional<Payment> paymentStatusOpt = paymentsPort.checkPaymentStatusOnNode(paymentHash);
         if (paymentStatusOpt.isEmpty()) {
             logger.warn("Payment with hash {} not found on LND node.", paymentHash);
             return;
