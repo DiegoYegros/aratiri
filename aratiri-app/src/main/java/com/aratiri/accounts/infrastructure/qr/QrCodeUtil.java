@@ -1,4 +1,4 @@
-package com.aratiri.util;
+package com.aratiri.accounts.infrastructure.qr;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
