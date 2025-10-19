@@ -10,6 +10,7 @@ import com.aratiri.auth.api.dto.PasswordResetDTOs;
 import com.aratiri.auth.api.dto.RefreshTokenRequestDTO;
 import com.aratiri.auth.api.dto.RegistrationRequestDTO;
 import com.aratiri.auth.api.dto.VerificationRequestDTO;
+import com.aratiri.dto.users.UserDTO;
 import com.aratiri.entity.RefreshTokenEntity;
 import com.aratiri.exception.AratiriException;
 import com.aratiri.service.GoogleSsoService;
@@ -26,6 +27,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -124,6 +126,14 @@ public class AuthAPI {
     public ResponseEntity<Void> logout(@RequestBody LogoutRequestDTO request) {
         authPort.logout(request.getRefreshToken());
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "Get current authenticated user")
+    public ResponseEntity<UserDTO> me() {
+        var user = authPort.getCurrentUser();
+        UserDTO response = new UserDTO(user.id(), user.name(), user.email(), user.role());
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/forgot-password")

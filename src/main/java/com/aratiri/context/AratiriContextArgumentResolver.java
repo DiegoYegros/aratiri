@@ -37,14 +37,10 @@ public class AratiriContextArgumentResolver implements HandlerMethodArgumentReso
         UserDTO currentUser;
         try {
             AuthUser authUser = authPort.getCurrentUser();
-            currentUser = new UserDTO(authUser.id(), authUser.name(), authUser.email());
+            currentUser = new UserDTO(authUser.id(), authUser.name(), authUser.email(), authUser.role());
             logger.info("Current User: [{}]", currentUser);
         } catch (Exception e) {
             logger.warn("Could not retrieve current user for AratiriContext: {}", e.getMessage());
-            return null;
-        }
-
-        if (currentUser == null) {
             return null;
         }
         return new AratiriContext(currentUser);

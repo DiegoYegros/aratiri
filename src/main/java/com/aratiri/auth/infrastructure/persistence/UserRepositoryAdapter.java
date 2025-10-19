@@ -23,6 +23,12 @@ public class UserRepositoryAdapter implements LoadUserPort {
     }
 
     private AuthUser toDomain(UserEntity entity) {
-        return new AuthUser(entity.getId(), entity.getName(), entity.getEmail(), entity.getAuthProvider());
+        return new AuthUser(
+                entity.getId(),
+                entity.getName(),
+                entity.getEmail(),
+                entity.getAuthProvider(),
+                entity.getRole()
+        );
     }
 }
