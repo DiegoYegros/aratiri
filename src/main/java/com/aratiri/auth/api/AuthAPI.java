@@ -1,10 +1,21 @@
-package com.aratiri.controller;
+package com.aratiri.auth.api;
 
+import com.aratiri.auth.application.port.in.AuthUseCase;
+import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.dto.ErrorResponse;
-import com.aratiri.dto.auth.*;
+import com.aratiri.dto.auth.AuthRequestDTO;
+import com.aratiri.dto.auth.AuthResponseDTO;
+import com.aratiri.dto.auth.LogoutRequestDTO;
+import com.aratiri.dto.auth.PasswordResetDTOs;
+import com.aratiri.dto.auth.RefreshTokenRequestDTO;
+import com.aratiri.dto.auth.RegistrationRequestDTO;
+import com.aratiri.dto.auth.VerificationRequestDTO;
 import com.aratiri.entity.RefreshTokenEntity;
 import com.aratiri.exception.AratiriException;
-import com.aratiri.service.*;
+import com.aratiri.service.GoogleSsoService;
+import com.aratiri.service.PasswordResetService;
+import com.aratiri.service.RefreshTokenService;
+import com.aratiri.service.RegistrationService;
 import com.aratiri.util.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -13,7 +24,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,16 +33,30 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/v1/auth")
-@AllArgsConstructor
 @Tag(name = "Authentication", description = "User authentication endpoints for accessing the Aratiri Bitcoin Lightning middleware platform")
-public class AuthController {
+public class AuthAPI {
 
     private final GoogleSsoService googleSsoService;
-    private final AuthService authService;
+    private final AuthUseCase authUseCase;
     private final RefreshTokenService refreshTokenService;
     private final JwtUtil jwtUtil;
     private final RegistrationService registrationService;
     private final PasswordResetService passwordResetService;
+
+    public AuthAPI(
+            GoogleSsoService googleSsoService,
+            AuthUseCase authUseCase,
+            RefreshTokenService refreshTokenService,
+            JwtUtil jwtUtil,
+            RegistrationService registrationService,
+            PasswordResetService passwordResetService) {
+        this.googleSsoService = googleSsoService;
+        this.authUseCase = authUseCase;
+        this.refreshTokenService = refreshTokenService;
+        this.jwtUtil = jwtUtil;
+        this.registrationService = registrationService;
+        this.passwordResetService = passwordResetService;
+    }
 
     @PostMapping("/login")
     @Operation(
@@ -42,7 +66,8 @@ public class AuthController {
                     "subsequent API calls to protected endpoints."
     )
     public ResponseEntity<AuthResponseDTO> login(@RequestBody AuthRequestDTO request) {
-        return ResponseEntity.ok(authService.login(request));
+        AuthTokens tokens = authUseCase.login(request.getUsername(), request.getPassword());
+        return ResponseEntity.ok(new AuthResponseDTO(tokens.accessToken(), tokens.refreshToken()));
     }
 
     @PostMapping("/register")
@@ -97,7 +122,7 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "User logout")
     public ResponseEntity<Void> logout(@RequestBody LogoutRequestDTO request) {
-        authService.logout(request.getRefreshToken());
+        authUseCase.logout(request.getRefreshToken());
         return ResponseEntity.ok().build();
     }
 
