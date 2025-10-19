@@ -2,7 +2,7 @@ package com.aratiri.consumer;
 
 import com.aratiri.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.event.PaymentInitiatedEvent;
-import com.aratiri.service.PaymentService;
+import com.aratiri.payments.application.port.in.PaymentPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,14 +15,14 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class PaymentConsumer {
 
-    private final PaymentService paymentService;
+    private final PaymentPort paymentPort;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "payment.initiated", groupId = "payment-group")
     public void handlePaymentInitiated(String message, Acknowledgment acknowledgment) {
         try {
             PaymentInitiatedEvent event = objectMapper.readValue(message, PaymentInitiatedEvent.class);
-            paymentService.initiateGrpcLightningPayment(event.getTransactionId(), event.getUserId(), event.getPayRequest());
+            paymentPort.initiateGrpcLightningPayment(event.getTransactionId(), event.getUserId(), event.getPayRequest());
             acknowledgment.acknowledge();
         } catch (Exception e) {
             log.error("Failed to process payment initiated event: {}", message, e);
@@ -33,7 +33,7 @@ public class PaymentConsumer {
     public void handleOnChainPaymentInitiated(String message, Acknowledgment acknowledgment) {
         try {
             OnChainPaymentInitiatedEvent event = objectMapper.readValue(message, OnChainPaymentInitiatedEvent.class);
-            paymentService.initiateGrpcOnChainPayment(event.getTransactionId(), event.getUserId(), event.getPaymentRequest());
+            paymentPort.initiateGrpcOnChainPayment(event.getTransactionId(), event.getUserId(), event.getPaymentRequest());
             acknowledgment.acknowledge();
         } catch (Exception e) {
             log.error("Failed to process on-chain payment initiated event: {}", message, e);

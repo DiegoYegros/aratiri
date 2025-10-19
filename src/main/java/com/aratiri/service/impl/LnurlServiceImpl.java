@@ -9,10 +9,10 @@ import com.aratiri.dto.lnurl.LnurlpResponseDTO;
 import com.aratiri.dto.payments.PayInvoiceRequestDTO;
 import com.aratiri.dto.payments.PaymentResponseDTO;
 import com.aratiri.exception.AratiriException;
+import com.aratiri.payments.application.port.in.PaymentPort;
 import com.aratiri.service.AccountsService;
 import com.aratiri.service.InvoiceService;
 import com.aratiri.service.LnurlService;
-import com.aratiri.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,7 +28,7 @@ public class LnurlServiceImpl implements LnurlService {
 
     private final AccountsService accountsService;
     private final InvoiceService invoiceService;
-    private final PaymentService paymentService;
+    private final PaymentPort paymentPort;
     private final AratiriProperties properties;
     private final RestTemplate restTemplate;
 
@@ -93,6 +93,6 @@ public class LnurlServiceImpl implements LnurlService {
         }
         PayInvoiceRequestDTO payRequest = new PayInvoiceRequestDTO();
         payRequest.setInvoice(callbackResponse.getPaymentRequest());
-        return paymentService.payLightningInvoice(payRequest, userId);
+        return paymentPort.payLightningInvoice(payRequest, userId);
     }
 }

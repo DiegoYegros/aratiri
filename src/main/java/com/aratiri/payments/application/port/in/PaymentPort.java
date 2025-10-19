@@ -1,4 +1,4 @@
-package com.aratiri.service;
+package com.aratiri.payments.application.port.in;
 
 import com.aratiri.dto.payments.OnChainPaymentDTOs;
 import com.aratiri.dto.payments.PayInvoiceRequestDTO;
@@ -7,7 +7,8 @@ import lnrpc.Payment;
 
 import java.util.Optional;
 
-public interface PaymentService {
+public interface PaymentPort {
+
     PaymentResponseDTO payLightningInvoice(PayInvoiceRequestDTO request, String userId);
 
     Optional<Payment> checkPaymentStatusOnNode(String paymentHash);

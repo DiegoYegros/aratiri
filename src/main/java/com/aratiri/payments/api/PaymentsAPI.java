@@ -1,11 +1,11 @@
-package com.aratiri.controller;
+package com.aratiri.payments.api;
 
 import com.aratiri.context.AratiriContext;
 import com.aratiri.context.AratiriCtx;
 import com.aratiri.dto.payments.OnChainPaymentDTOs;
 import com.aratiri.dto.payments.PayInvoiceRequestDTO;
 import com.aratiri.dto.payments.PaymentResponseDTO;
-import com.aratiri.service.PaymentService;
+import com.aratiri.payments.application.port.in.PaymentPort;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -19,12 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v1/payments")
 @Tag(name = "Payments", description = "Endpoints for sending Bitcoin Lightning payments")
-public class PaymentsController {
+public class PaymentsAPI {
 
-    private final PaymentService paymentService;
+    private final PaymentPort paymentPort;
 
-    public PaymentsController(PaymentService paymentService) {
-        this.paymentService = paymentService;
+    public PaymentsAPI(PaymentPort paymentPort) {
+        this.paymentPort = paymentPort;
     }
 
     @PostMapping("/invoice")
@@ -36,7 +36,7 @@ public class PaymentsController {
     public ResponseEntity<PaymentResponseDTO> payInvoice(
             @Valid @RequestBody PayInvoiceRequestDTO request,
             @AratiriCtx AratiriContext ctx) {
-        PaymentResponseDTO response = paymentService.payLightningInvoice(request, ctx.user().getId());
+        PaymentResponseDTO response = paymentPort.payLightningInvoice(request, ctx.user().getId());
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
@@ -49,7 +49,7 @@ public class PaymentsController {
     public ResponseEntity<OnChainPaymentDTOs.SendOnChainResponseDTO> sendOnChain(
             @Valid @RequestBody OnChainPaymentDTOs.SendOnChainRequestDTO request,
             @AratiriCtx AratiriContext ctx) {
-        OnChainPaymentDTOs.SendOnChainResponseDTO response = paymentService.sendOnChain(request, ctx.user().getId());
+        OnChainPaymentDTOs.SendOnChainResponseDTO response = paymentPort.sendOnChain(request, ctx.user().getId());
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
@@ -61,7 +61,7 @@ public class PaymentsController {
     public ResponseEntity<OnChainPaymentDTOs.EstimateFeeResponseDTO> estimateOnChainFee(
             @Valid @RequestBody OnChainPaymentDTOs.EstimateFeeRequestDTO request,
             @AratiriCtx AratiriContext ctx) {
-        OnChainPaymentDTOs.EstimateFeeResponseDTO response = paymentService.estimateOnChainFee(request, ctx.user().getId());
+        OnChainPaymentDTOs.EstimateFeeResponseDTO response = paymentPort.estimateOnChainFee(request, ctx.user().getId());
         return ResponseEntity.ok(response);
     }
 }
