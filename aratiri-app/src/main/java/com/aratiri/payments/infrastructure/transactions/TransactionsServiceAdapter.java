@@ -6,7 +6,7 @@ import com.aratiri.payments.application.port.out.TransactionsPort;
 import com.aratiri.service.TransactionsService;
 import org.springframework.stereotype.Component;
 
-@Component
+@Component("paymentsTransactionsServiceAdapter")
 public class TransactionsServiceAdapter implements TransactionsPort {
 
     private final TransactionsService transactionsService;

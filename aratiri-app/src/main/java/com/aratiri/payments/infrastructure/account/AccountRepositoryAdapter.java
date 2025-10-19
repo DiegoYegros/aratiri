@@ -7,7 +7,7 @@ import com.aratiri.repository.AccountRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-@Component
+@Component("paymentsAccountRepositoryAdapter")
 public class AccountRepositoryAdapter implements AccountsPort {
 
     private final AccountRepository accountRepository;

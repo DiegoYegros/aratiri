@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
-@Component
+@Component("accountsAccountRepositoryAdapter")
 public class AccountRepositoryAdapter implements AccountPersistencePort {
 
     private final AccountRepository accountRepository;

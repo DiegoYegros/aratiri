@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
-@Component
+@Component("accountsUserRepositoryAdapter")
 public class UserRepositoryAdapter implements LoadUserPort {
 
     private final UserRepository userRepository;
