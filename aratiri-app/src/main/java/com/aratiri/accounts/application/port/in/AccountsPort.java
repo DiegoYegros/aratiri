@@ -1,8 +1,8 @@
 package com.aratiri.accounts.application.port.in;
 
-import com.aratiri.dto.accounts.AccountDTO;
-import com.aratiri.dto.accounts.AccountTransactionDTO;
-import com.aratiri.dto.accounts.CreateAccountRequestDTO;
+import com.aratiri.accounts.application.dto.AccountDTO;
+import com.aratiri.accounts.application.dto.AccountTransactionDTO;
+import com.aratiri.accounts.application.dto.CreateAccountRequestDTO;
 
 import java.time.LocalDate;
 import java.util.List;

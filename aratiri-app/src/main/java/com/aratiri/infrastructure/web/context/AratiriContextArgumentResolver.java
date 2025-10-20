@@ -2,7 +2,7 @@ package com.aratiri.infrastructure.web.context;
 
 import com.aratiri.auth.application.port.in.AuthPort;
 import com.aratiri.auth.domain.AuthUser;
-import com.aratiri.dto.users.UserDTO;
+import com.aratiri.auth.application.dto.UserDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

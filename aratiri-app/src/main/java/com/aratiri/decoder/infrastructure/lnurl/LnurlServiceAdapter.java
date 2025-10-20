@@ -1,7 +1,7 @@
 package com.aratiri.decoder.infrastructure.lnurl;
 
 import com.aratiri.decoder.application.port.out.LnurlPort;
-import com.aratiri.dto.lnurl.LnurlpResponseDTO;
+import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.lnurl.application.port.in.LnurlApplicationPort;
 import org.springframework.stereotype.Component;
 

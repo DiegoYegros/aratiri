@@ -1,8 +1,8 @@
 package com.aratiri.infrastructure.messaging.listener;
 
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
-import com.aratiri.enums.KafkaTopics;
-import com.aratiri.event.OnChainTransactionReceivedEvent;
+import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.transactions.application.event.OnChainTransactionReceivedEvent;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.transactions.application.port.in.TransactionsPort;

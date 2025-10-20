@@ -1,7 +1,7 @@
 package com.aratiri.lnurl.application.port.out;
 
-import com.aratiri.dto.lnurl.LnurlCallbackResponseDTO;
-import com.aratiri.dto.lnurl.LnurlpResponseDTO;
+import com.aratiri.lnurl.application.dto.LnurlCallbackResponseDTO;
+import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 
 public interface LnurlRemotePort {
 

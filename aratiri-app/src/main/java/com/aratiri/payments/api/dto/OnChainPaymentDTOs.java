@@ -1,6 +1,6 @@
 package com.aratiri.payments.api.dto;
 
-import com.aratiri.dto.transactions.TransactionStatus;
+import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

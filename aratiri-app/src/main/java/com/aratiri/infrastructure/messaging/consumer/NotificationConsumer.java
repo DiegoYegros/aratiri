@@ -1,9 +1,9 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
-import com.aratiri.enums.KafkaTopics;
-import com.aratiri.event.InternalTransferCompletedEvent;
-import com.aratiri.event.InvoiceSettledEvent;
-import com.aratiri.event.PaymentSentEvent;
+import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
+import com.aratiri.invoices.application.event.InvoiceSettledEvent;
+import com.aratiri.payments.application.event.PaymentSentEvent;
 import com.aratiri.auth.application.port.out.NotificationPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

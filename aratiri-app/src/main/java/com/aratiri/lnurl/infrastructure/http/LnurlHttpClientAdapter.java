@@ -1,7 +1,7 @@
 package com.aratiri.lnurl.infrastructure.http;
 
-import com.aratiri.dto.lnurl.LnurlCallbackResponseDTO;
-import com.aratiri.dto.lnurl.LnurlpResponseDTO;
+import com.aratiri.lnurl.application.dto.LnurlCallbackResponseDTO;
+import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.lnurl.application.port.out.LnurlRemotePort;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;

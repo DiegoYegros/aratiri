@@ -4,14 +4,14 @@ import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.payments.api.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.api.dto.PaymentResponseDTO;
-import com.aratiri.dto.transactions.CreateTransactionRequest;
-import com.aratiri.dto.transactions.TransactionDTOResponse;
-import com.aratiri.dto.transactions.TransactionCurrency;
-import com.aratiri.dto.transactions.TransactionStatus;
-import com.aratiri.dto.transactions.TransactionType;
-import com.aratiri.event.InternalTransferInitiatedEvent;
-import com.aratiri.event.OnChainPaymentInitiatedEvent;
-import com.aratiri.event.PaymentInitiatedEvent;
+import com.aratiri.transactions.application.dto.CreateTransactionRequest;
+import com.aratiri.transactions.application.dto.TransactionDTOResponse;
+import com.aratiri.transactions.application.dto.TransactionCurrency;
+import com.aratiri.transactions.application.dto.TransactionStatus;
+import com.aratiri.transactions.application.dto.TransactionType;
+import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
+import com.aratiri.payments.application.event.OnChainPaymentInitiatedEvent;
+import com.aratiri.payments.application.event.PaymentInitiatedEvent;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.payments.application.port.out.AccountsPort;
@@ -25,7 +25,7 @@ import com.aratiri.payments.domain.InternalLightningInvoice;
 import com.aratiri.payments.domain.OnChainFeeEstimate;
 import com.aratiri.payments.domain.OutboxMessage;
 import com.aratiri.payments.domain.PaymentAccount;
-import com.aratiri.enums.KafkaTopics;
+import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -72,7 +72,7 @@ public class PaymentsAdapter implements PaymentsPort {
                 logger.warn("User {} attempted to pay an invoice that is already paid or in-flight on the node. PaymentHash: {}", userId, paymentHash);
                 throw new AratiriException(
                         "Invoice payment is already in progress or has been settled.",
-                        HttpStatus.CONFLICT
+                        HttpStatus.CONFLICT.value()
                 );
             }
         }
@@ -94,20 +94,20 @@ public class PaymentsAdapter implements PaymentsPort {
         boolean isSettledAratiriInvoice = invoicesPort.existsSettledInvoice(paymentHash);
         if (isSettledAratiriInvoice) {
             logger.warn("User {} attempted to pay an invoice that has already been successfully paid by another Aratiri user. PaymentHash: {}", userId, paymentHash);
-            throw new AratiriException("Invoice has already been paid", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Invoice has already been paid", HttpStatus.BAD_REQUEST.value());
         }
 
         Optional<Payment> existingPayment = lightningNodePort.findPayment(paymentHash);
         if (existingPayment.isPresent() && existingPayment.get().getStatus() == Payment.PaymentStatus.SUCCEEDED) {
             logger.warn("User {} attempted to pay an invoice that has already been successfully paid by this node. PaymentHash: {}", userId, paymentHash);
-            throw new AratiriException("Invoice has already been paid", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Invoice has already been paid", HttpStatus.BAD_REQUEST.value());
         }
 
         long amountSat = decodedInvoice.amountSatoshis();
         PaymentAccount account = accountsPort.getAccount(userId);
         if (account.balance() < amountSat) {
             logger.info("Insufficient balance. Tried to pay {} but balance was {}", amountSat, account.balance());
-            throw new AratiriException("Insufficient balance", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Insufficient balance", HttpStatus.BAD_REQUEST.value());
         }
 
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
@@ -143,16 +143,16 @@ public class PaymentsAdapter implements PaymentsPort {
             InternalLightningInvoice internalInvoice
     ) {
         if (internalInvoice.state() == InternalLightningInvoice.InvoiceState.SETTLED) {
-            throw new AratiriException("The invoice is already paid", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("The invoice is already paid", HttpStatus.BAD_REQUEST.value());
         }
 
         long amountSat = decodedInvoice.amountSatoshis();
         PaymentAccount senderAccount = accountsPort.getAccount(senderId);
         if (senderAccount.balance() < amountSat) {
-            throw new AratiriException("Insufficient balance for internal transfer", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Insufficient balance for internal transfer", HttpStatus.BAD_REQUEST.value());
         }
         if (internalInvoice.userId().equals(senderId)) {
-            throw new AratiriException("Payment to self is not allowed.", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Payment to self is not allowed.", HttpStatus.BAD_REQUEST.value());
         }
 
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
@@ -212,9 +212,9 @@ public class PaymentsAdapter implements PaymentsPort {
             if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
                 return Optional.empty();
             }
-            throw new AratiriException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new AratiriException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         } catch (Exception e) {
-            throw new AratiriException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new AratiriException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 
@@ -246,10 +246,10 @@ public class PaymentsAdapter implements PaymentsPort {
         long totalAmount = normalizedRequest.getSatsAmount() + feeResponse.getFeeSat();
 
         if (account.balance() < totalAmount) {
-            throw new AratiriException("Insufficient balance to cover amount and fee", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Insufficient balance to cover amount and fee", HttpStatus.BAD_REQUEST.value());
         }
         if (account.bitcoinAddress().equals(normalizedRequest.getAddress())) {
-            throw new AratiriException("Payment to self not allowed.", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Payment to self not allowed.", HttpStatus.BAD_REQUEST.value());
         }
 
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
@@ -286,7 +286,7 @@ public class PaymentsAdapter implements PaymentsPort {
             responseDTO.setSatPerVbyte(estimate.satPerVbyte());
             return responseDTO;
         } catch (Exception e) {
-            throw new AratiriException("Error estimating fee: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new AratiriException("Error estimating fee: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 
@@ -295,7 +295,7 @@ public class PaymentsAdapter implements PaymentsPort {
             outboxEventPort.save(message);
             logger.info("Saved {} event to outbox for aggregateId: {}", message.eventType(), message.aggregateId());
         } catch (Exception e) {
-            throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 

@@ -1,6 +1,6 @@
 package com.aratiri.accounts.infrastructure.transactions;
 
-import com.aratiri.dto.transactions.TransactionDTOResponse;
+import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import org.springframework.stereotype.Component;
 

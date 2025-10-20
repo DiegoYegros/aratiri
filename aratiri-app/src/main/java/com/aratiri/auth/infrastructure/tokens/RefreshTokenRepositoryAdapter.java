@@ -35,7 +35,7 @@ public class RefreshTokenRepositoryAdapter implements RefreshTokenPort {
     @Override
     public RefreshToken createRefreshToken(String userId) {
         UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new AratiriException("User not found", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new AratiriException("User not found", HttpStatus.NOT_FOUND.value()));
         Instant expiry = Instant.now().plusSeconds(properties.getJwtRefreshExpiration());
         RefreshTokenEntity entity = refreshTokenRepository.findByUser(user)
                 .map(existing -> {

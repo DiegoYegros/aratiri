@@ -1,11 +1,11 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
 import com.aratiri.shared.constants.BitcoinConstants;
-import com.aratiri.dto.transactions.CreateTransactionRequest;
-import com.aratiri.dto.transactions.TransactionCurrency;
-import com.aratiri.dto.transactions.TransactionStatus;
-import com.aratiri.dto.transactions.TransactionType;
-import com.aratiri.event.OnChainTransactionReceivedEvent;
+import com.aratiri.transactions.application.dto.CreateTransactionRequest;
+import com.aratiri.transactions.application.dto.TransactionCurrency;
+import com.aratiri.transactions.application.dto.TransactionStatus;
+import com.aratiri.transactions.application.dto.TransactionType;
+import com.aratiri.transactions.application.event.OnChainTransactionReceivedEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

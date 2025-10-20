@@ -102,11 +102,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AratiriException.class)
     public ResponseEntity<ErrorResponse> handleAratiriException(AratiriException ex) {
         logger.error("AratiriException occured: {}", ex.getMessage());
-        HttpStatus status;
-        if (ex.getHttpStatus() == null) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatus() == null ? 0 : ex.getStatus());
+        if (status == null) {
             status = HttpStatus.INTERNAL_SERVER_ERROR;
-        } else {
-            status = ex.getHttpStatus();
         }
         ErrorResponse error = new ErrorResponse(ex.getMessage(), status.value());
         return new ResponseEntity<>(error, status);

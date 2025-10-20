@@ -1,8 +1,8 @@
 package com.aratiri.transactions.application.port.in;
 
-import com.aratiri.dto.transactions.CreateTransactionRequest;
-import com.aratiri.dto.transactions.TransactionDTOResponse;
-import com.aratiri.event.InternalTransferInitiatedEvent;
+import com.aratiri.transactions.application.dto.CreateTransactionRequest;
+import com.aratiri.transactions.application.dto.TransactionDTOResponse;
+import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 
 import java.time.Instant;
 import java.util.List;

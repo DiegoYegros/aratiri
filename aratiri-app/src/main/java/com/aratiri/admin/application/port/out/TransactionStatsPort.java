@@ -1,6 +1,6 @@
 package com.aratiri.admin.application.port.out;
 
-import com.aratiri.dto.admin.TransactionStatsDTO;
+import com.aratiri.admin.application.dto.TransactionStatsDTO;
 
 import java.time.Instant;
 import java.util.List;

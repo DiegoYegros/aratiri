@@ -18,7 +18,7 @@ import com.aratiri.auth.api.dto.PasswordResetDTOs;
 import com.aratiri.auth.api.dto.RefreshTokenRequestDTO;
 import com.aratiri.auth.api.dto.RegistrationRequestDTO;
 import com.aratiri.auth.api.dto.VerificationRequestDTO;
-import com.aratiri.dto.users.UserDTO;
+import com.aratiri.auth.application.dto.UserDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

@@ -1,7 +1,7 @@
 package com.aratiri.auth.domain;
 
-import com.aratiri.enums.AuthProvider;
-import com.aratiri.enums.Role;
+import com.aratiri.auth.domain.AuthProvider;
+import com.aratiri.auth.domain.Role;
 
 public record AuthUser(String id, String name, String email, AuthProvider provider, Role role) {
 }

@@ -6,17 +6,17 @@ import com.aratiri.admin.application.port.out.NodeSettingsPort;
 import com.aratiri.admin.application.port.out.TransactionStatsPort;
 import com.aratiri.admin.domain.NodeSettings;
 import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.dto.admin.AmountDTO;
-import com.aratiri.dto.admin.ChannelBalanceResponseDTO;
-import com.aratiri.dto.admin.CloseChannelRequestDTO;
-import com.aratiri.dto.admin.ConnectPeerRequestDTO;
-import com.aratiri.dto.admin.ListChannelsResponseDTO;
-import com.aratiri.dto.admin.NodeInfoDTO;
-import com.aratiri.dto.admin.NodeSettingsDTO;
-import com.aratiri.dto.admin.OpenChannelRequestDTO;
-import com.aratiri.dto.admin.RemotesResponseDTO;
-import com.aratiri.dto.admin.TransactionStatsDTO;
-import com.aratiri.dto.admin.TransactionStatsResponseDTO;
+import com.aratiri.admin.application.dto.AmountDTO;
+import com.aratiri.admin.application.dto.ChannelBalanceResponseDTO;
+import com.aratiri.admin.application.dto.CloseChannelRequestDTO;
+import com.aratiri.admin.application.dto.ConnectPeerRequestDTO;
+import com.aratiri.admin.application.dto.ListChannelsResponseDTO;
+import com.aratiri.admin.application.dto.NodeInfoDTO;
+import com.aratiri.admin.application.dto.NodeSettingsDTO;
+import com.aratiri.admin.application.dto.OpenChannelRequestDTO;
+import com.aratiri.admin.application.dto.RemotesResponseDTO;
+import com.aratiri.admin.application.dto.TransactionStatsDTO;
+import com.aratiri.admin.application.dto.TransactionStatsResponseDTO;
 import io.grpc.StatusRuntimeException;
 import lnrpc.ChannelBalanceResponse;
 import lnrpc.ChannelEdge;
@@ -64,7 +64,7 @@ public class AdminAdapter implements AdminPort {
         } catch (StatusRuntimeException e) {
             throw new AratiriException(
                     "Failed to connect to peer: " + Objects.requireNonNullElse(e.getStatus().getDescription(), "Unknown error"),
-                    HttpStatus.BAD_GATEWAY
+                    HttpStatus.BAD_GATEWAY.value()
             );
         }
     }
@@ -100,7 +100,7 @@ public class AdminAdapter implements AdminPort {
         } catch (StatusRuntimeException e) {
             throw new AratiriException(
                     Objects.requireNonNullElse(e.getStatus().getDescription(), "Unable to open channel"),
-                    HttpStatus.BAD_REQUEST
+                    HttpStatus.BAD_REQUEST.value()
             );
         }
     }
@@ -109,13 +109,13 @@ public class AdminAdapter implements AdminPort {
     public CloseStatusUpdate closeChannel(CloseChannelRequestDTO request) {
         String[] parts = request.getChannelPoint().split(":");
         if (parts.length != 2) {
-            throw new AratiriException("Invalid channel point format. Expected 'fundingTxid:index'", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Invalid channel point format. Expected 'fundingTxid:index'", HttpStatus.BAD_REQUEST.value());
         }
         int outputIndex;
         try {
             outputIndex = Integer.parseInt(parts[1]);
         } catch (NumberFormatException ex) {
-            throw new AratiriException("Invalid channel point output index", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Invalid channel point output index", HttpStatus.BAD_REQUEST.value());
         }
         return lightningNodeAdminPort.closeChannel(parts[0], outputIndex, request.isForce());
     }

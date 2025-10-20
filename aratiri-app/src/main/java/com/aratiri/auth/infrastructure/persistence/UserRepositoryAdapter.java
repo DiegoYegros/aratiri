@@ -4,8 +4,8 @@ import com.aratiri.auth.application.port.out.LoadUserPort;
 import com.aratiri.auth.application.port.out.UserCommandPort;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
-import com.aratiri.enums.AuthProvider;
-import com.aratiri.enums.Role;
+import com.aratiri.auth.domain.AuthProvider;
+import com.aratiri.auth.domain.Role;
 import com.aratiri.infrastructure.persistence.jpa.repository.UserRepository;
 import org.springframework.stereotype.Component;
 

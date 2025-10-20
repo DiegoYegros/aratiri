@@ -1,12 +1,12 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
 import com.aratiri.shared.constants.BitcoinConstants;
-import com.aratiri.dto.transactions.CreateTransactionRequest;
-import com.aratiri.dto.transactions.TransactionCurrency;
-import com.aratiri.dto.transactions.TransactionStatus;
-import com.aratiri.dto.transactions.TransactionType;
+import com.aratiri.transactions.application.dto.CreateTransactionRequest;
+import com.aratiri.transactions.application.dto.TransactionCurrency;
+import com.aratiri.transactions.application.dto.TransactionStatus;
+import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
-import com.aratiri.event.InvoiceSettledEvent;
+import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
@@ -83,7 +83,7 @@ public class InvoiceSettledConsumer {
             acknowledgment.acknowledge();
         } catch (JsonProcessingException e) {
             log.error("Couldn't deserialze invoice settlement message: {}", message, e);
-            throw new AratiriException("Deserialization failed", HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new AratiriException("Deserialization failed", HttpStatus.INTERNAL_SERVER_ERROR.value());
         } catch (Exception e) {
             log.error("Failed to process invoice settlement: {}", message, e);
             throw e;

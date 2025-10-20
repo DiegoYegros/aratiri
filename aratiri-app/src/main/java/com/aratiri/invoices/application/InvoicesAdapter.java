@@ -2,8 +2,8 @@ package com.aratiri.invoices.application;
 
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.invoices.infrastructure.InvoiceUtils;
-import com.aratiri.dto.invoices.DecodedInvoicetDTO;
-import com.aratiri.dto.invoices.GenerateInvoiceDTO;
+import com.aratiri.invoices.application.dto.DecodedInvoicetDTO;
+import com.aratiri.invoices.application.dto.GenerateInvoiceDTO;
 import com.aratiri.invoices.application.port.in.InvoicesPort;
 import com.aratiri.invoices.application.port.out.AccountLookupPort;
 import com.aratiri.invoices.application.port.out.LightningInvoicePersistencePort;
@@ -99,7 +99,7 @@ public class InvoicesAdapter implements InvoicesPort {
         } catch (AratiriException e) {
             throw e;
         } catch (Exception e) {
-            throw new AratiriException(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new AratiriException(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 

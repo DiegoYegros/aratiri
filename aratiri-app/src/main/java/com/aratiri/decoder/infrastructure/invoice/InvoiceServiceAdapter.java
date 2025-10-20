@@ -1,7 +1,7 @@
 package com.aratiri.decoder.infrastructure.invoice;
 
 import com.aratiri.decoder.application.port.out.InvoiceDecodingPort;
-import com.aratiri.dto.invoices.DecodedInvoicetDTO;
+import com.aratiri.invoices.application.dto.DecodedInvoicetDTO;
 import com.aratiri.invoices.application.port.in.InvoicesPort;
 import org.springframework.stereotype.Component;
 

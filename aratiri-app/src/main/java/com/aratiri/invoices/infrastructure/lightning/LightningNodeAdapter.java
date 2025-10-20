@@ -50,7 +50,7 @@ public class LightningNodeAdapter implements LightningNodePort {
                     payReq.getExpiry()
             );
         } catch (StatusRuntimeException e) {
-            throw new AratiriException("Error creating invoice on LND node: " + e.getMessage(), HttpStatus.BAD_GATEWAY);
+            throw new AratiriException("Error creating invoice on LND node: " + e.getMessage(), HttpStatus.BAD_GATEWAY.value());
         }
     }
 
@@ -74,7 +74,7 @@ public class LightningNodeAdapter implements LightningNodePort {
                     List.of()
             );
         } catch (StatusRuntimeException e) {
-            throw new AratiriException("Error decoding payment request: " + e.getMessage(), HttpStatus.BAD_GATEWAY);
+            throw new AratiriException("Error decoding payment request: " + e.getMessage(), HttpStatus.BAD_GATEWAY.value());
         }
     }
 
@@ -96,7 +96,7 @@ public class LightningNodeAdapter implements LightningNodePort {
             if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
                 return Optional.empty();
             }
-            throw new AratiriException("Error looking up invoice on LND node: " + e.getMessage(), HttpStatus.BAD_GATEWAY);
+            throw new AratiriException("Error looking up invoice on LND node: " + e.getMessage(), HttpStatus.BAD_GATEWAY.value());
         }
     }
 }

@@ -1,7 +1,7 @@
 package com.aratiri.infrastructure.persistence.jpa.entity;
 
-import com.aratiri.enums.AuthProvider;
-import com.aratiri.enums.Role;
+import com.aratiri.auth.domain.AuthProvider;
+import com.aratiri.auth.domain.Role;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;

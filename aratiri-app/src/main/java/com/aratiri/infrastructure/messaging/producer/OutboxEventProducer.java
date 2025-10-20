@@ -1,6 +1,6 @@
 package com.aratiri.infrastructure.messaging.producer;
 
-import com.aratiri.enums.KafkaTopics;
+import com.aratiri.infrastructure.messaging.KafkaTopics;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

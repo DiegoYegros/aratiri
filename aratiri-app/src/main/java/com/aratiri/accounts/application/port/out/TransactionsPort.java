@@ -1,6 +1,6 @@
 package com.aratiri.accounts.application.port.out;
 
-import com.aratiri.dto.transactions.TransactionDTOResponse;
+import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 
 import java.time.Instant;
 import java.util.List;

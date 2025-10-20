@@ -1,7 +1,7 @@
 package com.aratiri.payments.infrastructure.transactions;
 
-import com.aratiri.dto.transactions.CreateTransactionRequest;
-import com.aratiri.dto.transactions.TransactionDTOResponse;
+import com.aratiri.transactions.application.dto.CreateTransactionRequest;
+import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import org.springframework.stereotype.Component;
 

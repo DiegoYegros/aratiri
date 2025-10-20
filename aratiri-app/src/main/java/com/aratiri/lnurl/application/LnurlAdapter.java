@@ -4,10 +4,10 @@ import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.config.AratiriProperties;
 import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.dto.invoices.GenerateInvoiceDTO;
-import com.aratiri.dto.lnurl.LnurlCallbackResponseDTO;
-import com.aratiri.dto.lnurl.LnurlPayRequestDTO;
-import com.aratiri.dto.lnurl.LnurlpResponseDTO;
+import com.aratiri.invoices.application.dto.GenerateInvoiceDTO;
+import com.aratiri.lnurl.application.dto.LnurlCallbackResponseDTO;
+import com.aratiri.lnurl.application.dto.LnurlPayRequestDTO;
+import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.invoices.application.port.in.InvoicesPort;
 import com.aratiri.lnurl.application.port.in.LnurlApplicationPort;
 import com.aratiri.lnurl.application.port.out.LnurlRemotePort;
@@ -48,7 +48,7 @@ public class LnurlAdapter implements LnurlApplicationPort {
     public LnurlpResponseDTO getLnurlMetadata(String alias) {
         boolean exists = accountsPort.existsByAlias(alias);
         if (!exists) {
-            throw new AratiriException("Alias does not match any account.", HttpStatus.NOT_FOUND);
+            throw new AratiriException("Alias does not match any account.", HttpStatus.NOT_FOUND.value());
         }
         LnurlpResponseDTO response = new LnurlpResponseDTO();
         response.setCallback(properties.getAratiriBaseUrl() + "/lnurl/callback/" + alias);
@@ -66,7 +66,7 @@ public class LnurlAdapter implements LnurlApplicationPort {
         try {
             return lnurlRemotePort.fetchMetadata(url);
         } catch (Exception e) {
-            throw new AratiriException("Failed to fetch LNURL metadata from external URL.", HttpStatus.BAD_GATEWAY);
+            throw new AratiriException("Failed to fetch LNURL metadata from external URL.", HttpStatus.BAD_GATEWAY.value());
         }
     }
 
@@ -74,7 +74,7 @@ public class LnurlAdapter implements LnurlApplicationPort {
     public Object lnurlCallback(String alias, long amount, String comment) {
         boolean exists = accountsPort.existsByAlias(alias);
         if (!exists) {
-            throw new AratiriException("Alias does not match any account.", HttpStatus.NOT_FOUND);
+            throw new AratiriException("Alias does not match any account.", HttpStatus.NOT_FOUND.value());
         }
         long satoshis = amount / 1000;
         String memo = comment != null ? comment : "No description";
@@ -98,10 +98,10 @@ public class LnurlAdapter implements LnurlApplicationPort {
         try {
             callbackResponse = lnurlRemotePort.fetchCallbackInvoice(finalCallbackUrl);
         } catch (Exception e) {
-            throw new AratiriException("Failed to fetch invoice from LNURL callback.", HttpStatus.BAD_GATEWAY);
+            throw new AratiriException("Failed to fetch invoice from LNURL callback.", HttpStatus.BAD_GATEWAY.value());
         }
         if (callbackResponse == null || callbackResponse.getPaymentRequest() == null || callbackResponse.getPaymentRequest().isEmpty()) {
-            throw new AratiriException("Invalid response from LNURL callback.", HttpStatus.BAD_GATEWAY);
+            throw new AratiriException("Invalid response from LNURL callback.", HttpStatus.BAD_GATEWAY.value());
         }
         PayInvoiceRequestDTO payRequest = new PayInvoiceRequestDTO();
         payRequest.setInvoice(callbackResponse.getPaymentRequest());

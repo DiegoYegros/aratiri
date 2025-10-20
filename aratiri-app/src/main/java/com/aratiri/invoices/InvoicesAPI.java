@@ -2,9 +2,9 @@ package com.aratiri.invoices;
 
 import com.aratiri.infrastructure.web.context.AratiriContext;
 import com.aratiri.infrastructure.web.context.AratiriCtx;
-import com.aratiri.dto.invoices.DecodedInvoicetDTO;
-import com.aratiri.dto.invoices.GenerateInvoiceDTO;
-import com.aratiri.dto.invoices.GenerateInvoiceRequestDTO;
+import com.aratiri.invoices.application.dto.DecodedInvoicetDTO;
+import com.aratiri.invoices.application.dto.GenerateInvoiceDTO;
+import com.aratiri.invoices.application.dto.GenerateInvoiceRequestDTO;
 import com.aratiri.invoices.application.port.in.InvoicesPort;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

@@ -1,7 +1,7 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
-import com.aratiri.event.OnChainPaymentInitiatedEvent;
-import com.aratiri.event.PaymentInitiatedEvent;
+import com.aratiri.payments.application.event.OnChainPaymentInitiatedEvent;
+import com.aratiri.payments.application.event.PaymentInitiatedEvent;
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

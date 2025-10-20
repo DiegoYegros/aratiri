@@ -1,7 +1,7 @@
 package com.aratiri.payments.application.port.out;
 
-import com.aratiri.dto.transactions.CreateTransactionRequest;
-import com.aratiri.dto.transactions.TransactionDTOResponse;
+import com.aratiri.transactions.application.dto.CreateTransactionRequest;
+import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 
 public interface TransactionsPort {
 

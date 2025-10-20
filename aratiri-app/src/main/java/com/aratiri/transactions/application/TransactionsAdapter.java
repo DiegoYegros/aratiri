@@ -2,13 +2,13 @@ package com.aratiri.transactions.application;
 
 import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.dto.transactions.*;
+import com.aratiri.transactions.application.dto.*;
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
-import com.aratiri.enums.KafkaTopics;
-import com.aratiri.event.InternalTransferCompletedEvent;
-import com.aratiri.event.InternalTransferInitiatedEvent;
+import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
+import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
@@ -94,7 +94,7 @@ public class TransactionsAdapter implements TransactionsPort {
         if (!SETTLEABLE_TYPES.contains(request.getType())) {
             throw new AratiriException(
                     String.format("Transaction type [%s] is not valid for the create-and-settle flow.", request.getType()),
-                    HttpStatus.BAD_REQUEST
+                    HttpStatus.BAD_REQUEST.value()
             );
         }
         TransactionEntity transaction = buildTransactionEntity(request, TransactionStatus.COMPLETED);

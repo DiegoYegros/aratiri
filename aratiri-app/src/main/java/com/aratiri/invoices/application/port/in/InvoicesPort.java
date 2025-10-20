@@ -1,7 +1,7 @@
 package com.aratiri.invoices.application.port.in;
 
-import com.aratiri.dto.invoices.DecodedInvoicetDTO;
-import com.aratiri.dto.invoices.GenerateInvoiceDTO;
+import com.aratiri.invoices.application.dto.DecodedInvoicetDTO;
+import com.aratiri.invoices.application.dto.GenerateInvoiceDTO;
 import com.aratiri.invoices.domain.LightningNodeInvoice;
 
 import java.util.Optional;

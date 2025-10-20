@@ -31,14 +31,14 @@ public class GoogleTokenVerifierAdapter implements GoogleTokenVerifierPort {
         try {
             GoogleIdToken idToken = verifier.verify(token);
             if (idToken == null) {
-                throw new AratiriException("Google Token Invalid", HttpStatus.UNAUTHORIZED);
+                throw new AratiriException("Google Token Invalid", HttpStatus.UNAUTHORIZED.value());
             }
             GoogleIdToken.Payload payload = idToken.getPayload();
             String email = payload.getEmail();
             String name = (String) payload.get("name");
             return new GoogleUserProfile(email, name);
         } catch (GeneralSecurityException | IOException ex) {
-            throw new AratiriException("Unable to verify Google token", HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new AratiriException("Unable to verify Google token", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 }

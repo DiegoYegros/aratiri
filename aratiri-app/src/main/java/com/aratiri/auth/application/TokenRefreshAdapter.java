@@ -37,14 +37,14 @@ public class TokenRefreshAdapter implements TokenRefreshPort {
     @Override
     public AuthTokens refreshAccessToken(String refreshTokenValue) {
         RefreshToken refreshToken = refreshTokenPort.findByToken(refreshTokenValue)
-                .orElseThrow(() -> new AratiriException("Refresh token is not in database!", HttpStatus.BAD_REQUEST));
+                .orElseThrow(() -> new AratiriException("Refresh token is not in database!", HttpStatus.BAD_REQUEST.value()));
         Instant now = Instant.now(clock);
         if (refreshToken.isExpired(now)) {
             refreshTokenPort.deleteRefreshToken(refreshTokenValue);
-            throw new AratiriException("Refresh token was expired. Please make a new sign-in request", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Refresh token was expired. Please make a new sign-in request", HttpStatus.BAD_REQUEST.value());
         }
         AuthUser user = loadUserPort.findById(refreshToken.userId())
-                .orElseThrow(() -> new AratiriException("User not found", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new AratiriException("User not found", HttpStatus.NOT_FOUND.value()));
         String accessToken = accessTokenPort.generateAccessToken(user.email());
         return new AuthTokens(accessToken, refreshTokenValue);
     }

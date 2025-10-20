@@ -1,13 +1,13 @@
 package com.aratiri.admin.application.port.in;
 
-import com.aratiri.dto.admin.ChannelBalanceResponseDTO;
-import com.aratiri.dto.admin.CloseChannelRequestDTO;
-import com.aratiri.dto.admin.ConnectPeerRequestDTO;
-import com.aratiri.dto.admin.ListChannelsResponseDTO;
-import com.aratiri.dto.admin.NodeSettingsDTO;
-import com.aratiri.dto.admin.OpenChannelRequestDTO;
-import com.aratiri.dto.admin.RemotesResponseDTO;
-import com.aratiri.dto.admin.TransactionStatsResponseDTO;
+import com.aratiri.admin.application.dto.ChannelBalanceResponseDTO;
+import com.aratiri.admin.application.dto.CloseChannelRequestDTO;
+import com.aratiri.admin.application.dto.ConnectPeerRequestDTO;
+import com.aratiri.admin.application.dto.ListChannelsResponseDTO;
+import com.aratiri.admin.application.dto.NodeSettingsDTO;
+import com.aratiri.admin.application.dto.OpenChannelRequestDTO;
+import com.aratiri.admin.application.dto.RemotesResponseDTO;
+import com.aratiri.admin.application.dto.TransactionStatsResponseDTO;
 import lnrpc.CloseStatusUpdate;
 import lnrpc.GetInfoResponse;
 import lnrpc.Peer;

@@ -8,7 +8,7 @@ import com.aratiri.decoder.application.port.in.DecoderPort;
 import com.aratiri.decoder.application.port.out.InvoiceDecodingPort;
 import com.aratiri.decoder.application.port.out.LnurlPort;
 import com.aratiri.decoder.application.port.out.NostrPort;
-import com.aratiri.dto.lnurl.LnurlpResponseDTO;
+import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

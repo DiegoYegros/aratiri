@@ -11,7 +11,7 @@ import com.aratiri.auth.application.port.out.UserCommandPort;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.PasswordResetToken;
 import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.enums.AuthProvider;
+import com.aratiri.auth.domain.AuthProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -49,9 +49,9 @@ public class PasswordResetAdapter implements PasswordResetPort {
     @Override
     public void initiatePasswordReset(PasswordResetRequestCommand command) {
         AuthUser user = loadUserPort.findByEmail(command.email())
-                .orElseThrow(() -> new AratiriException("User with this email not found.", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new AratiriException("User with this email not found.", HttpStatus.NOT_FOUND.value()));
         if (user.provider() == AuthProvider.GOOGLE) {
-            throw new AratiriException("This account is registered with Google. Please log in using your Google account.", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("This account is registered with Google. Please log in using your Google account.", HttpStatus.BAD_REQUEST.value());
         }
         if (user.provider() != AuthProvider.LOCAL) {
             throw new AratiriException("Invalid Auth Provider for Password Reset. Please Contact Support for further assistance.");
@@ -69,15 +69,15 @@ public class PasswordResetAdapter implements PasswordResetPort {
     @Override
     public void completePasswordReset(PasswordResetCompletionCommand command) {
         AuthUser user = loadUserPort.findByEmail(command.email())
-                .orElseThrow(() -> new AratiriException("User not found.", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new AratiriException("User not found.", HttpStatus.NOT_FOUND.value()));
         PasswordResetToken token = passwordResetTokenPort.findByUserId(user.id())
-                .orElseThrow(() -> new AratiriException("Invalid password reset request.", HttpStatus.BAD_REQUEST));
+                .orElseThrow(() -> new AratiriException("Invalid password reset request.", HttpStatus.BAD_REQUEST.value()));
         if (token.isExpired(clock)) {
             passwordResetTokenPort.deleteByUserId(user.id());
-            throw new AratiriException("Password reset code has expired.", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Password reset code has expired.", HttpStatus.BAD_REQUEST.value());
         }
         if (!token.code().equals(command.code())) {
-            throw new AratiriException("Invalid password reset code", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Invalid password reset code", HttpStatus.BAD_REQUEST.value());
         }
         userCommandPort.updatePassword(user.id(), passwordEncoderPort.encode(command.newPassword()));
         passwordResetTokenPort.deleteByUserId(user.id());

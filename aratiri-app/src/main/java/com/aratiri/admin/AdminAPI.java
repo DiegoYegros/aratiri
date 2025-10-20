@@ -2,16 +2,16 @@ package com.aratiri.admin;
 
 import com.aratiri.admin.application.port.in.AdminPort;
 import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.dto.admin.ChannelBalanceResponseDTO;
-import com.aratiri.dto.admin.CloseChannelRequestDTO;
-import com.aratiri.dto.admin.ConnectPeerRequestDTO;
-import com.aratiri.dto.admin.ListChannelsResponseDTO;
-import com.aratiri.dto.admin.NodeInfoResponseDTO;
-import com.aratiri.dto.admin.NodeSettingsDTO;
-import com.aratiri.dto.admin.OpenChannelRequestDTO;
-import com.aratiri.dto.admin.PeerDTO;
-import com.aratiri.dto.admin.RemotesResponseDTO;
-import com.aratiri.dto.admin.TransactionStatsResponseDTO;
+import com.aratiri.admin.application.dto.ChannelBalanceResponseDTO;
+import com.aratiri.admin.application.dto.CloseChannelRequestDTO;
+import com.aratiri.admin.application.dto.ConnectPeerRequestDTO;
+import com.aratiri.admin.application.dto.ListChannelsResponseDTO;
+import com.aratiri.admin.application.dto.NodeInfoResponseDTO;
+import com.aratiri.admin.application.dto.NodeSettingsDTO;
+import com.aratiri.admin.application.dto.OpenChannelRequestDTO;
+import com.aratiri.admin.application.dto.PeerDTO;
+import com.aratiri.admin.application.dto.RemotesResponseDTO;
+import com.aratiri.admin.application.dto.TransactionStatsResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -74,8 +74,8 @@ public class AdminAPI {
     )
     public ResponseEntity<NodeInfoResponseDTO> getNodeInfo() {
         GetInfoResponse info = adminPort.getNodeInfo();
-        List<com.aratiri.dto.admin.ChainDTO> chains = info.getChainsList().stream()
-                .map(chain -> new com.aratiri.dto.admin.ChainDTO(chain.getChain(), chain.getNetwork()))
+        List<com.aratiri.admin.application.dto.ChainDTO> chains = info.getChainsList().stream()
+                .map(chain -> new com.aratiri.admin.application.dto.ChainDTO(chain.getChain(), chain.getNetwork()))
                 .collect(Collectors.toList());
         NodeInfoResponseDTO response = NodeInfoResponseDTO.builder()
                 .version(info.getVersion())
@@ -181,7 +181,7 @@ public class AdminAPI {
     public ResponseEntity<NodeSettingsDTO> updateAutoManagePeers(@RequestBody Map<String, Boolean> payload) {
         Boolean enabled = payload.get("enabled");
         if (enabled == null) {
-            throw new AratiriException("Request body must contain 'enabled' field (true/false)", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Request body must contain 'enabled' field (true/false)", HttpStatus.BAD_REQUEST.value());
         }
         return ResponseEntity.ok(adminPort.updateAutoManagePeers(enabled));
     }

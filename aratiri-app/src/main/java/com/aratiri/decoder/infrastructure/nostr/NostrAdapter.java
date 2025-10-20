@@ -31,7 +31,7 @@ public class NostrAdapter implements NostrPort {
                         return contentNode.get("lud16").asText();
                     }
                 } catch (Exception e) {
-                    throw new AratiriException("Failed to parse nostr content.", HttpStatus.INTERNAL_SERVER_ERROR);
+                    throw new AratiriException("Failed to parse nostr content.", HttpStatus.INTERNAL_SERVER_ERROR.value());
                 }
             }
             return null;
@@ -48,7 +48,7 @@ public class NostrAdapter implements NostrPort {
                         return contentNode.get("lud16").asText();
                     }
                 } catch (Exception e) {
-                    throw new AratiriException("Failed to parse nostr profile content.", HttpStatus.INTERNAL_SERVER_ERROR);
+                    throw new AratiriException("Failed to parse nostr profile content.", HttpStatus.INTERNAL_SERVER_ERROR.value());
                 }
             }
             return null;

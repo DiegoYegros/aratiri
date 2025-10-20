@@ -1,6 +1,6 @@
 package com.aratiri.decoder.application.port.out;
 
-import com.aratiri.dto.lnurl.LnurlpResponseDTO;
+import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 
 public interface LnurlPort {
 

@@ -20,7 +20,7 @@ public class AccountRepositoryAdapter implements AccountsPort {
     public PaymentAccount getAccount(String userId) {
         var account = accountRepository.findByUserId(userId);
         if (account == null) {
-            throw new AratiriException("Account not found", HttpStatus.NOT_FOUND);
+            throw new AratiriException("Account not found", HttpStatus.NOT_FOUND.value());
         }
         return new PaymentAccount(account.getUser().getId(), account.getBalance(), account.getBitcoinAddress());
     }

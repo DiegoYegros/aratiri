@@ -10,9 +10,9 @@ import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.accounts.infrastructure.alias.AliasGenerator;
 import com.aratiri.shared.util.Bech32Util;
-import com.aratiri.dto.accounts.*;
-import com.aratiri.dto.transactions.TransactionDTOResponse;
-import com.aratiri.dto.transactions.TransactionType;
+import com.aratiri.accounts.application.dto.*;
+import com.aratiri.transactions.application.dto.TransactionDTOResponse;
+import com.aratiri.transactions.application.dto.TransactionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -58,14 +58,14 @@ public class AccountsAdapter implements AccountsPort {
     @Override
     public AccountDTO getAccount(String id) {
         Account account = accountPersistencePort.findById(id)
-                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND.value()));
         return buildAccountDTO(account);
     }
 
     @Override
     public AccountDTO getAccountByUserId(String userId) {
         Account account = accountPersistencePort.findByUserId(userId)
-                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND.value()));
         return buildAccountDTO(account);
     }
 
@@ -84,11 +84,11 @@ public class AccountsAdapter implements AccountsPort {
         if (accountPersistencePort.findByUserId(userId).isPresent()) {
             throw new AratiriException(
                     "An account already exists for the user. Multiple accounts is not allowed.",
-                    HttpStatus.BAD_REQUEST
+                    HttpStatus.BAD_REQUEST.value()
             );
         }
         AccountUser user = loadUserPort.findById(userId)
-                .orElseThrow(() -> new AratiriException("User not found", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new AratiriException("User not found", HttpStatus.NOT_FOUND.value()));
 
         String bitcoinAddress = lightningAddressPort.generateTaprootAddress();
         String alias = determineAlias(request.getAlias());
@@ -102,7 +102,7 @@ public class AccountsAdapter implements AccountsPort {
     @Override
     public AccountDTO creditBalance(String userId, long satsAmount) {
         Account account = accountPersistencePort.findByUserId(userId)
-                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND.value()));
         long newBalance = account.balance() + satsAmount;
         Account updated = accountPersistencePort.save(account.withBalance(newBalance));
         return buildAccountDTO(updated);
@@ -111,7 +111,7 @@ public class AccountsAdapter implements AccountsPort {
     @Override
     public AccountDTO getAccountByAlias(String alias) {
         Account account = accountPersistencePort.findByAlias(alias)
-                .orElseThrow(() -> new AratiriException("Account does not exist for given alias.", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new AratiriException("Account does not exist for given alias.", HttpStatus.NOT_FOUND.value()));
         return buildAccountDTO(account);
     }
 
@@ -156,7 +156,7 @@ public class AccountsAdapter implements AccountsPort {
                 alias = AliasGenerator.generateAlias();
             } while (accountPersistencePort.existsByAlias(alias));
         } else if (accountPersistencePort.existsByAlias(alias)) {
-            throw new AratiriException("Alias is already in use.", HttpStatus.BAD_REQUEST);
+            throw new AratiriException("Alias is already in use.", HttpStatus.BAD_REQUEST.value());
         }
         return alias;
     }

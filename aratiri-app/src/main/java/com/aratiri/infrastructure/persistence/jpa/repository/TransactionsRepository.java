@@ -1,6 +1,6 @@
 package com.aratiri.infrastructure.persistence.jpa.repository;
 
-import com.aratiri.dto.admin.TransactionStatsDTO;
+import com.aratiri.admin.application.dto.TransactionStatsDTO;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -24,7 +24,7 @@ public interface TransactionsRepository extends JpaRepository<TransactionEntity,
     @Query("SELECT t FROM TransactionEntity t WHERE t.status = 'PENDING' AND t.createdAt < :timestamp")
     List<TransactionEntity> findPendingTransactionsOlderThan(@Param("timestamp") Instant timestamp);
 
-    @Query("SELECT new com.aratiri.dto.admin.TransactionStatsDTO(" +
+    @Query("SELECT new com.aratiri.admin.application.dto.TransactionStatsDTO(" +
             "CAST(t.createdAt AS LocalDate), " +
             "CASE WHEN t.type LIKE '%CREDIT%' THEN 'credit' ELSE 'debit' END, " +
             "SUM(t.amount), " +

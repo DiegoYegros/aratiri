@@ -1,8 +1,8 @@
 package com.aratiri.infrastructure.persistence.jpa.entity;
 
-import com.aratiri.dto.transactions.TransactionCurrency;
-import com.aratiri.dto.transactions.TransactionStatus;
-import com.aratiri.dto.transactions.TransactionType;
+import com.aratiri.transactions.application.dto.TransactionCurrency;
+import com.aratiri.transactions.application.dto.TransactionStatus;
+import com.aratiri.transactions.application.dto.TransactionType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

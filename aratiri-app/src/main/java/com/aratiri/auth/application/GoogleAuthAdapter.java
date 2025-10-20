@@ -11,8 +11,8 @@ import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.GoogleUserProfile;
 import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.dto.accounts.CreateAccountRequestDTO;
-import com.aratiri.enums.AuthProvider;
+import com.aratiri.accounts.application.dto.CreateAccountRequestDTO;
+import com.aratiri.auth.domain.AuthProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -52,7 +52,7 @@ public class GoogleAuthAdapter implements GoogleAuthPort {
             AuthUser user = loadUserPort.findByEmail(profile.email())
                     .map(existing -> {
                         if (existing.provider() != AuthProvider.GOOGLE) {
-                            throw new AratiriException("This email is registered with a password. Please use the standard login.", HttpStatus.BAD_REQUEST);
+                            throw new AratiriException("This email is registered with a password. Please use the standard login.", HttpStatus.BAD_REQUEST.value());
                         }
                         return existing;
                     })
@@ -71,7 +71,7 @@ public class GoogleAuthAdapter implements GoogleAuthPort {
             throw ex;
         } catch (Exception ex) {
             logger.error("Auth failed with Google, message is: {}", ex.getMessage(), ex);
-            throw new AratiriException("Auth Failed with Google", HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new AratiriException("Auth Failed with Google", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 }

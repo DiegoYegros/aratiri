@@ -2,7 +2,7 @@ package com.aratiri.transactions;
 
 import com.aratiri.infrastructure.web.context.AratiriContext;
 import com.aratiri.infrastructure.web.context.AratiriCtx;
-import com.aratiri.dto.transactions.TransactionDTOResponse;
+import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

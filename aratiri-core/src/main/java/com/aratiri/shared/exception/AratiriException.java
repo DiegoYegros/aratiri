@@ -1,24 +1,18 @@
 package com.aratiri.shared.exception;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
+import lombok.Getter;
 
-@EqualsAndHashCode(callSuper = true)
-@Data
-@RequiredArgsConstructor
+@Getter
 public class AratiriException extends RuntimeException {
     private String code;
-    private String message;
-    private HttpStatus httpStatus;
+    private final Integer status;
 
     public AratiriException(String message) {
-        this.message = message;
+        this(message, null);
     }
 
-    public AratiriException(String message, HttpStatus httpStatus) {
-        this.message = message;
-        this.httpStatus = httpStatus;
+    public AratiriException(String message, Integer status) {
+        super(message);
+        this.status = status;
     }
 }

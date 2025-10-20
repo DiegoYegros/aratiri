@@ -1,6 +1,6 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
-import com.aratiri.event.InternalTransferInitiatedEvent;
+import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

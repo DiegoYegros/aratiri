@@ -13,7 +13,7 @@ public class JsonUtils {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
-            throw new AratiriException("Failed to map string to json: "+ e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new AratiriException("Failed to map string to json: "+ e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 }
