@@ -2,8 +2,8 @@ package com.aratiri.lnurl.application;
 
 import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.config.AratiriProperties;
-import com.aratiri.core.constants.BitcoinConstants;
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.shared.constants.BitcoinConstants;
+import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.dto.lnurl.LnurlCallbackResponseDTO;
 import com.aratiri.dto.lnurl.LnurlPayRequestDTO;

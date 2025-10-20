@@ -1,7 +1,7 @@
 package com.aratiri.invoices;
 
-import com.aratiri.context.AratiriContext;
-import com.aratiri.context.AratiriCtx;
+import com.aratiri.infrastructure.web.context.AratiriContext;
+import com.aratiri.infrastructure.web.context.AratiriCtx;
 import com.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.dto.invoices.GenerateInvoiceRequestDTO;

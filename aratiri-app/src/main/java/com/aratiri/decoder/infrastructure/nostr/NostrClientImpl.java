@@ -1,6 +1,5 @@
 package com.aratiri.decoder.infrastructure.nostr;
 
-import com.aratiri.core.util.NostrUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;

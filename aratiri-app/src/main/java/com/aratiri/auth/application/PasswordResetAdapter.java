@@ -10,7 +10,7 @@ import com.aratiri.auth.application.port.out.PasswordResetTokenPort;
 import com.aratiri.auth.application.port.out.UserCommandPort;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.PasswordResetToken;
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.enums.AuthProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

@@ -1,6 +1,6 @@
 package com.aratiri.payments.application;
 
-import com.aratiri.core.constants.BitcoinConstants;
+import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.payments.api.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.api.dto.PaymentResponseDTO;
@@ -12,7 +12,7 @@ import com.aratiri.dto.transactions.TransactionType;
 import com.aratiri.event.InternalTransferInitiatedEvent;
 import com.aratiri.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.event.PaymentInitiatedEvent;
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.payments.application.port.out.AccountsPort;
 import com.aratiri.payments.application.port.out.InvoicesPort;
@@ -26,8 +26,7 @@ import com.aratiri.payments.domain.OnChainFeeEstimate;
 import com.aratiri.payments.domain.OutboxMessage;
 import com.aratiri.payments.domain.PaymentAccount;
 import com.aratiri.enums.KafkaTopics;
-import com.aratiri.core.util.JsonUtils;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.aratiri.payments.infrastructure.json.JsonUtils;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lnrpc.Payment;

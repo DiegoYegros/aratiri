@@ -2,7 +2,7 @@ package com.aratiri.auth.infrastructure.google;
 
 import com.aratiri.auth.application.port.out.GoogleTokenVerifierPort;
 import com.aratiri.auth.domain.GoogleUserProfile;
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.shared.exception.AratiriException;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;

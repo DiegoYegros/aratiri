@@ -1,6 +1,6 @@
 package com.aratiri.util;
 
-import com.aratiri.core.util.AliasGenerator;
+import com.aratiri.accounts.infrastructure.alias.AliasGenerator;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;

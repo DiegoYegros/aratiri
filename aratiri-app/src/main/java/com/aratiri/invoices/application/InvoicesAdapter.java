@@ -1,7 +1,7 @@
 package com.aratiri.invoices.application;
 
-import com.aratiri.core.exception.AratiriException;
-import com.aratiri.core.util.InvoiceUtils;
+import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.invoices.infrastructure.InvoiceUtils;
 import com.aratiri.dto.invoices.DecodedInvoicetDTO;
 import com.aratiri.dto.invoices.GenerateInvoiceDTO;
 import com.aratiri.invoices.application.port.in.InvoicesPort;

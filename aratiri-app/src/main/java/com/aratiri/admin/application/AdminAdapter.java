@@ -5,7 +5,7 @@ import com.aratiri.admin.application.port.out.LightningNodeAdminPort;
 import com.aratiri.admin.application.port.out.NodeSettingsPort;
 import com.aratiri.admin.application.port.out.TransactionStatsPort;
 import com.aratiri.admin.domain.NodeSettings;
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.dto.admin.AmountDTO;
 import com.aratiri.dto.admin.ChannelBalanceResponseDTO;
 import com.aratiri.dto.admin.CloseChannelRequestDTO;

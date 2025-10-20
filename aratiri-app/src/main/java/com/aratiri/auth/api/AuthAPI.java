@@ -10,7 +10,7 @@ import com.aratiri.auth.application.port.in.RegistrationPort;
 import com.aratiri.auth.application.port.in.TokenRefreshPort;
 import com.aratiri.auth.application.port.in.VerificationCommand;
 import com.aratiri.auth.domain.AuthTokens;
-import com.aratiri.core.exception.ErrorResponse;
+import com.aratiri.shared.exception.ErrorResponse;
 import com.aratiri.auth.api.dto.AuthRequestDTO;
 import com.aratiri.auth.api.dto.AuthResponseDTO;
 import com.aratiri.auth.api.dto.LogoutRequestDTO;

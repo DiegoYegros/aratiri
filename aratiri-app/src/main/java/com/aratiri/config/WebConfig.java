@@ -1,6 +1,6 @@
 package com.aratiri.config;
 
-import com.aratiri.context.AratiriContextArgumentResolver;
+import com.aratiri.infrastructure.web.context.AratiriContextArgumentResolver;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;

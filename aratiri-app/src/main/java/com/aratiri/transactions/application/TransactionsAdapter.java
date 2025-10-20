@@ -1,17 +1,17 @@
 package com.aratiri.transactions.application;
 
-import com.aratiri.core.constants.BitcoinConstants;
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.shared.constants.BitcoinConstants;
+import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.dto.transactions.*;
-import com.aratiri.entity.LightningInvoiceEntity;
-import com.aratiri.entity.OutboxEventEntity;
-import com.aratiri.entity.TransactionEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.enums.KafkaTopics;
 import com.aratiri.event.InternalTransferCompletedEvent;
 import com.aratiri.event.InternalTransferInitiatedEvent;
-import com.aratiri.repository.LightningInvoiceRepository;
-import com.aratiri.repository.OutboxEventRepository;
-import com.aratiri.repository.TransactionsRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import com.aratiri.transactions.application.processor.TransactionProcessor;
 import com.fasterxml.jackson.databind.ObjectMapper;

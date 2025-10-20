@@ -1,7 +1,7 @@
 package com.aratiri.admin;
 
 import com.aratiri.admin.application.port.in.AdminPort;
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.dto.admin.ChannelBalanceResponseDTO;
 import com.aratiri.dto.admin.CloseChannelRequestDTO;
 import com.aratiri.dto.admin.ConnectPeerRequestDTO;

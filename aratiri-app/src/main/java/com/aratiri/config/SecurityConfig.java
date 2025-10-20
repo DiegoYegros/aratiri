@@ -1,6 +1,6 @@
 package com.aratiri.config;
 
-import com.aratiri.filter.JwtAuthenticationFilter;
+import com.aratiri.infrastructure.filter.JwtAuthenticationFilter;
 import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

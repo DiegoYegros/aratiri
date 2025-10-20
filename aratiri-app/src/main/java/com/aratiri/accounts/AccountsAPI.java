@@ -1,8 +1,8 @@
 package com.aratiri.accounts;
 
 
-import com.aratiri.context.AratiriContext;
-import com.aratiri.context.AratiriCtx;
+import com.aratiri.infrastructure.web.context.AratiriContext;
+import com.aratiri.infrastructure.web.context.AratiriCtx;
 import com.aratiri.dto.accounts.AccountDTO;
 import com.aratiri.dto.accounts.AccountTransactionsDTOResponse;
 import com.aratiri.dto.accounts.CreateAccountRequestDTO;

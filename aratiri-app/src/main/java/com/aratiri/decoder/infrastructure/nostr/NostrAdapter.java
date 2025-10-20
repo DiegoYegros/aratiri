@@ -1,6 +1,6 @@
 package com.aratiri.decoder.infrastructure.nostr;
 
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.decoder.application.port.out.NostrPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

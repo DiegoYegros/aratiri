@@ -1,6 +1,6 @@
 package com.aratiri.util;
 
-import com.aratiri.core.util.Bech32Util;
+import com.aratiri.shared.util.Bech32Util;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

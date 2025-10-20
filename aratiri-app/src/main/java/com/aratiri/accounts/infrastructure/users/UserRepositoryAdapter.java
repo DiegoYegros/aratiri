@@ -2,7 +2,7 @@ package com.aratiri.accounts.infrastructure.users;
 
 import com.aratiri.accounts.application.port.out.LoadUserPort;
 import com.aratiri.accounts.domain.AccountUser;
-import com.aratiri.repository.UserRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.UserRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;

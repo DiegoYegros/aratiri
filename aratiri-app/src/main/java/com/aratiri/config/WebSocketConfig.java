@@ -1,6 +1,6 @@
 package com.aratiri.config;
 
-import com.aratiri.handler.NotificationSocketHandler;
+import com.aratiri.auth.infrastructure.notification.NotificationSocketHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;

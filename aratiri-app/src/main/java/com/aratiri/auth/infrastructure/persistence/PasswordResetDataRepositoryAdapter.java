@@ -2,10 +2,10 @@ package com.aratiri.auth.infrastructure.persistence;
 
 import com.aratiri.auth.application.port.out.PasswordResetTokenPort;
 import com.aratiri.auth.domain.PasswordResetToken;
-import com.aratiri.entity.PasswordResetData;
-import com.aratiri.entity.UserEntity;
-import com.aratiri.repository.PasswordResetDataRepository;
-import com.aratiri.repository.UserRepository;
+import com.aratiri.infrastructure.persistence.jpa.entity.PasswordResetData;
+import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
+import com.aratiri.infrastructure.persistence.jpa.repository.PasswordResetDataRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.UserRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;

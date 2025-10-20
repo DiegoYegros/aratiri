@@ -2,8 +2,8 @@ package com.aratiri.auth.infrastructure.persistence;
 
 import com.aratiri.auth.application.port.out.RegistrationDraftPort;
 import com.aratiri.auth.domain.RegistrationDraft;
-import com.aratiri.entity.VerificationData;
-import com.aratiri.repository.VerificationDataRepository;
+import com.aratiri.infrastructure.persistence.jpa.entity.VerificationData;
+import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;

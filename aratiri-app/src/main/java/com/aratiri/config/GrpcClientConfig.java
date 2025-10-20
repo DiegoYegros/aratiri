@@ -1,6 +1,6 @@
 package com.aratiri.config;
 
-import com.aratiri.interceptor.GrpcLoggingInterceptor;
+import com.aratiri.infrastructure.grpc.GrpcLoggingInterceptor;
 import invoicesrpc.InvoicesGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;

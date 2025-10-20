@@ -1,7 +1,7 @@
 package com.aratiri.payments.api;
 
-import com.aratiri.context.AratiriContext;
-import com.aratiri.context.AratiriCtx;
+import com.aratiri.infrastructure.web.context.AratiriContext;
+import com.aratiri.infrastructure.web.context.AratiriCtx;
 import com.aratiri.payments.api.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.api.dto.PaymentResponseDTO;

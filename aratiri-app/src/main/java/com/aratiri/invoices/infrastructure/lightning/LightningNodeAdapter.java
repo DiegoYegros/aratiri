@@ -1,6 +1,6 @@
 package com.aratiri.invoices.infrastructure.lightning;
 
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.invoices.application.port.out.LightningNodePort;
 import com.aratiri.invoices.domain.DecodedLightningInvoice;
 import com.aratiri.invoices.domain.LightningInvoice;

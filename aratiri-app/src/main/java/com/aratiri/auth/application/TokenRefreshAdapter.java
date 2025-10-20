@@ -7,7 +7,7 @@ import com.aratiri.auth.application.port.out.RefreshTokenPort;
 import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.RefreshToken;
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.shared.exception.AratiriException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 

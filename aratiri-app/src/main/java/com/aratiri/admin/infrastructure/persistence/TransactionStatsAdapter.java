@@ -2,7 +2,7 @@ package com.aratiri.admin.infrastructure.persistence;
 
 import com.aratiri.admin.application.port.out.TransactionStatsPort;
 import com.aratiri.dto.admin.TransactionStatsDTO;
-import com.aratiri.repository.TransactionsRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;

@@ -10,7 +10,7 @@ import com.aratiri.auth.application.port.out.UserCommandPort;
 import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.GoogleUserProfile;
-import com.aratiri.core.exception.AratiriException;
+import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.dto.accounts.CreateAccountRequestDTO;
 import com.aratiri.enums.AuthProvider;
 import org.slf4j.Logger;

@@ -2,8 +2,8 @@ package com.aratiri.admin.infrastructure.persistence;
 
 import com.aratiri.admin.application.port.out.NodeSettingsPort;
 import com.aratiri.admin.domain.NodeSettings;
-import com.aratiri.entity.NodeSettingsEntity;
-import com.aratiri.repository.NodeSettingsRepository;
+import com.aratiri.infrastructure.persistence.jpa.entity.NodeSettingsEntity;
+import com.aratiri.infrastructure.persistence.jpa.repository.NodeSettingsRepository;
 import org.springframework.stereotype.Component;
 
 @Component

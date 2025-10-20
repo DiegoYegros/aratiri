@@ -3,10 +3,10 @@ package com.aratiri.accounts.infrastructure.persistence;
 import com.aratiri.accounts.application.port.out.AccountPersistencePort;
 import com.aratiri.accounts.domain.Account;
 import com.aratiri.accounts.domain.AccountUser;
-import com.aratiri.entity.AccountEntity;
-import com.aratiri.entity.UserEntity;
-import com.aratiri.repository.AccountRepository;
-import com.aratiri.repository.UserRepository;
+import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
+import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.UserRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;

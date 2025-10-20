@@ -1,7 +1,7 @@
 package com.aratiri.auth.infrastructure.security;
 
-import com.aratiri.entity.UserEntity;
-import com.aratiri.repository.UserRepository;
+import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
+import com.aratiri.infrastructure.persistence.jpa.repository.UserRepository;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

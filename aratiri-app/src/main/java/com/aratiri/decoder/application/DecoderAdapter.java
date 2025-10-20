@@ -1,8 +1,8 @@
 package com.aratiri.decoder.application;
 
 import com.aratiri.config.AratiriProperties;
-import com.aratiri.core.exception.AratiriException;
-import com.aratiri.core.util.Bech32Util;
+import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.shared.util.Bech32Util;
 import com.aratiri.decoder.api.dto.DecodedResultDTO;
 import com.aratiri.decoder.application.port.in.DecoderPort;
 import com.aratiri.decoder.application.port.out.InvoiceDecodingPort;

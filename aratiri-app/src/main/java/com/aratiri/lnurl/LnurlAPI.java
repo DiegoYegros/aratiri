@@ -1,7 +1,7 @@
 package com.aratiri.lnurl;
 
-import com.aratiri.context.AratiriContext;
-import com.aratiri.context.AratiriCtx;
+import com.aratiri.infrastructure.web.context.AratiriContext;
+import com.aratiri.infrastructure.web.context.AratiriCtx;
 import com.aratiri.dto.lnurl.LnurlPayRequestDTO;
 import com.aratiri.dto.lnurl.LnurlpResponseDTO;
 import com.aratiri.lnurl.application.port.in.LnurlApplicationPort;
