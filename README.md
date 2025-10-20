@@ -23,5 +23,27 @@ Convert it to a hex string and save the output in 'secrets/admin.macaroon`:
 ```bash
   xxd -p ~/.lnd/data/chain/bitcoin/mainnet/admin.macaroon | tr -d '\n'
 ```
-#### 2...
-#### 3...
+#### 2 Configure application secrets and environment
+Populate the `secrets/` directory with the credentials Aratiri expects at runtime:
+
+| Secret | Description |
+| --- | --- |
+| `secrets/admin.macaroon` | Hex-encoded admin macaroon from your Lightning node |
+| `secrets/tls.cert` | TLS certificate for your Lightning node's gRPC endpoint |
+
+#### 3 Launch supporting services and start Aratiri
+If you prefer containers, start the Postgres, Kafka (KRaft), and Aratiri services with Docker Compose:
+
+```bash
+docker compose up --profile full-stack up --build -d
+```
+
+Once the service starts, generated OpenAPI documentation is available at `/swagger-ui.html`
+
+### Transactional flow
+![img.png](docs/transactional_flow.png)
+
+### Shortcuts
+- [Docker Compose stack](docker-compose.yml)
+- [Application configuration](aratiri-app/src/main/resources/application.yml)
+- [Core domain module](aratiri-core)
