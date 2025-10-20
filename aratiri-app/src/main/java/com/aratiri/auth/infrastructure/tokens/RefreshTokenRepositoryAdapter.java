@@ -2,7 +2,7 @@ package com.aratiri.auth.infrastructure.tokens;
 
 import com.aratiri.auth.application.port.out.RefreshTokenPort;
 import com.aratiri.auth.domain.RefreshToken;
-import com.aratiri.config.AratiriProperties;
+import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.infrastructure.persistence.jpa.entity.RefreshTokenEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;

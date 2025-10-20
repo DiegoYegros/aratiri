@@ -1,4 +1,4 @@
-package com.aratiri.auth.api;
+package com.aratiri.auth;
 
 import com.aratiri.auth.application.port.in.AuthPort;
 import com.aratiri.auth.application.port.in.GoogleAuthPort;
@@ -11,13 +11,13 @@ import com.aratiri.auth.application.port.in.TokenRefreshPort;
 import com.aratiri.auth.application.port.in.VerificationCommand;
 import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.shared.exception.ErrorResponse;
-import com.aratiri.auth.api.dto.AuthRequestDTO;
-import com.aratiri.auth.api.dto.AuthResponseDTO;
-import com.aratiri.auth.api.dto.LogoutRequestDTO;
-import com.aratiri.auth.api.dto.PasswordResetDTOs;
-import com.aratiri.auth.api.dto.RefreshTokenRequestDTO;
-import com.aratiri.auth.api.dto.RegistrationRequestDTO;
-import com.aratiri.auth.api.dto.VerificationRequestDTO;
+import com.aratiri.auth.application.dto.AuthRequestDTO;
+import com.aratiri.auth.application.dto.AuthResponseDTO;
+import com.aratiri.auth.application.dto.LogoutRequestDTO;
+import com.aratiri.auth.application.dto.PasswordResetDTOs;
+import com.aratiri.auth.application.dto.RefreshTokenRequestDTO;
+import com.aratiri.auth.application.dto.RegistrationRequestDTO;
+import com.aratiri.auth.application.dto.VerificationRequestDTO;
 import com.aratiri.auth.application.dto.UserDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;

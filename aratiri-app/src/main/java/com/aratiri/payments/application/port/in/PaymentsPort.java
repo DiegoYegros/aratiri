@@ -1,8 +1,8 @@
 package com.aratiri.payments.application.port.in;
 
-import com.aratiri.payments.api.dto.OnChainPaymentDTOs;
-import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
-import com.aratiri.payments.api.dto.PaymentResponseDTO;
+import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
+import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import lnrpc.Payment;
 
 import java.util.Optional;

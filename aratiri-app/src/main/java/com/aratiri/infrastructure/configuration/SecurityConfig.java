@@ -1,4 +1,4 @@
-package com.aratiri.config;
+package com.aratiri.infrastructure.configuration;
 
 import com.aratiri.infrastructure.filter.JwtAuthenticationFilter;
 import lombok.AllArgsConstructor;

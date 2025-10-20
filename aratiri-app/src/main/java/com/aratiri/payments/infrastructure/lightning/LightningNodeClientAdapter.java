@@ -1,7 +1,7 @@
 package com.aratiri.payments.infrastructure.lightning;
 
-import com.aratiri.payments.api.dto.OnChainPaymentDTOs;
-import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
+import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.port.out.LightningNodePort;
 import com.aratiri.payments.domain.OnChainFeeEstimate;
 import com.google.protobuf.ByteString;

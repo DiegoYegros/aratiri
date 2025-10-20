@@ -2,7 +2,7 @@ package com.aratiri.lnurl.application.port.in;
 
 import com.aratiri.lnurl.application.dto.LnurlPayRequestDTO;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
-import com.aratiri.payments.api.dto.PaymentResponseDTO;
+import com.aratiri.payments.application.dto.PaymentResponseDTO;
 
 public interface LnurlApplicationPort {
 

@@ -1,6 +1,6 @@
-package com.aratiri.decoder.api;
+package com.aratiri.decoder;
 
-import com.aratiri.decoder.api.dto.DecodedResultDTO;
+import com.aratiri.decoder.application.dto.DecodedResultDTO;
 import com.aratiri.decoder.application.port.in.DecoderPort;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

@@ -1,6 +1,6 @@
 package com.aratiri.generaldata.application;
 
-import com.aratiri.config.AratiriProperties;
+import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.generaldata.application.port.in.GeneralDataPort;
 import com.aratiri.generaldata.application.port.out.CurrencyConversionPort;
 import org.springframework.cache.annotation.Cacheable;

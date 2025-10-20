@@ -1,4 +1,4 @@
-package com.aratiri.config;
+package com.aratiri.infrastructure.configuration;
 
 import com.aratiri.infrastructure.web.context.AratiriCtx;
 import io.swagger.v3.oas.models.Components;

@@ -1,7 +1,7 @@
 package com.aratiri.lnurl.application;
 
 import com.aratiri.accounts.application.port.in.AccountsPort;
-import com.aratiri.config.AratiriProperties;
+import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.invoices.application.dto.GenerateInvoiceDTO;
@@ -11,8 +11,8 @@ import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.invoices.application.port.in.InvoicesPort;
 import com.aratiri.lnurl.application.port.in.LnurlApplicationPort;
 import com.aratiri.lnurl.application.port.out.LnurlRemotePort;
-import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
-import com.aratiri.payments.api.dto.PaymentResponseDTO;
+import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

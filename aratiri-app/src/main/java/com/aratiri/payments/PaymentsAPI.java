@@ -1,10 +1,10 @@
-package com.aratiri.payments.api;
+package com.aratiri.payments;
 
 import com.aratiri.infrastructure.web.context.AratiriContext;
 import com.aratiri.infrastructure.web.context.AratiriCtx;
-import com.aratiri.payments.api.dto.OnChainPaymentDTOs;
-import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
-import com.aratiri.payments.api.dto.PaymentResponseDTO;
+import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
+import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

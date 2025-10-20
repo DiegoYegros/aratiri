@@ -5,7 +5,7 @@ import com.aratiri.infrastructure.web.context.AratiriCtx;
 import com.aratiri.lnurl.application.dto.LnurlPayRequestDTO;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.lnurl.application.port.in.LnurlApplicationPort;
-import com.aratiri.payments.api.dto.PaymentResponseDTO;
+import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

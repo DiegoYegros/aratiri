@@ -1,6 +1,6 @@
 package com.aratiri.auth.infrastructure.jwt;
 
-import com.aratiri.config.AratiriProperties;
+import com.aratiri.infrastructure.configuration.AratiriProperties;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;

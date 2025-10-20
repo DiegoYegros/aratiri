@@ -1,9 +1,9 @@
 package com.aratiri.payments.application;
 
 import com.aratiri.shared.constants.BitcoinConstants;
-import com.aratiri.payments.api.dto.OnChainPaymentDTOs;
-import com.aratiri.payments.api.dto.PayInvoiceRequestDTO;
-import com.aratiri.payments.api.dto.PaymentResponseDTO;
+import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
+import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.dto.TransactionCurrency;

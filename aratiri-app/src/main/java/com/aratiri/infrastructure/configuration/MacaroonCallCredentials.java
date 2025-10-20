@@ -1,4 +1,4 @@
-package com.aratiri.config;
+package com.aratiri.infrastructure.configuration;
 
 import io.grpc.CallCredentials;
 import io.grpc.Metadata;

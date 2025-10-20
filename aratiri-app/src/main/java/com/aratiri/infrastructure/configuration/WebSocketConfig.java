@@ -1,4 +1,4 @@
-package com.aratiri.config;
+package com.aratiri.infrastructure.configuration;
 
 import com.aratiri.auth.infrastructure.notification.NotificationSocketHandler;
 import org.springframework.context.annotation.Configuration;

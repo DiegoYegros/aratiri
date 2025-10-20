@@ -1,6 +1,6 @@
 package com.aratiri.decoder.application.port.in;
 
-import com.aratiri.decoder.api.dto.DecodedResultDTO;
+import com.aratiri.decoder.application.dto.DecodedResultDTO;
 
 public interface DecoderPort {
 

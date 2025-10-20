@@ -1,4 +1,4 @@
-package com.aratiri.config;
+package com.aratiri.infrastructure.configuration;
 
 import com.aratiri.shared.exception.ErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;

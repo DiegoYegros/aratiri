@@ -1,6 +1,6 @@
 package com.aratiri.generaldata.infrastructure.currency;
 
-import com.aratiri.config.AratiriProperties;
+import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.generaldata.application.port.out.CurrencyConversionPort;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -5,7 +5,7 @@ import com.aratiri.accounts.application.port.out.*;
 import com.aratiri.accounts.domain.Account;
 import com.aratiri.accounts.domain.AccountUser;
 import com.aratiri.accounts.infrastructure.qr.QrCodeUtil;
-import com.aratiri.config.AratiriProperties;
+import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.accounts.infrastructure.alias.AliasGenerator;

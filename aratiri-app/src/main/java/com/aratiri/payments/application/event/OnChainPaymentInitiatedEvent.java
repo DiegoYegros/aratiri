@@ -1,6 +1,6 @@
 package com.aratiri.payments.application.event;
 
-import com.aratiri.payments.api.dto.OnChainPaymentDTOs;
+import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

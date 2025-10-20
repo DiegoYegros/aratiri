@@ -1,4 +1,4 @@
-package com.aratiri.decoder.api.dto;
+package com.aratiri.decoder.application.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
