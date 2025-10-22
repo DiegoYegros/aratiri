@@ -57,7 +57,9 @@ public class TransactionReconciliationJob {
         logger.info("Reconciling transaction ID: {}, Payment Hash: {}", transaction.getId(), paymentHash);
         Optional<Payment> paymentStatusOpt = paymentsPort.checkPaymentStatusOnNode(paymentHash);
         if (paymentStatusOpt.isEmpty()) {
+            String failureReason = String.format("Payment status for paymentHash: %s not found", paymentHash);
             logger.warn("Payment with hash {} not found on LND node.", paymentHash);
+            transactionsService.failTransaction(transaction.getId(), failureReason);
             return;
         }
         Payment payment = paymentStatusOpt.get();
