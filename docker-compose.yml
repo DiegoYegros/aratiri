@@ -1,3 +1,4 @@
+name: aratiri
 services:
   db:
     image: postgres:16-alpine
@@ -50,7 +51,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: diegoyegros/aratiri-app:latest
-    container_name: aratiri-app
+    container_name: aratiri-backend
     ports:
       - "2100:2100"
     environment:
@@ -102,6 +103,7 @@ services:
   aratiri-admin:
     image: diegoyegros/aratiri-admin:latest
     restart: unless-stopped
+    container_name: aratiri-admin
     environment:
       - PORT=3001
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
@@ -110,6 +112,7 @@ services:
   aratiri-frontend:
     image: diegoyegros/aratiri-frontend:latest
     restart: unless-stopped
+    container_name: aratiri-frontend
     environment:
       - PORT=3000
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
