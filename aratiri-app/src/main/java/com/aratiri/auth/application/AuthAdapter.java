@@ -10,6 +10,7 @@ import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.AuthProvider;
 import com.aratiri.shared.exception.AratiriException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -47,7 +48,7 @@ public class AuthAdapter implements AuthPort {
         AuthUser user = loadUserPort.findByEmail(username)
                 .orElseThrow(() -> new AratiriException("Invalid username or password"));
         if (user.provider() == AuthProvider.GOOGLE) {
-            throw new AratiriException("Please log in using your Google account.");
+            throw new AratiriException("Please log in using your Google account.", HttpStatus.BAD_REQUEST.value());
         }
         authenticationPort.authenticate(username, password);
         String accessToken = accessTokenPort.generateAccessToken(username);
