@@ -25,7 +25,6 @@ services:
       - "9092:9092"
       - "9093:9093"
     environment:
-      # KRaft configuration
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
@@ -39,8 +38,6 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_NUM_PARTITIONS: 3
-
-      # KRaft cluster ID
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
     volumes:
       - kafka_data:/var/lib/kafka/data
@@ -102,6 +99,22 @@ services:
     profiles:
       - full-stack
       - backend-only
+  aratiri-admin:
+    image: diegoyegros/aratiri-admin:latest
+    restart: unless-stopped
+    environment:
+      - PORT=3001
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+    ports:
+      - "3001:3001"
+  aratiri-frontend:
+    image: diegoyegros/aratiri-frontend:latest
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+    ports:
+      - "3000:3000"
 volumes:
   kafka_data:
   postgres_data:
