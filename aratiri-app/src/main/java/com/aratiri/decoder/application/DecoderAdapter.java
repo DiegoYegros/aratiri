@@ -49,7 +49,9 @@ public class DecoderAdapter implements DecoderPort {
     private DecodedResultDTO decodeLnurl(String input) {
         try {
             logger.info("Decoding LNURL: {}", input);
-            String decodedUrl = Bech32Util.bech32Decode(input).hrp();
+            Bech32Util.Bech32Data decoded = Bech32Util.bech32Decode(input);
+            String decodedUrl = new String(Bech32Util.convertBits(decoded.data(), 5, 8, false));
+            logger.info("Decoded URL: {}", decodedUrl);
             LnurlpResponseDTO lnurlMetadata = decodedUrl.contains(aratiriProperties.getAratiriBaseUrl())
                     ? lnurlPort.getInternalMetadata(decodedUrl.substring(decodedUrl.lastIndexOf('/') + 1))
                     : lnurlPort.getExternalMetadata(decodedUrl);
