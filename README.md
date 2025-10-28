@@ -2,6 +2,9 @@
 
 A multi-user Bitcoin Lightning and on-chain middleware platform.
 
+## Purpose 
+Aratiri is meant for institutions and platforms that already safeguard their users' funds and want to integrate Bitcoin and Lightning capabilities into their existing financial architecture. You remain the custodian of your users' bitcoin. Aratiri facilitates the interactions with the Bitcoin network. Aratiri is not a self-custodial wallet.
+
 ## Features
 - Multi-user authentication
 - LNURL invoice generation
@@ -19,11 +22,11 @@ A multi-user Bitcoin Lightning and on-chain middleware platform.
 ### Setup
 #### 1. Export your LND admin macaroon
 Aratiri authenticates with your Lightning node using your admin macaroon.
-Convert it to a hex string and save the output in 'secrets/admin.macaroon`:
+Convert it to a hex string and save the output in `secrets/admin.macaroon`:
 ```bash
   xxd -p ~/.lnd/data/chain/bitcoin/mainnet/admin.macaroon | tr -d '\n'
 ```
-#### 2 Configure application secrets and environment
+#### 2. Configure application secrets and environment
 Populate the `secrets/` directory with the credentials Aratiri expects at runtime:
 
 | Secret | Description |
@@ -31,11 +34,11 @@ Populate the `secrets/` directory with the credentials Aratiri expects at runtim
 | `secrets/admin.macaroon` | Hex-encoded admin macaroon from your Lightning node |
 | `secrets/tls.cert` | TLS certificate for your Lightning node's gRPC endpoint |
 
-#### 3 Launch supporting services and start Aratiri
+#### 3. Launch supporting services and start Aratiri
 If you prefer containers, start the Postgres, Kafka (KRaft), and Aratiri services with Docker Compose:
 
 ```bash
-docker compose up --profile full-stack up --build -d
+docker compose --profile full-stack up --build -d
 ```
 
 Once the service starts, generated OpenAPI documentation is available at `/swagger-ui.html`
