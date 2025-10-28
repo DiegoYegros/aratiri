@@ -12,6 +12,7 @@ import com.aratiri.accounts.infrastructure.alias.AliasGenerator;
 import com.aratiri.shared.util.Bech32Util;
 import com.aratiri.accounts.application.dto.*;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
+import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -121,6 +122,7 @@ public class AccountsAdapter implements AccountsPort {
         Instant toInstant = to.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
         List<TransactionDTOResponse> transactions = transactionsPort.getTransactions(fromInstant, toInstant, userId);
         return transactions.stream()
+                .filter(e -> e.getStatus() != TransactionStatus.FAILED)
                 .map(t -> {
                     long satoshis = t.getAmount().multiply(BitcoinConstants.SATOSHIS_PER_BTC).longValue();
                     BigDecimal amountInBtc = new BigDecimal(satoshis)
