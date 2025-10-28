@@ -24,6 +24,10 @@ import lnrpc.OpenChannelRequest;
 import lnrpc.PendingChannelsRequest;
 import lnrpc.PendingChannelsResponse;
 import lnrpc.Peer;
+import lnrpc.WalletBalanceRequest;
+import lnrpc.WalletBalanceResponse;
+import lnrpc.NewAddressRequest;
+import lnrpc.AddressType;
 import org.springframework.stereotype.Component;
 
 import java.util.HexFormat;
@@ -95,6 +99,19 @@ public class LightningNodeAdminAdapter implements LightningNodeAdminPort {
     @Override
     public ChannelBalanceResponse getChannelBalance() {
         return lightningStub.channelBalance(ChannelBalanceRequest.newBuilder().build());
+    }
+
+    @Override
+    public WalletBalanceResponse getWalletBalance() {
+        return lightningStub.walletBalance(WalletBalanceRequest.newBuilder().build());
+    }
+
+    @Override
+    public String generateAddress(AddressType type) {
+        NewAddressRequest request = NewAddressRequest.newBuilder()
+                .setType(type)
+                .build();
+        return lightningStub.newAddress(request).getAddress();
     }
 
     @Override

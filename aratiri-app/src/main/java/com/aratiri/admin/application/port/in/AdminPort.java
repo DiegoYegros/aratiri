@@ -4,10 +4,12 @@ import com.aratiri.admin.application.dto.ChannelBalanceResponseDTO;
 import com.aratiri.admin.application.dto.CloseChannelRequestDTO;
 import com.aratiri.admin.application.dto.ConnectPeerRequestDTO;
 import com.aratiri.admin.application.dto.ListChannelsResponseDTO;
+import com.aratiri.admin.application.dto.NewAddressResponseDTO;
 import com.aratiri.admin.application.dto.NodeSettingsDTO;
 import com.aratiri.admin.application.dto.OpenChannelRequestDTO;
 import com.aratiri.admin.application.dto.RemotesResponseDTO;
 import com.aratiri.admin.application.dto.TransactionStatsResponseDTO;
+import com.aratiri.admin.application.dto.WalletBalanceResponseDTO;
 import lnrpc.CloseStatusUpdate;
 import lnrpc.GetInfoResponse;
 import lnrpc.Peer;
@@ -32,6 +34,10 @@ public interface AdminPort {
     RemotesResponseDTO listNodes();
 
     ChannelBalanceResponseDTO getChannelBalance();
+
+    WalletBalanceResponseDTO getWalletBalance();
+
+    NewAddressResponseDTO generateTaprootAddress();
 
     TransactionStatsResponseDTO getTransactionStats(Instant from, Instant to);
 

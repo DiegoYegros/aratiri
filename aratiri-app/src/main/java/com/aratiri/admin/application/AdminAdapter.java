@@ -13,10 +13,12 @@ import com.aratiri.admin.application.dto.ConnectPeerRequestDTO;
 import com.aratiri.admin.application.dto.ListChannelsResponseDTO;
 import com.aratiri.admin.application.dto.NodeInfoDTO;
 import com.aratiri.admin.application.dto.NodeSettingsDTO;
+import com.aratiri.admin.application.dto.NewAddressResponseDTO;
 import com.aratiri.admin.application.dto.OpenChannelRequestDTO;
 import com.aratiri.admin.application.dto.RemotesResponseDTO;
 import com.aratiri.admin.application.dto.TransactionStatsDTO;
 import com.aratiri.admin.application.dto.TransactionStatsResponseDTO;
+import com.aratiri.admin.application.dto.WalletBalanceResponseDTO;
 import io.grpc.StatusRuntimeException;
 import lnrpc.ChannelBalanceResponse;
 import lnrpc.ChannelEdge;
@@ -30,6 +32,8 @@ import lnrpc.NodeAddress;
 import lnrpc.NodeMetricType;
 import lnrpc.NodeMetricsResponse;
 import lnrpc.Peer;
+import lnrpc.WalletBalanceResponse;
+import lnrpc.AddressType;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -171,6 +175,23 @@ public class AdminAdapter implements AdminPort {
         return ChannelBalanceResponseDTO.builder()
                 .localBalance(new AmountDTO(balance.getLocalBalance().getSat(), balance.getLocalBalance().getMsat()))
                 .remoteBalance(new AmountDTO(balance.getRemoteBalance().getSat(), balance.getRemoteBalance().getMsat()))
+                .build();
+    }
+
+    @Override
+    public WalletBalanceResponseDTO getWalletBalance() {
+        WalletBalanceResponse balance = lightningNodeAdminPort.getWalletBalance();
+        return WalletBalanceResponseDTO.builder()
+                .confirmedBalance(balance.getConfirmedBalance())
+                .unconfirmedBalance(balance.getUnconfirmedBalance())
+                .build();
+    }
+
+    @Override
+    public NewAddressResponseDTO generateTaprootAddress() {
+        String address = lightningNodeAdminPort.generateAddress(AddressType.TAPROOT_PUBKEY);
+        return NewAddressResponseDTO.builder()
+                .address(address)
                 .build();
     }
 

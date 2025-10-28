@@ -8,10 +8,12 @@ import com.aratiri.admin.application.dto.ConnectPeerRequestDTO;
 import com.aratiri.admin.application.dto.ListChannelsResponseDTO;
 import com.aratiri.admin.application.dto.NodeInfoResponseDTO;
 import com.aratiri.admin.application.dto.NodeSettingsDTO;
+import com.aratiri.admin.application.dto.NewAddressResponseDTO;
 import com.aratiri.admin.application.dto.OpenChannelRequestDTO;
 import com.aratiri.admin.application.dto.PeerDTO;
 import com.aratiri.admin.application.dto.RemotesResponseDTO;
 import com.aratiri.admin.application.dto.TransactionStatsResponseDTO;
+import com.aratiri.admin.application.dto.WalletBalanceResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -158,6 +160,18 @@ public class AdminAPI {
     @Operation(summary = "Get channel balance", description = "Gets the channel balance of the LND node")
     public ResponseEntity<ChannelBalanceResponseDTO> getChannelBalance() {
         return ResponseEntity.ok(adminPort.getChannelBalance());
+    }
+
+    @GetMapping("/wallet/balance")
+    @Operation(summary = "Get wallet balance", description = "Retrieves confirmed and unconfirmed wallet balances")
+    public ResponseEntity<WalletBalanceResponseDTO> getWalletBalance() {
+        return ResponseEntity.ok(adminPort.getWalletBalance());
+    }
+
+    @PostMapping("/wallet/address")
+    @Operation(summary = "Generate a new Taproot address", description = "Creates a new Taproot (P2TR) on-chain address")
+    public ResponseEntity<NewAddressResponseDTO> generateTaprootAddress() {
+        return ResponseEntity.ok(adminPort.generateTaprootAddress());
     }
 
     @GetMapping("/transaction-stats")

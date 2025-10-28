@@ -9,6 +9,8 @@ import lnrpc.ListChannelsResponse;
 import lnrpc.NodeMetricsResponse;
 import lnrpc.PendingChannelsResponse;
 import lnrpc.Peer;
+import lnrpc.WalletBalanceResponse;
+import lnrpc.AddressType;
 
 import java.util.List;
 
@@ -29,6 +31,10 @@ public interface LightningNodeAdminPort {
     GetInfoResponse getNodeInfo();
 
     ChannelBalanceResponse getChannelBalance();
+
+    WalletBalanceResponse getWalletBalance();
+
+    String generateAddress(AddressType type);
 
     void connectPeer(String pubkey, String host);
 
