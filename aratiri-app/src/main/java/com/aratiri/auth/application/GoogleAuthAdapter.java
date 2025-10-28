@@ -13,6 +13,7 @@ import com.aratiri.auth.domain.GoogleUserProfile;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.accounts.application.dto.CreateAccountRequestDTO;
 import com.aratiri.auth.domain.AuthProvider;
+import com.aratiri.auth.domain.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -52,13 +53,13 @@ public class GoogleAuthAdapter implements GoogleAuthPort {
             AuthUser user = loadUserPort.findByEmail(profile.email())
                     .map(existing -> {
                         if (existing.provider() != AuthProvider.GOOGLE) {
-                            throw new AratiriException("This email is registered with a password. Please use the standard login.", HttpStatus.BAD_REQUEST.value());
+                            throw new AratiriException("This email is registered with a different identity provider. Please use that provider to sign in.", HttpStatus.BAD_REQUEST.value());
                         }
                         return existing;
                     })
                     .orElseGet(() -> {
                         logger.info("Creating new user for email via Google SSO: {}", profile.email());
-                        AuthUser newUser = userCommandPort.registerSocialUser(profile.name(), profile.email(), AuthProvider.GOOGLE);
+                        AuthUser newUser = userCommandPort.registerSocialUser(profile.name(), profile.email(), AuthProvider.GOOGLE, Role.USER);
                         CreateAccountRequestDTO createAccountRequest = new CreateAccountRequestDTO();
                         createAccountRequest.setUserId(newUser.id());
                         accountsPort.createAccount(createAccountRequest, newUser.id());

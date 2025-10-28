@@ -42,13 +42,13 @@ public class UserRepositoryAdapter implements LoadUserPort, UserCommandPort {
     }
 
     @Override
-    public AuthUser registerSocialUser(String name, String email, AuthProvider provider) {
+    public AuthUser registerSocialUser(String name, String email, AuthProvider provider, Role role) {
         UserEntity entity = new UserEntity();
         entity.setName(name);
         entity.setEmail(email);
         entity.setPassword(null);
         entity.setAuthProvider(provider);
-        entity.setRole(Role.USER);
+        entity.setRole(role == null ? Role.USER : role);
         return toDomain(userRepository.save(entity));
     }
 

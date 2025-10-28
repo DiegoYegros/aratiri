@@ -1,24 +1,10 @@
 package com.aratiri.auth;
 
-import com.aratiri.auth.application.port.in.AuthPort;
-import com.aratiri.auth.application.port.in.GoogleAuthPort;
-import com.aratiri.auth.application.port.in.PasswordResetCompletionCommand;
-import com.aratiri.auth.application.port.in.PasswordResetPort;
-import com.aratiri.auth.application.port.in.PasswordResetRequestCommand;
-import com.aratiri.auth.application.port.in.RegistrationCommand;
-import com.aratiri.auth.application.port.in.RegistrationPort;
-import com.aratiri.auth.application.port.in.TokenRefreshPort;
-import com.aratiri.auth.application.port.in.VerificationCommand;
+import com.aratiri.auth.application.dto.*;
+import com.aratiri.auth.application.port.in.*;
 import com.aratiri.auth.domain.AuthTokens;
+import com.aratiri.infrastructure.configuration.security.AratiriSecurityProperties;
 import com.aratiri.shared.exception.ErrorResponse;
-import com.aratiri.auth.application.dto.AuthRequestDTO;
-import com.aratiri.auth.application.dto.AuthResponseDTO;
-import com.aratiri.auth.application.dto.LogoutRequestDTO;
-import com.aratiri.auth.application.dto.PasswordResetDTOs;
-import com.aratiri.auth.application.dto.RefreshTokenRequestDTO;
-import com.aratiri.auth.application.dto.RegistrationRequestDTO;
-import com.aratiri.auth.application.dto.VerificationRequestDTO;
-import com.aratiri.auth.application.dto.UserDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -26,13 +12,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 @RestController
 @RequestMapping("/v1/auth")
@@ -42,6 +29,8 @@ public class AuthAPI {
     private final AuthPort authPort;
     private final GoogleAuthPort googleAuthPort;
     private final TokenRefreshPort tokenRefreshPort;
+    private final TokenExchangePort tokenExchangePort;
+    private final AratiriSecurityProperties securityProperties;
     private final RegistrationPort registrationPort;
     private final PasswordResetPort passwordResetPort;
 
@@ -49,13 +38,17 @@ public class AuthAPI {
             AuthPort authPort,
             GoogleAuthPort googleAuthPort,
             TokenRefreshPort tokenRefreshPort,
+            TokenExchangePort tokenExchangePort,
             RegistrationPort registrationPort,
-            PasswordResetPort passwordResetPort) {
+            PasswordResetPort passwordResetPort,
+            AratiriSecurityProperties securityProperties) {
         this.authPort = authPort;
         this.googleAuthPort = googleAuthPort;
         this.tokenRefreshPort = tokenRefreshPort;
+        this.tokenExchangePort = tokenExchangePort;
         this.registrationPort = registrationPort;
         this.passwordResetPort = passwordResetPort;
+        this.securityProperties = securityProperties;
     }
 
     @PostMapping("/login")
@@ -122,6 +115,18 @@ public class AuthAPI {
         return ResponseEntity.ok(new AuthResponseDTO(tokens.accessToken(), tokens.refreshToken()));
     }
 
+    @PostMapping("/exchange")
+    @Operation(summary = "Exchange external token for Aratiri access token")
+    public ResponseEntity<AuthResponseDTO> exchangeToken(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+            @Valid @RequestBody TokenExchangeRequestDTO request
+    ) {
+        ensureTokenExchangeEnabled();
+        validateClientCredentials(authorization);
+        AuthTokens tokens = tokenExchangePort.exchange(request.getExternalToken());
+        return ResponseEntity.ok(new AuthResponseDTO(tokens.accessToken(), tokens.refreshToken()));
+    }
+
     @PostMapping("/logout")
     @Operation(summary = "User logout")
     public ResponseEntity<Void> logout(@RequestBody LogoutRequestDTO request) {
@@ -165,5 +170,37 @@ public class AuthAPI {
                 request.getNewPassword()
         ));
         return ResponseEntity.ok().build();
+    }
+
+    private void ensureTokenExchangeEnabled() {
+        if (!securityProperties.getTokenExchange().isEnabled()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Token exchange is disabled");
+        }
+    }
+
+    private void validateClientCredentials(String authorizationHeader) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Basic ")) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing Basic authentication header");
+        }
+
+        String base64Credentials = authorizationHeader.substring(6).trim();
+        byte[] decoded;
+        try {
+            decoded = Base64.getDecoder().decode(base64Credentials);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Basic authentication header");
+        }
+        String[] parts = new String(decoded, StandardCharsets.UTF_8).split(":", 2);
+        if (parts.length != 2) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Basic authentication header");
+        }
+
+        String clientId = securityProperties.getTokenExchange().getClientId();
+        String clientSecret = securityProperties.getTokenExchange().getClientSecret();
+        if (clientId == null || clientSecret == null
+                || !clientId.equals(parts[0])
+                || !clientSecret.equals(parts[1])) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid client credentials");
+        }
     }
 }

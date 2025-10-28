@@ -50,11 +50,8 @@ public class PasswordResetAdapter implements PasswordResetPort {
     public void initiatePasswordReset(PasswordResetRequestCommand command) {
         AuthUser user = loadUserPort.findByEmail(command.email())
                 .orElseThrow(() -> new AratiriException("User with this email not found.", HttpStatus.NOT_FOUND.value()));
-        if (user.provider() == AuthProvider.GOOGLE) {
-            throw new AratiriException("This account is registered with Google. Please log in using your Google account.", HttpStatus.BAD_REQUEST.value());
-        }
         if (user.provider() != AuthProvider.LOCAL) {
-            throw new AratiriException("Invalid Auth Provider for Password Reset. Please Contact Support for further assistance.");
+            throw new AratiriException("This account is federated. Please log in using your identity provider.", HttpStatus.BAD_REQUEST.value());
         }
         String code = generateResetCode();
         PasswordResetToken token = new PasswordResetToken(
@@ -70,6 +67,9 @@ public class PasswordResetAdapter implements PasswordResetPort {
     public void completePasswordReset(PasswordResetCompletionCommand command) {
         AuthUser user = loadUserPort.findByEmail(command.email())
                 .orElseThrow(() -> new AratiriException("User not found.", HttpStatus.NOT_FOUND.value()));
+        if (user.provider() != AuthProvider.LOCAL) {
+            throw new AratiriException("This account is federated. Please log in using your identity provider.", HttpStatus.BAD_REQUEST.value());
+        }
         PasswordResetToken token = passwordResetTokenPort.findByUserId(user.id())
                 .orElseThrow(() -> new AratiriException("Invalid password reset request.", HttpStatus.BAD_REQUEST.value()));
         if (token.isExpired(clock)) {

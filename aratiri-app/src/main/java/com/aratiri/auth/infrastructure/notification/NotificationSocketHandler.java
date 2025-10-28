@@ -1,9 +1,11 @@
 package com.aratiri.auth.infrastructure.notification;
 
-import com.aratiri.auth.application.port.out.LoadUserPort;
-import com.aratiri.auth.infrastructure.jwt.JwtUtil;
+import com.aratiri.auth.infrastructure.security.AratiriJwtPrincipalService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -20,12 +22,12 @@ public class NotificationSocketHandler extends TextWebSocketHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationSocketHandler.class);
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
-    private final JwtUtil jwtUtil;
-    private final LoadUserPort loadUserPort;
+    private final JwtDecoder jwtDecoder;
+    private final AratiriJwtPrincipalService principalService;
 
-    public NotificationSocketHandler(JwtUtil jwtUtil, LoadUserPort loadUserPort) {
-        this.jwtUtil = jwtUtil;
-        this.loadUserPort = loadUserPort;
+    public NotificationSocketHandler(JwtDecoder jwtDecoder, AratiriJwtPrincipalService principalService) {
+        this.jwtDecoder = jwtDecoder;
+        this.principalService = principalService;
     }
 
     @Override
@@ -73,23 +75,13 @@ public class NotificationSocketHandler extends TextWebSocketHandler {
                 return null;
             }
 
-            String email = jwtUtil.extractUsername(token);
-            if (email == null) {
-                logger.warn("Could not extract email from token.");
-                return null;
-            }
-
-            String userId = loadUserPort.findByEmail(email)
-                    .map(authUser -> authUser.id())
-                    .orElse(null);
-
-            if (userId != null) {
-                session.getAttributes().put("userId", userId);
-            } else {
-                logger.warn("No user found for email: {}", email);
-            }
-
+            Jwt jwt = jwtDecoder.decode(token);
+            String userId = principalService.resolveUser(jwt).id();
+            session.getAttributes().put("userId", userId);
             return userId;
+        } catch (JwtException ex) {
+            logger.warn("JWT validation failed during WebSocket handshake: {}", ex.getMessage());
+            return null;
         } catch (Exception e) {
             logger.error("Failed to extract user from session URI: {}", e.getMessage());
             return null;
