@@ -1,7 +1,9 @@
 package com.aratiri.infrastructure.configuration;
 
-import com.aratiri.infrastructure.filter.JwtAuthenticationFilter;
-import lombok.AllArgsConstructor;
+import com.aratiri.auth.infrastructure.security.AratiriJwtAuthenticationConverter;
+import com.aratiri.auth.infrastructure.security.ChainedJwtDecoder;
+import com.aratiri.infrastructure.configuration.security.AratiriSecurityProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
@@ -17,19 +19,31 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
+
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@AllArgsConstructor
+@EnableConfigurationProperties(AratiriSecurityProperties.class)
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AuthenticationEntryPoint authenticationEntryPoint;
+    private final AratiriJwtAuthenticationConverter jwtAuthenticationConverter;
+
+    public SecurityConfig(AuthenticationEntryPoint authenticationEntryPoint,
+                          AratiriJwtAuthenticationConverter jwtAuthenticationConverter) {
+        this.authenticationEntryPoint = authenticationEntryPoint;
+        this.jwtAuthenticationConverter = jwtAuthenticationConverter;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
@@ -42,6 +56,7 @@ public class SecurityConfig {
                                 "/v1/auth/forgot-password",
                                 "/v1/auth/reset-password",
                                 "/v1/auth/refresh",
+                                "/v1/auth/exchange",
                                 "/h2-console/**",
                                 "/.well-known/lnurlp/**",
                                 "/lnurl/callback/**",
@@ -61,7 +76,9 @@ public class SecurityConfig {
                 )
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authenticationEntryPoint))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
+                )
                 .build();
     }
 
@@ -87,5 +104,59 @@ public class SecurityConfig {
     @Bean
     public BCryptPasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public JwtDecoder jwtDecoder(AratiriProperties aratiriProperties, AratiriSecurityProperties securityProperties) {
+        List<JwtDecoder> decoders = new ArrayList<>();
+
+        if (aratiriProperties.getJwtSecret() != null && !aratiriProperties.getJwtSecret().isEmpty()) {
+            SecretKeySpec secretKey = new SecretKeySpec(aratiriProperties.getJwtSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            NimbusJwtDecoder localDecoder = NimbusJwtDecoder.withSecretKey(secretKey).build();
+            localDecoder.setJwtValidator(JwtValidators.createDefault());
+            decoders.add(localDecoder);
+        }
+
+        if (securityProperties.getTrustedIssuers() != null) {
+            securityProperties.getTrustedIssuers().forEach(trustedIssuer -> {
+                JwtDecoder decoder = buildTrustedIssuerDecoder(trustedIssuer);
+                if (decoder != null) {
+                    decoders.add(decoder);
+                }
+            });
+        }
+
+        if (decoders.isEmpty()) {
+            throw new IllegalStateException("No JWT decoders configured. Provide a JWT secret or trusted issuer configuration.");
+        }
+
+        return new ChainedJwtDecoder(decoders);
+    }
+
+    private JwtDecoder buildTrustedIssuerDecoder(AratiriSecurityProperties.TrustedIssuer trustedIssuer) {
+        NimbusJwtDecoder decoder;
+        if (trustedIssuer.getJwkSetUri() != null && !trustedIssuer.getJwkSetUri().isEmpty()) {
+            decoder = NimbusJwtDecoder.withJwkSetUri(trustedIssuer.getJwkSetUri()).build();
+        } else if (trustedIssuer.getIssuerUri() != null && !trustedIssuer.getIssuerUri().isEmpty()) {
+            JwtDecoder resolved = JwtDecoders.fromIssuerLocation(trustedIssuer.getIssuerUri());
+            if (resolved instanceof NimbusJwtDecoder nimbusJwtDecoder) {
+                decoder = nimbusJwtDecoder;
+            } else {
+                return resolved;
+            }
+        } else {
+            return null;
+        }
+
+        OAuth2TokenValidator<Jwt> validator;
+        if (trustedIssuer.getIssuer() != null && !trustedIssuer.getIssuer().isEmpty()) {
+            validator = JwtValidators.createDefaultWithIssuer(trustedIssuer.getIssuer());
+        } else if (trustedIssuer.getIssuerUri() != null && !trustedIssuer.getIssuerUri().isEmpty()) {
+            validator = JwtValidators.createDefaultWithIssuer(trustedIssuer.getIssuerUri());
+        } else {
+            validator = JwtValidators.createDefault();
+        }
+        decoder.setJwtValidator(validator);
+        return decoder;
     }
 }

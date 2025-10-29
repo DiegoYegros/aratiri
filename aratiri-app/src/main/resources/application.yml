@@ -83,6 +83,23 @@ aratiri:
   accounts:
     fiat:
       currencies: ${ARATIRI_ACCOUNTS_FIAT_CURRENCIES:usd,pyg,ars,eur}
+  security:
+    default-principal-claim: ${ARATIRI_SECURITY_DEFAULT_PRINCIPAL_CLAIM:email}
+    token-exchange:
+      enabled: ${ARATIRI_TOKEN_EXCHANGE_ENABLED:false}
+      client-id: ${ARATIRI_TOKEN_EXCHANGE_CLIENT_ID:}
+      client-secret: ${ARATIRI_TOKEN_EXCHANGE_CLIENT_SECRET:}
+    trusted-issuers:
+      - issuer: ${ARATIRI_TRUSTED_ISSUER:http://localhost:8000}
+        jwk-set-uri: ${ARATIRI_TRUSTED_ISSUER_JWK_SET_URI:http://localhost:8000/jwks.json}
+        principal-claim: ${ARATIRI_TRUSTED_ISSUER_PRINCIPAL_CLAIM:email}
+        name-claim: ${ARATIRI_TRUSTED_ISSUER_NAME_CLAIM:name}
+        auto-provision-user: ${ARATIRI_TRUSTED_ISSUER_AUTO_PROVISION:true}
+        auto-provision-account: ${ARATIRI_TRUSTED_ISSUER_AUTO_ACCOUNT:true}
+        audience:
+          - aratiri-local
+        provider: ${ARATIRI_TRUSTED_ISSUER_PROVIDER:EXTERNAL}
+        default-role: ${ARATIRI_TRUSTED_ISSUER_DEFAULT_ROLE:USER}
 nostr:
   active: ${NOSTR_ACTIVE:true}
   relay:

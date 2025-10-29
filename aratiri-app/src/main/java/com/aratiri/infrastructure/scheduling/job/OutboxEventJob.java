@@ -1,8 +1,8 @@
 package com.aratiri.infrastructure.scheduling.job;
 
-import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.infrastructure.messaging.producer.OutboxEventProducer;
+import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
