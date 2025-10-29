@@ -1,19 +1,11 @@
 package com.aratiri.auth.application;
 
+import com.aratiri.accounts.application.dto.CreateAccountRequestDTO;
 import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.auth.application.port.in.GoogleAuthPort;
-import com.aratiri.auth.application.port.out.AccessTokenPort;
-import com.aratiri.auth.application.port.out.GoogleTokenVerifierPort;
-import com.aratiri.auth.application.port.out.LoadUserPort;
-import com.aratiri.auth.application.port.out.RefreshTokenPort;
-import com.aratiri.auth.application.port.out.UserCommandPort;
-import com.aratiri.auth.domain.AuthTokens;
-import com.aratiri.auth.domain.AuthUser;
-import com.aratiri.auth.domain.GoogleUserProfile;
+import com.aratiri.auth.application.port.out.*;
+import com.aratiri.auth.domain.*;
 import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.accounts.application.dto.CreateAccountRequestDTO;
-import com.aratiri.auth.domain.AuthProvider;
-import com.aratiri.auth.domain.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;

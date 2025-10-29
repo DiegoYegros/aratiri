@@ -1,10 +1,10 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
+import com.aratiri.auth.application.port.out.NotificationPort;
 import com.aratiri.infrastructure.messaging.KafkaTopics;
-import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.payments.application.event.PaymentSentEvent;
-import com.aratiri.auth.application.port.out.NotificationPort;
+import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

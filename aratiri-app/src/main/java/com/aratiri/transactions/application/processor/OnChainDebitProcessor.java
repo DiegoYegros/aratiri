@@ -1,11 +1,11 @@
 package com.aratiri.transactions.application.processor;
 
-import com.aratiri.shared.constants.BitcoinConstants;
-import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
-import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
+import com.aratiri.shared.constants.BitcoinConstants;
+import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.transactions.application.dto.TransactionType;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

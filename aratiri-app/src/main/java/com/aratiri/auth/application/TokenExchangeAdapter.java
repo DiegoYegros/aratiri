@@ -50,7 +50,7 @@ public class TokenExchangeAdapter implements TokenExchangePort {
             String refreshToken = refreshTokenPort.createRefreshToken(user.id()).token();
             return new AuthTokens(accessToken, refreshToken);
         } catch (JwtException ex) {
-            throw new AratiriException("External token validation failed", HttpStatus.UNAUTHORIZED.value());
+            throw new AratiriException(ex.getMessage(), HttpStatus.BAD_REQUEST.value());
         }
     }
 }

@@ -1,12 +1,12 @@
 package com.aratiri.accounts;
 
 
-import com.aratiri.infrastructure.web.context.AratiriContext;
-import com.aratiri.infrastructure.web.context.AratiriCtx;
 import com.aratiri.accounts.application.dto.AccountDTO;
 import com.aratiri.accounts.application.dto.AccountTransactionsDTOResponse;
 import com.aratiri.accounts.application.dto.CreateAccountRequestDTO;
 import com.aratiri.accounts.application.port.in.AccountsPort;
+import com.aratiri.infrastructure.web.context.AratiriContext;
+import com.aratiri.infrastructure.web.context.AratiriCtx;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

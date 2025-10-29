@@ -1,7 +1,7 @@
 package com.aratiri.auth.application.port.out;
 
-import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.AuthProvider;
+import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.Role;
 
 public interface UserCommandPort {

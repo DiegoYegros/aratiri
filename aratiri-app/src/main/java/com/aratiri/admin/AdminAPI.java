@@ -1,19 +1,8 @@
 package com.aratiri.admin;
 
+import com.aratiri.admin.application.dto.*;
 import com.aratiri.admin.application.port.in.AdminPort;
 import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.admin.application.dto.ChannelBalanceResponseDTO;
-import com.aratiri.admin.application.dto.CloseChannelRequestDTO;
-import com.aratiri.admin.application.dto.ConnectPeerRequestDTO;
-import com.aratiri.admin.application.dto.ListChannelsResponseDTO;
-import com.aratiri.admin.application.dto.NodeInfoResponseDTO;
-import com.aratiri.admin.application.dto.NodeSettingsDTO;
-import com.aratiri.admin.application.dto.NewAddressResponseDTO;
-import com.aratiri.admin.application.dto.OpenChannelRequestDTO;
-import com.aratiri.admin.application.dto.PeerDTO;
-import com.aratiri.admin.application.dto.RemotesResponseDTO;
-import com.aratiri.admin.application.dto.TransactionStatsResponseDTO;
-import com.aratiri.admin.application.dto.WalletBalanceResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -25,13 +14,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.time.LocalDate;

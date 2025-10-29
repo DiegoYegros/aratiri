@@ -1,8 +1,8 @@
 package com.aratiri.generaldata;
 
+import com.aratiri.generaldata.application.port.in.GeneralDataPort;
 import com.aratiri.infrastructure.web.context.AratiriContext;
 import com.aratiri.infrastructure.web.context.AratiriCtx;
-import com.aratiri.generaldata.application.port.in.GeneralDataPort;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

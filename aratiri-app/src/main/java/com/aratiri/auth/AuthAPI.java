@@ -4,6 +4,7 @@ import com.aratiri.auth.application.dto.*;
 import com.aratiri.auth.application.port.in.*;
 import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.infrastructure.configuration.security.AratiriSecurityProperties;
+import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.shared.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,7 +17,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -121,7 +121,6 @@ public class AuthAPI {
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @Valid @RequestBody TokenExchangeRequestDTO request
     ) {
-        ensureTokenExchangeEnabled();
         validateClientCredentials(authorization);
         AuthTokens tokens = tokenExchangePort.exchange(request.getExternalToken());
         return ResponseEntity.ok(new AuthResponseDTO(tokens.accessToken(), tokens.refreshToken()));
@@ -172,15 +171,9 @@ public class AuthAPI {
         return ResponseEntity.ok().build();
     }
 
-    private void ensureTokenExchangeEnabled() {
-        if (!securityProperties.getTokenExchange().isEnabled()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Token exchange is disabled");
-        }
-    }
-
     private void validateClientCredentials(String authorizationHeader) {
         if (authorizationHeader == null || !authorizationHeader.startsWith("Basic ")) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing Basic authentication header");
+            throw new AratiriException("Missing Basic authentication header", HttpStatus.UNAUTHORIZED.value());
         }
 
         String base64Credentials = authorizationHeader.substring(6).trim();
@@ -188,11 +181,11 @@ public class AuthAPI {
         try {
             decoded = Base64.getDecoder().decode(base64Credentials);
         } catch (IllegalArgumentException ex) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Basic authentication header");
+            throw new AratiriException("Invalid Basic authentication header", HttpStatus.UNAUTHORIZED.value());
         }
         String[] parts = new String(decoded, StandardCharsets.UTF_8).split(":", 2);
         if (parts.length != 2) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Basic authentication header");
+            throw new AratiriException("Invalid Basic authentication header", HttpStatus.UNAUTHORIZED.value());
         }
 
         String clientId = securityProperties.getTokenExchange().getClientId();
@@ -200,7 +193,7 @@ public class AuthAPI {
         if (clientId == null || clientSecret == null
                 || !clientId.equals(parts[0])
                 || !clientSecret.equals(parts[1])) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid client credentials");
+            throw new AratiriException("Invalid client credentials", HttpStatus.UNAUTHORIZED.value());
         }
     }
 }

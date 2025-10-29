@@ -1,14 +1,14 @@
 package com.aratiri.payments.application.invoice;
 
+import com.aratiri.auth.application.port.out.NotificationPort;
+import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.infrastructure.persistence.jpa.entity.InvoiceSubscriptionState;
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
-import com.aratiri.infrastructure.messaging.KafkaTopics;
-import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
-import com.aratiri.auth.application.port.out.NotificationPort;
+import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lnrpc.Invoice;
 import org.slf4j.Logger;
