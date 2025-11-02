@@ -6,7 +6,6 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -28,8 +27,8 @@ public class TransactionEntity {
     @Column(name = "user_id", nullable = false)
     private String userId;
 
-    @Column(name = "amount", nullable = false, precision = 20, scale = 8)
-    private BigDecimal amount;
+    @Column(name = "amount", nullable = false)
+    private long amount;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 30, nullable = false)

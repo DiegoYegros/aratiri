@@ -1,16 +1,11 @@
 package com.aratiri.transactions.application;
 
 import com.aratiri.infrastructure.messaging.KafkaTopics;
-import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
+import com.aratiri.infrastructure.persistence.jpa.entity.*;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
-import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
@@ -27,7 +22,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -80,8 +74,8 @@ public class TransactionsAdapter implements TransactionsPort {
         if (processor == null) {
             throw new IllegalStateException("No processor configured for type: " + transaction.getType());
         }
-        BigDecimal newBalance = processor.process(transaction);
-        appendStatusEvent(transaction, TransactionStatus.COMPLETED, newBalance, null);
+        long newBalanceSat = processor.process(transaction);
+        appendStatusEvent(transaction, TransactionStatus.COMPLETED, newBalanceSat, null);
         logger.info("Recorded COMPLETED event for transaction [{}]", id);
         return mapToDto(aggregateTransaction(transaction));
     }
@@ -108,8 +102,8 @@ public class TransactionsAdapter implements TransactionsPort {
         }
         TransactionEntity savedTransaction = transactionsRepository.save(transaction);
         appendStatusEvent(savedTransaction, TransactionStatus.PENDING, null, null);
-        BigDecimal newBalance = processor.process(savedTransaction);
-        appendStatusEvent(savedTransaction, TransactionStatus.COMPLETED, newBalance, null);
+        long newBalanceSat = processor.process(savedTransaction);
+        appendStatusEvent(savedTransaction, TransactionStatus.COMPLETED, newBalanceSat, null);
         logger.info("Created transaction [{}] and appended COMPLETED event", savedTransaction.getId());
         return mapToDto(aggregateTransaction(savedTransaction));
     }
@@ -174,11 +168,10 @@ public class TransactionsAdapter implements TransactionsPort {
                     transaction.getType());
             throw new AratiriException("Routing fees can only be applied to Lightning debit transactions.");
         }
-        BigDecimal feeInBtc = BitcoinConstants.satoshisToBtc(feeSat);
         TransactionEventEntity event = TransactionEventEntity.builder()
                 .transaction(transaction)
                 .eventType(TransactionEventType.FEE_ADDED)
-                .amountDelta(feeInBtc)
+                .amountDelta(feeSat)
                 .build();
         transactionEventRepository.save(event);
         logger.info("Added [{}] sats in routing fees to transaction [{}].", feeSat, transactionId);
@@ -189,9 +182,9 @@ public class TransactionsAdapter implements TransactionsPort {
         return TransactionDTOResponse.builder()
                 .id(transaction.getId())
                 .createdAt(OffsetDateTime.from(transaction.getCreatedAt().atZone(ZoneId.systemDefault())))
-                .amount(aggregate.amount())
+                .amountSat(aggregate.amountSat())
                 .type(transaction.getType())
-                .balanceAfter(aggregate.balanceAfter())
+                .balanceAfterSat(aggregate.balanceAfterSat())
                 .description(transaction.getDescription())
                 .failureReason(aggregate.failureReason())
                 .referenceId(transaction.getReferenceId())
@@ -218,30 +211,30 @@ public class TransactionsAdapter implements TransactionsPort {
             TransactionEntity transaction,
             List<TransactionEventEntity> events,
             TransactionStatus status,
-            BigDecimal amount,
-            BigDecimal balanceAfter,
+            long amountSat,
+            Long balanceAfterSat,
             String failureReason
     ) {
 
         static TransactionAggregate from(TransactionEntity transaction, List<TransactionEventEntity> events) {
             TransactionStatus status = TransactionStatus.PENDING;
-            BigDecimal amount = transaction.getAmount();
-            BigDecimal balanceAfter = null;
+            long amountSat = transaction.getAmount();
+            Long balanceAfterSat = null;
             String failureReason = null;
             for (TransactionEventEntity event : events) {
                 if (event.getEventType() == TransactionEventType.STATUS_CHANGED && event.getStatus() != null) {
                     status = event.getStatus();
                     if (event.getBalanceAfter() != null) {
-                        balanceAfter = event.getBalanceAfter();
+                        balanceAfterSat = event.getBalanceAfter();
                     }
                     if (event.getDetails() != null) {
                         failureReason = event.getDetails();
                     }
                 } else if (event.getEventType() == TransactionEventType.FEE_ADDED && event.getAmountDelta() != null) {
-                    amount = amount.add(event.getAmountDelta());
+                    amountSat += event.getAmountDelta();
                 }
             }
-            return new TransactionAggregate(transaction, events, status, amount, balanceAfter, failureReason);
+            return new TransactionAggregate(transaction, events, status, amountSat, balanceAfterSat, failureReason);
         }
 
         boolean isPending() {
@@ -260,12 +253,12 @@ public class TransactionsAdapter implements TransactionsPort {
         if (!senderAggregate.isPending()) {
             throw new AratiriException("Sender transaction is not pending and cannot be processed for internal transfer.");
         }
-        BigDecimal senderBalance = debitProcessor.process(senderTx);
+        long senderBalance = debitProcessor.process(senderTx);
         appendStatusEvent(senderTx, TransactionStatus.COMPLETED, senderBalance, null);
 
         CreateTransactionRequest creditRequest = new CreateTransactionRequest(
                 event.getReceiverId(),
-                BitcoinConstants.satoshisToBtc(event.getAmountSat()),
+                event.getAmountSat(),
                 TransactionCurrency.BTC,
                 TransactionType.LIGHTNING_CREDIT,
                 TransactionStatus.COMPLETED,
@@ -317,7 +310,7 @@ public class TransactionsAdapter implements TransactionsPort {
     private TransactionEntity buildTransactionEntity(CreateTransactionRequest request) {
         TransactionEntity transaction = new TransactionEntity();
         transaction.setUserId(request.getUserId());
-        transaction.setAmount(request.getAmount());
+        transaction.setAmount(request.getAmountSat());
         transaction.setCurrency(request.getCurrency());
         transaction.setType(request.getType());
         transaction.setDescription(request.getDescription());
@@ -325,7 +318,7 @@ public class TransactionsAdapter implements TransactionsPort {
         return transaction;
     }
 
-    private void appendStatusEvent(TransactionEntity transaction, TransactionStatus status, BigDecimal balanceAfter, String details) {
+    private void appendStatusEvent(TransactionEntity transaction, TransactionStatus status, Long balanceAfter, String details) {
         TransactionEventEntity event = TransactionEventEntity.builder()
                 .transaction(transaction)
                 .eventType(TransactionEventType.STATUS_CHANGED)

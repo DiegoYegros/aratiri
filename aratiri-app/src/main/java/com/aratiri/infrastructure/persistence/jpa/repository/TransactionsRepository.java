@@ -33,8 +33,8 @@ public interface TransactionsRepository extends JpaRepository<TransactionEntity,
     @Query("SELECT new com.aratiri.admin.application.dto.TransactionStatsDTO(" +
             "CAST(t.createdAt AS LocalDate), " +
             "CASE WHEN t.type LIKE '%CREDIT%' THEN 'credit' ELSE 'debit' END, " +
-            "SUM(t.amount + COALESCE((SELECT SUM(f.amountDelta) FROM TransactionEventEntity f WHERE f.transaction = t " +
-            "AND f.eventType = com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType.FEE_ADDED), 0)), " +
+            "CAST(SUM(t.amount + COALESCE((SELECT SUM(f.amountDelta) FROM TransactionEventEntity f WHERE f.transaction = t " +
+            "AND f.eventType = com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType.FEE_ADDED), 0)) AS java.math.BigDecimal) / CAST(100000000 AS java.math.BigDecimal), " +
             "COUNT(t)) " +
             "FROM TransactionEntity t " +
             "WHERE t.createdAt >= :from AND t.createdAt <= :to " +

@@ -2,8 +2,6 @@ package com.aratiri.transactions.application.dto;
 
 import lombok.*;
 
-import java.math.BigDecimal;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -11,11 +9,10 @@ import java.math.BigDecimal;
 @ToString
 public class CreateTransactionRequest {
     private String userId;
-    private BigDecimal amount;
+    private long amountSat;
     private TransactionCurrency currency;
     private TransactionType type;
     private TransactionStatus status;
     private String description;
     private String referenceId;
 }
-

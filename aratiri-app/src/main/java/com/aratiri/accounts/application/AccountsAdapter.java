@@ -130,9 +130,8 @@ public class AccountsAdapter implements AccountsPort {
         return transactions.stream()
                 .filter(e -> e.getStatus() != TransactionStatus.FAILED)
                 .map(t -> {
-                    long satoshis = t.getAmount().multiply(BitcoinConstants.SATOSHIS_PER_BTC).longValue();
-                    BigDecimal amountInBtc = new BigDecimal(satoshis)
-                            .divide(BitcoinConstants.SATOSHIS_PER_BTC, 8, RoundingMode.HALF_UP);
+                    long satoshis = t.getAmountSat();
+                    BigDecimal amountInBtc = BitcoinConstants.satoshisToBtc(satoshis);
                     Map<String, BigDecimal> btcPrices = currencyConversionPort.getCurrentBtcPrice();
                     Map<String, BigDecimal> fiatEquivalents = btcPrices.entrySet().stream()
                             .collect(Collectors.toMap(

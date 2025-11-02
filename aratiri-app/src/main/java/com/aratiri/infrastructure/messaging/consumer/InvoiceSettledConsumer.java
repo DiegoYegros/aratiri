@@ -3,7 +3,6 @@ package com.aratiri.infrastructure.messaging.consumer;
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
-import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
 import com.aratiri.transactions.application.dto.TransactionCurrency;
@@ -25,9 +24,6 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
-
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 
 @Component
 @RequiredArgsConstructor
@@ -55,10 +51,9 @@ public class InvoiceSettledConsumer {
                 topic, partition, offset);
         try {
             InvoiceSettledEvent event = objectMapper.readValue(message, InvoiceSettledEvent.class);
-            BigDecimal amountInSats = new BigDecimal(event.getAmount());
-            BigDecimal amountInBTC = amountInSats.divide(BitcoinConstants.SATOSHIS_PER_BTC, 8, RoundingMode.HALF_UP);
-            log.info("Processing invoice settlement for user: {}, amount: {}, paymentRequest: {}, amountInBTC = {}",
-                    event.getUserId(), event.getAmount(), event.getPaymentHash(), amountInBTC);
+            long amountInSats = event.getAmount();
+            log.info("Processing invoice settlement for user: {}, amount: {} sats, paymentRequest: {}",
+                    event.getUserId(), amountInSats, event.getPaymentHash());
             String description = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash())
                     .map(LightningInvoiceEntity::getMemo)
                     .orElse(String.format("Payment received for invoice (hash: %s...)", event.getPaymentHash().substring(0, 10)));
@@ -71,7 +66,7 @@ public class InvoiceSettledConsumer {
             }
             CreateTransactionRequest request = new CreateTransactionRequest(
                     event.getUserId(),
-                    amountInBTC,
+                    amountInSats,
                     TransactionCurrency.BTC,
                     TransactionType.LIGHTNING_CREDIT,
                     TransactionStatus.COMPLETED,

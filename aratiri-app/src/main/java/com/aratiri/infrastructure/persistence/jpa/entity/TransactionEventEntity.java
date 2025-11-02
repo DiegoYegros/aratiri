@@ -5,7 +5,6 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
@@ -33,11 +32,11 @@ public class TransactionEventEntity {
     @Column(name = "status", length = 20)
     private TransactionStatus status;
 
-    @Column(name = "amount_delta", precision = 20, scale = 8)
-    private BigDecimal amountDelta;
+    @Column(name = "amount_delta")
+    private Long amountDelta;
 
-    @Column(name = "balance_after", precision = 20, scale = 8)
-    private BigDecimal balanceAfter;
+    @Column(name = "balance_after")
+    private Long balanceAfter;
 
     @Column(name = "details")
     private String details;
