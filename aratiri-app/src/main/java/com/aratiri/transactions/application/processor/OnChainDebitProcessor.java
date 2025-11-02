@@ -1,10 +1,9 @@
 package com.aratiri.transactions.application.processor;
 
-import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
-import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
+import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryType;
+import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import com.aratiri.shared.constants.BitcoinConstants;
-import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.TransactionType;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -18,25 +17,21 @@ import java.math.BigDecimal;
 public class OnChainDebitProcessor implements TransactionProcessor {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
-    private final AccountRepository accountRepository;
+    private final AccountLedgerService accountLedgerService;
 
     @Override
     public BigDecimal process(TransactionEntity transaction) {
-        AccountEntity account = accountRepository.findByUserId(transaction.getUserId());
-        if (account == null) {
-            throw new AratiriException("Account not found for user: " + transaction.getUserId());
-        }
-
         BigDecimal amountInBTC = transaction.getAmount();
         BigDecimal amountInSats = BitcoinConstants.btcToSatoshis(amountInBTC);
         logger.info("Debiting {} sats from account for on-chain transaction.", amountInSats);
-
-        long newBalance = account.getBalance() - amountInSats.longValue();
-        if (newBalance < 0) {
-            throw new AratiriException("Insufficient funds for transaction settlement.");
-        }
-        account.setBalance(newBalance);
-        accountRepository.save(account);
+        long delta = amountInSats.longValueExact() * -1L;
+        long newBalance = accountLedgerService.appendEntryForUser(
+                transaction.getUserId(),
+                transaction.getId(),
+                delta,
+                AccountEntryType.ONCHAIN_DEBIT,
+                "On-chain withdrawal"
+        );
         BigDecimal newBalanceInBtc = BitcoinConstants.satoshisToBtc(newBalance);
         logger.info("New balance in BTC: [{}]", newBalanceInBtc);
         return newBalanceInBtc;
