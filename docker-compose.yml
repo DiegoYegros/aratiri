@@ -96,12 +96,17 @@ services:
       - NOSTR_RETRY_INITIAL_DELAY=${NOSTR_RETRY_INITIAL_DELAY:-2000}
       - NOSTR_RETRY_MAX_DELAY=${NOSTR_RETRY_MAX_DELAY:-300000}
       - OTEL_SERVICE_NAME=aratiri-app
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       - OTEL_TRACES_EXPORTER=otlp
       - OTEL_METRICS_EXPORTER=otlp
       - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=grpc
+      - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=grpc
+      - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_METRICS_PROTOCOL=http/protobuf
       - OTEL_INSTRUMENTATION_KAFKA_PROPAGATION_ENABLED=true
-      - OTEL_INSTRUMENTATION_SPRING_WEB MVC_ENABLED=true
+      - OTEL_INSTRUMENTATION_SPRING_WEBMVC_ENABLED=true
     volumes:
       - ./secrets:/run/secrets:ro
     depends_on:
@@ -138,7 +143,7 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.106.0
     container_name: otel-collector
-    command: [ "--config=/etc/otel-collector-config.yml" ]
+    command: [ "--config=/etc/otel-collector-config.yml", "--feature-gates=-component.UseLocalHostAsDefaultHost" ]
     volumes:
       - ./observability/otel-collector-config.yml:/etc/otel-collector-config.yml
     ports:
@@ -147,7 +152,11 @@ services:
       - "8889:8889" # Prometheus exporter
     depends_on: [ jaeger, loki, prometheus ]
     profiles: [ "full-stack" ]
-    networks: [ aratiri-net ]
+    hostname: otel-collector
+    networks:
+      aratiri-net:
+        aliases:
+          - otel-collector
   jaeger:
       image: jaegertracing/all-in-one:1.59
       container_name: jaeger
