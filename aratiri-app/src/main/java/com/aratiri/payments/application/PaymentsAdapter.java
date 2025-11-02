@@ -181,6 +181,14 @@ public class PaymentsAdapter implements PaymentsPort {
         try {
             Payment finalPayment = lightningNodePort.executeLightningPayment(normalizedRequest, defaultFeeLimitSat, defaultTimeoutSeconds);
             if (finalPayment != null && finalPayment.getStatus() == Payment.PaymentStatus.SUCCEEDED) {
+                long feeSat = finalPayment.getFeeSat();
+                long feeMsat = finalPayment.getFeeMsat();
+                if (feeSat <= 0 && feeMsat > 0) {
+                    feeSat = (feeMsat + 999) / 1000;
+                }
+                if (feeSat > 0) {
+                    transactionsPort.addFeeToTransaction(transactionId, feeSat);
+                }
                 transactionsPort.confirmTransaction(transactionId, userId);
             } else {
                 String reason = finalPayment != null ? finalPayment.getFailureReason().toString() : "Unknown failure";

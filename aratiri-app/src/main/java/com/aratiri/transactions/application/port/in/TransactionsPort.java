@@ -21,4 +21,6 @@ public interface TransactionsPort {
     void failTransaction(String transactionId, String failureReason);
 
     void processInternalTransfer(InternalTransferInitiatedEvent eventPayload);
+
+    void addFeeToTransaction(String transactionId, long feeSat);
 }

@@ -148,6 +148,30 @@ public class TransactionsAdapter implements TransactionsPort {
         logger.info("Transaction [{}] has been marked as FAILED.", transactionId);
     }
 
+    @Override
+    @Transactional
+    public void addFeeToTransaction(String transactionId, long feeSat) {
+        if (feeSat <= 0) {
+            return;
+        }
+        TransactionEntity transaction = transactionsRepository.findById(transactionId)
+                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found for fee update.", transactionId)));
+        if (!TransactionStatus.PENDING.equals(transaction.getStatus())) {
+            logger.error("Attempted to add a routing fee to a transaction that was not PENDING. ID: {}, Current Status: {}",
+                    transactionId, transaction.getStatus());
+            throw new AratiriException(String.format("Transaction status [%s] is not valid for fee update.", transaction.getStatus()));
+        }
+        if (transaction.getType() != TransactionType.LIGHTNING_DEBIT) {
+            logger.error("Attempted to add a routing fee to a transaction of type [{}]. Only LIGHTNING_DEBIT is supported.",
+                    transaction.getType());
+            throw new AratiriException("Routing fees can only be applied to Lightning debit transactions.");
+        }
+        BigDecimal feeInBtc = BitcoinConstants.satoshisToBtc(feeSat);
+        transaction.setAmount(transaction.getAmount().add(feeInBtc));
+        transactionsRepository.save(transaction);
+        logger.info("Added [{}] sats in routing fees to transaction [{}].", feeSat, transactionId);
+    }
+
     private TransactionDTOResponse mapToDto(TransactionEntity savedTransaction) {
         return TransactionDTOResponse.builder().id(savedTransaction.getId())
                 .createdAt(OffsetDateTime.from(savedTransaction.getCreatedAt().atZone(ZoneId.systemDefault())))
