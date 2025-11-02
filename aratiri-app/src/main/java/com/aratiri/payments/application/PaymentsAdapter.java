@@ -10,7 +10,6 @@ import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.payments.application.port.out.*;
 import com.aratiri.payments.domain.*;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
-import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
@@ -122,7 +121,7 @@ public class PaymentsAdapter implements PaymentsPort {
 
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
                 .userId(userId)
-                .amount(BitcoinConstants.satoshisToBtc(totalDebitSat))
+                .amountSat(totalDebitSat)
                 .currency(TransactionCurrency.BTC)
                 .type(TransactionType.LIGHTNING_DEBIT)
                 .status(TransactionStatus.PENDING)
@@ -167,7 +166,7 @@ public class PaymentsAdapter implements PaymentsPort {
 
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
                 .userId(senderId)
-                .amount(BitcoinConstants.satoshisToBtc(amountSat))
+                .amountSat(amountSat)
                 .currency(TransactionCurrency.BTC)
                 .type(TransactionType.LIGHTNING_DEBIT)
                 .status(TransactionStatus.PENDING)
@@ -276,7 +275,7 @@ public class PaymentsAdapter implements PaymentsPort {
 
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
                 .userId(userId)
-                .amount(BitcoinConstants.satoshisToBtc(totalAmount))
+                .amountSat(totalAmount)
                 .currency(TransactionCurrency.BTC)
                 .type(TransactionType.ONCHAIN_DEBIT)
                 .status(TransactionStatus.PENDING)
@@ -353,7 +352,6 @@ public class PaymentsAdapter implements PaymentsPort {
             throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
-
 
 
     private PayInvoiceRequestDTO normalizeInvoice(PayInvoiceRequestDTO request) {

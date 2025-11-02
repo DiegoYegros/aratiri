@@ -1,13 +1,11 @@
 package com.aratiri.infrastructure.persistence.jpa.entity;
 
 import com.aratiri.transactions.application.dto.TransactionCurrency;
-import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -29,19 +27,12 @@ public class TransactionEntity {
     @Column(name = "user_id", nullable = false)
     private String userId;
 
-    @Column(name = "amount", nullable = false, precision = 20, scale = 8)
-    private BigDecimal amount;
-
-    @Column(name = "balance_after", precision = 20, scale = 8)
-    private BigDecimal balanceAfter;
+    @Column(name = "amount", nullable = false)
+    private long amount;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 30, nullable = false)
     private TransactionType type;
-
-    @Enumerated(EnumType.STRING)
-    @Column(length = 20, nullable = false)
-    private TransactionStatus status;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
@@ -52,9 +43,6 @@ public class TransactionEntity {
 
     @Column(name = "reference_id", length = 64)
     private String referenceId;
-
-    @Column(name = "failure_reason")
-    private String failureReason;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

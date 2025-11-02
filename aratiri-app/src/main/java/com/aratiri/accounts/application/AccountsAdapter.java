@@ -8,6 +8,8 @@ import com.aratiri.accounts.domain.AccountUser;
 import com.aratiri.accounts.infrastructure.alias.AliasGenerator;
 import com.aratiri.accounts.infrastructure.qr.QrCodeUtil;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
+import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
+import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryType;
 import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.shared.util.Bech32Util;
@@ -39,6 +41,7 @@ public class AccountsAdapter implements AccountsPort {
     private final LightningAddressPort lightningAddressPort;
     private final AratiriProperties properties;
     private final CurrencyConversionPort currencyConversionPort;
+    private final AccountLedgerService accountLedgerService;
 
     public AccountsAdapter(
             AccountPersistencePort accountPersistencePort,
@@ -46,7 +49,8 @@ public class AccountsAdapter implements AccountsPort {
             TransactionsPort transactionsPort,
             LightningAddressPort lightningAddressPort,
             AratiriProperties properties,
-            CurrencyConversionPort currencyConversionPort
+            CurrencyConversionPort currencyConversionPort,
+            AccountLedgerService accountLedgerService
     ) {
         this.accountPersistencePort = accountPersistencePort;
         this.loadUserPort = loadUserPort;
@@ -54,6 +58,7 @@ public class AccountsAdapter implements AccountsPort {
         this.lightningAddressPort = lightningAddressPort;
         this.properties = properties;
         this.currencyConversionPort = currencyConversionPort;
+        this.accountLedgerService = accountLedgerService;
     }
 
     @Override
@@ -104,9 +109,10 @@ public class AccountsAdapter implements AccountsPort {
     public AccountDTO creditBalance(String userId, long satsAmount) {
         Account account = accountPersistencePort.findByUserId(userId)
                 .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND.value()));
-        long newBalance = account.balance() + satsAmount;
-        Account updated = accountPersistencePort.save(account.withBalance(newBalance));
-        return buildAccountDTO(updated);
+        accountLedgerService.appendEntry(account.id(), null, satsAmount, AccountEntryType.MANUAL_ADJUSTMENT, "Manual credit adjustment");
+        Account refreshed = accountPersistencePort.findById(account.id())
+                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND.value()));
+        return buildAccountDTO(refreshed);
     }
 
     @Override
@@ -124,9 +130,8 @@ public class AccountsAdapter implements AccountsPort {
         return transactions.stream()
                 .filter(e -> e.getStatus() != TransactionStatus.FAILED)
                 .map(t -> {
-                    long satoshis = t.getAmount().multiply(BitcoinConstants.SATOSHIS_PER_BTC).longValue();
-                    BigDecimal amountInBtc = new BigDecimal(satoshis)
-                            .divide(BitcoinConstants.SATOSHIS_PER_BTC, 8, RoundingMode.HALF_UP);
+                    long satoshis = t.getAmountSat();
+                    BigDecimal amountInBtc = BitcoinConstants.satoshisToBtc(satoshis);
                     Map<String, BigDecimal> btcPrices = currencyConversionPort.getCurrentBtcPrice();
                     Map<String, BigDecimal> fiatEquivalents = btcPrices.entrySet().stream()
                             .collect(Collectors.toMap(

@@ -7,6 +7,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.UserRepository;
+import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -16,10 +17,12 @@ public class AccountRepositoryAdapter implements AccountPersistencePort {
 
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
+    private final AccountLedgerService accountLedgerService;
 
-    public AccountRepositoryAdapter(AccountRepository accountRepository, UserRepository userRepository) {
+    public AccountRepositoryAdapter(AccountRepository accountRepository, UserRepository userRepository, AccountLedgerService accountLedgerService) {
         this.accountRepository = accountRepository;
         this.userRepository = userRepository;
+        this.accountLedgerService = accountLedgerService;
     }
 
     @Override
@@ -44,7 +47,6 @@ public class AccountRepositoryAdapter implements AccountPersistencePort {
                 ? accountRepository.findById(account.id()).orElse(new AccountEntity())
                 : new AccountEntity();
         entity.setBitcoinAddress(account.bitcoinAddress());
-        entity.setBalance(account.balance());
         entity.setAlias(account.alias());
         UserEntity userEntity = userRepository.getReferenceById(account.user().id());
         entity.setUser(userEntity);
@@ -59,6 +61,7 @@ public class AccountRepositoryAdapter implements AccountPersistencePort {
 
     private Account toDomain(AccountEntity entity) {
         AccountUser user = new AccountUser(entity.getUser().getId());
-        return new Account(entity.getId(), user, entity.getBalance(), entity.getBitcoinAddress(), entity.getAlias());
+        long balance = accountLedgerService.getCurrentBalanceForAccount(entity.getId());
+        return new Account(entity.getId(), user, balance, entity.getBitcoinAddress(), entity.getAlias());
     }
 }

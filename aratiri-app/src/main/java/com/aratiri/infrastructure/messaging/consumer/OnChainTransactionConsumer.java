@@ -1,6 +1,5 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
-import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
 import com.aratiri.transactions.application.dto.TransactionCurrency;
 import com.aratiri.transactions.application.dto.TransactionStatus;
@@ -34,7 +33,7 @@ public class OnChainTransactionConsumer {
             }
             CreateTransactionRequest creditRequest = new CreateTransactionRequest(
                     event.getUserId(),
-                    BitcoinConstants.satoshisToBtc(event.getAmount()),
+                    event.getAmount(),
                     TransactionCurrency.BTC,
                     TransactionType.ONCHAIN_CREDIT,
                     TransactionStatus.COMPLETED,
