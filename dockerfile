@@ -12,4 +12,8 @@ RUN apt-get update && \
 VOLUME /tmp
 ARG JAR_FILE=aratiri-app/target/*.jar
 COPY ${JAR_FILE} app.jar
-ENTRYPOINT ["java", "-javaagent:/opentelemetry-javaagent.jar", "-jar", "/app.jar"]
+
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
