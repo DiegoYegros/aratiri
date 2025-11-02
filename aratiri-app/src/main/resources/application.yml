@@ -21,6 +21,9 @@ spring:
           google:
             client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
   jpa:
+    properties:
+      hibernate:
+        default_schema: ${SPRING_JPA_DEFAULT_SCHEMA:aratiri}
     hibernate:
       ddl-auto: ${SPRING_JPA_DDL_AUTO:update}
     show-sql: false
@@ -51,7 +54,9 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
     listener:
       ack-mode: manual_immediate
-
+  flyway:
+    schemas: ${SPRING_FLYWAY_SCHEMAS:aratiri}
+    default-schema: ${SPRING_FLYWAY_DEFAULT_SCHEMA:aratiri}
 grpc:
   client:
     lnd:
