@@ -15,9 +15,6 @@ public class AccountEntity {
     @Column(nullable = false)
     private String bitcoinAddress;
 
-    @Column(nullable = false)
-    private long balance = 0L;
-
     @OneToOne
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private UserEntity user;
