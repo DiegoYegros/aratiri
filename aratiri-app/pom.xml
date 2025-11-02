@@ -37,6 +37,11 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>1.43.0</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -184,7 +189,6 @@
             <artifactId>Java-WebSocket</artifactId>
             <version>${Java-WebSocket.version}</version>
         </dependency>
-
     </dependencies>
 
     <build>
@@ -202,7 +206,9 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <executions>
                     <execution>
-                        <goals><goal>repackage</goal></goals>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>

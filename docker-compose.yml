@@ -19,6 +19,7 @@ services:
     profiles:
       - db-only
       - full-stack
+    networks: [ aratiri-net ]
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
@@ -45,7 +46,7 @@ services:
     profiles:
       - kafka-only
       - full-stack
-
+    networks: [ aratiri-net ]
   aratiri-app:
     build:
       context: .
@@ -94,6 +95,13 @@ services:
       - NOSTR_RETRY_MAX=${NOSTR_RETRY_MAX:-5}
       - NOSTR_RETRY_INITIAL_DELAY=${NOSTR_RETRY_INITIAL_DELAY:-2000}
       - NOSTR_RETRY_MAX_DELAY=${NOSTR_RETRY_MAX_DELAY:-300000}
+      - OTEL_SERVICE_NAME=aratiri-app
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_METRICS_EXPORTER=otlp
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_INSTRUMENTATION_KAFKA_PROPAGATION_ENABLED=true
+      - OTEL_INSTRUMENTATION_SPRING_WEB MVC_ENABLED=true
     volumes:
       - ./secrets:/run/secrets:ro
     depends_on:
@@ -101,9 +109,12 @@ services:
         condition: service_started
       kafka:
         condition: service_started
+      otel-collector:
+        condition: service_started
     profiles:
       - full-stack
       - backend-only
+    networks: [ aratiri-net ]
   aratiri-admin:
     image: diegoyegros/aratiri-admin:latest
     restart: unless-stopped
@@ -113,6 +124,7 @@ services:
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
     ports:
       - "3001:3001"
+    networks: [ aratiri-net ]
   aratiri-frontend:
     image: diegoyegros/aratiri-frontend:latest
     restart: unless-stopped
@@ -122,6 +134,63 @@ services:
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
     ports:
       - "3000:3000"
+    networks: [ aratiri-net ]
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.106.0
+    container_name: otel-collector
+    command: [ "--config=/etc/otel-collector-config.yml" ]
+    volumes:
+      - ./observability/otel-collector-config.yml:/etc/otel-collector-config.yml
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+      - "8889:8889" # Prometheus exporter
+    depends_on: [ jaeger, loki, prometheus ]
+    profiles: [ "full-stack" ]
+    networks: [ aratiri-net ]
+  jaeger:
+      image: jaegertracing/all-in-one:1.59
+      container_name: jaeger
+      ports:
+        - "16686:16686" # UI
+        - "14250:14250" # OTel Collector gRPC
+      profiles: [ "full-stack" ]
+      networks: [ aratiri-net ]
+  prometheus:
+      image: prom/prometheus:v3.0.0
+      container_name: prometheus
+      command: [ "--config.file=/etc/prometheus/prometheus.yml" ]
+      volumes:
+        - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+        - prometheus_data:/prometheus
+      ports:
+        - "9090:9090" # UI
+      profiles: [ "full-stack" ]
+      networks: [ aratiri-net ]
+  loki:
+      image: grafana/loki:3.1.0
+      container_name: loki
+      ports:
+        - "3100:3100"
+      profiles: [ "full-stack" ]
+      networks: [ aratiri-net ]
+  grafana:
+      image: grafana/grafana:11.1.0
+      container_name: grafana
+      volumes:
+        - ./observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      environment:
+        - GF_AUTH_ANONYMOUS_ENABLED=true
+        - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      ports:
+        - "3101:3000"
+      depends_on: [ prometheus, loki, jaeger ]
+      profiles: [ "full-stack" ]
+      networks: [ aratiri-net ]
 volumes:
   kafka_data:
   postgres_data:
+  prometheus_data:
+networks:
+  aratiri-net:
+    driver: bridge
