@@ -2,10 +2,10 @@ package com.aratiri.auth.infrastructure.persistence;
 
 import com.aratiri.auth.application.port.out.LoadUserPort;
 import com.aratiri.auth.application.port.out.UserCommandPort;
-import com.aratiri.auth.domain.AuthUser;
-import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
 import com.aratiri.auth.domain.AuthProvider;
+import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.Role;
+import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.UserRepository;
 import org.springframework.stereotype.Component;
 
@@ -42,13 +42,13 @@ public class UserRepositoryAdapter implements LoadUserPort, UserCommandPort {
     }
 
     @Override
-    public AuthUser registerSocialUser(String name, String email, AuthProvider provider) {
+    public AuthUser registerSocialUser(String name, String email, AuthProvider provider, Role role) {
         UserEntity entity = new UserEntity();
         entity.setName(name);
         entity.setEmail(email);
         entity.setPassword(null);
         entity.setAuthProvider(provider);
-        entity.setRole(Role.USER);
+        entity.setRole(role == null ? Role.USER : role);
         return toDomain(userRepository.save(entity));
     }
 

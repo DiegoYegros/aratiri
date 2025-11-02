@@ -1,7 +1,7 @@
 package com.aratiri.payments.infrastructure.invoice;
 
-import com.aratiri.payments.domain.DecodedInvoice;
 import com.aratiri.invoices.application.port.in.InvoicesPort;
+import com.aratiri.payments.domain.DecodedInvoice;
 import org.springframework.stereotype.Component;
 
 @Component("paymentsInvoiceServiceAdapter")

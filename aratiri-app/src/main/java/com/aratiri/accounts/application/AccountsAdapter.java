@@ -1,16 +1,16 @@
 package com.aratiri.accounts.application;
 
+import com.aratiri.accounts.application.dto.*;
 import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.accounts.application.port.out.*;
 import com.aratiri.accounts.domain.Account;
 import com.aratiri.accounts.domain.AccountUser;
+import com.aratiri.accounts.infrastructure.alias.AliasGenerator;
 import com.aratiri.accounts.infrastructure.qr.QrCodeUtil;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.accounts.infrastructure.alias.AliasGenerator;
 import com.aratiri.shared.util.Bech32Util;
-import com.aratiri.accounts.application.dto.*;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;

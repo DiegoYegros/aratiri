@@ -1,9 +1,9 @@
 package com.aratiri.payments.infrastructure.messaging;
 
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
+import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.payments.application.port.out.OutboxEventPort;
 import com.aratiri.payments.domain.OutboxMessage;
-import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import org.springframework.stereotype.Component;
 
 @Component

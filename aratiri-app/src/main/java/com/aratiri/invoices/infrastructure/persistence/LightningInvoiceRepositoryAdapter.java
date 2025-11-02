@@ -1,9 +1,9 @@
 package com.aratiri.invoices.infrastructure.persistence;
 
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
+import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.invoices.application.port.out.LightningInvoicePersistencePort;
 import com.aratiri.invoices.domain.LightningInvoice;
-import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;

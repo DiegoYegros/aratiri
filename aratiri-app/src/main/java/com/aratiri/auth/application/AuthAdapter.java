@@ -1,14 +1,10 @@
 package com.aratiri.auth.application;
 
 import com.aratiri.auth.application.port.in.AuthPort;
-import com.aratiri.auth.application.port.out.AccessTokenPort;
-import com.aratiri.auth.application.port.out.AuthenticatedUserPort;
-import com.aratiri.auth.application.port.out.AuthenticationPort;
-import com.aratiri.auth.application.port.out.LoadUserPort;
-import com.aratiri.auth.application.port.out.RefreshTokenPort;
+import com.aratiri.auth.application.port.out.*;
+import com.aratiri.auth.domain.AuthProvider;
 import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.auth.domain.AuthUser;
-import com.aratiri.auth.domain.AuthProvider;
 import com.aratiri.shared.exception.AratiriException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -47,8 +43,8 @@ public class AuthAdapter implements AuthPort {
     public AuthTokens login(String username, String password) {
         AuthUser user = loadUserPort.findByEmail(username)
                 .orElseThrow(() -> new AratiriException("Invalid username or password"));
-        if (user.provider() == AuthProvider.GOOGLE) {
-            throw new AratiriException("Please log in using your Google account.", HttpStatus.BAD_REQUEST.value());
+        if (user.provider() != AuthProvider.LOCAL) {
+            throw new AratiriException("Please log in using your federated identity provider.", HttpStatus.BAD_REQUEST.value());
         }
         authenticationPort.authenticate(username, password);
         String accessToken = accessTokenPort.generateAccessToken(username);

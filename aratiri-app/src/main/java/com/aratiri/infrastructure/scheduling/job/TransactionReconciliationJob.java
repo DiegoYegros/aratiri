@@ -1,8 +1,8 @@
 package com.aratiri.infrastructure.scheduling.job;
 
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
-import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
+import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import lnrpc.Payment;
 import org.slf4j.Logger;

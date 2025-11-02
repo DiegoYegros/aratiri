@@ -1,9 +1,9 @@
 package com.aratiri.payments.infrastructure.account;
 
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
 import com.aratiri.payments.application.port.out.AccountsPort;
 import com.aratiri.payments.domain.PaymentAccount;
-import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
+import com.aratiri.shared.exception.AratiriException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
