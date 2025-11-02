@@ -10,4 +10,6 @@ public interface TransactionsPort {
     void confirmTransaction(String transactionId, String userId);
 
     void failTransaction(String transactionId, String reason);
+
+    void addFeeToTransaction(String transactionId, long feeSat);
 }

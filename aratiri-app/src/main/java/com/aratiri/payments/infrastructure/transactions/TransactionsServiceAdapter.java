@@ -28,4 +28,9 @@ public class TransactionsServiceAdapter implements com.aratiri.payments.applicat
     public void failTransaction(String transactionId, String reason) {
         transactionsService.failTransaction(transactionId, reason);
     }
+
+    @Override
+    public void addFeeToTransaction(String transactionId, long feeSat) {
+        transactionsService.addFeeToTransaction(transactionId, feeSat);
+    }
 }
