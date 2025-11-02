@@ -18,6 +18,7 @@ Aratiri is meant for institutions and platforms that already safeguard their use
 * Java 21
 * Docker (optional)
 * Access to your node's admin macaroon and TLS cert.
+* PostgreSQL
 
 ### Setup
 #### 1. Export your LND admin macaroon
