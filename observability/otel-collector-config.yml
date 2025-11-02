@@ -10,7 +10,7 @@ processors:
   batch:
 
 exporters:
-  otlp/jaeger:
+  jaeger:
     endpoint: jaeger:14250
     tls:
       insecure: true
@@ -26,14 +26,14 @@ exporters:
 service:
   pipelines:
     traces:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [otlp/jaeger]
+      receivers: [ otlp ]
+      processors: [ batch ]
+      exporters: [ jaeger ]
     metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [prometheus]
+      receivers: [ otlp ]
+      processors: [ batch ]
+      exporters: [ prometheus ]
     logs:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [loki]
+      receivers: [ otlp ]
+      processors: [ batch ]
+      exporters: [ loki ]
