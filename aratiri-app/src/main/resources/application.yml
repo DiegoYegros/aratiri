@@ -120,6 +120,16 @@ nostr:
           sat: ${ARATIRI_PAYMENT_DEFAULT_FEE_LIMIT_SAT:50}
       timeout:
         seconds: ${ARATIRI_PAYMENT_DEFAULT_TIMEOUT_SECONDS:200}
+    lightning:
+      fee:
+        fixed:
+          sat: ${ARATIRI_PAYMENT_LIGHTNING_FEE_FIXED_SAT:0}
+        percent: ${ARATIRI_PAYMENT_LIGHTNING_FEE_PERCENT:0}
+    onchain:
+      fee:
+        fixed:
+          sat: ${ARATIRI_PAYMENT_ONCHAIN_FEE_FIXED_SAT:0}
+        percent: ${ARATIRI_PAYMENT_ONCHAIN_FEE_PERCENT:0}
 jwt:
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:8400}

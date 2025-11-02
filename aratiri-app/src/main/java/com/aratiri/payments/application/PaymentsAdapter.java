@@ -26,11 +26,15 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class PaymentsAdapter implements PaymentsPort {
+
+    private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountsPort accountsPort;
@@ -45,6 +49,18 @@ public class PaymentsAdapter implements PaymentsPort {
 
     @Value("${aratiri.payment.default.timeout.seconds:200}")
     private int defaultTimeoutSeconds;
+
+    @Value("${aratiri.payment.lightning.fee.fixed.sat:0}")
+    private long lightningFixedFeeSat;
+
+    @Value("${aratiri.payment.lightning.fee.percent:0}")
+    private BigDecimal lightningFeePercent;
+
+    @Value("${aratiri.payment.onchain.fee.fixed.sat:0}")
+    private long onChainFixedFeeSat;
+
+    @Value("${aratiri.payment.onchain.fee.percent:0}")
+    private BigDecimal onChainFeePercent;
 
     @Override
     @Transactional
@@ -91,15 +107,22 @@ public class PaymentsAdapter implements PaymentsPort {
         }
 
         long amountSat = decodedInvoice.amountSatoshis();
+        long platformFeeSat = calculateLightningPlatformFee(amountSat);
+        long totalDebitSat = Math.addExact(amountSat, platformFeeSat);
         PaymentAccount account = accountsPort.getAccount(userId);
-        if (account.balance() < amountSat) {
-            logger.info("Insufficient balance. Tried to pay {} but balance was {}", amountSat, account.balance());
+        if (account.balance() < totalDebitSat) {
+            logger.info(
+                    "Insufficient balance. Tried to pay {} (including {} sat fee) but balance was {}",
+                    totalDebitSat,
+                    platformFeeSat,
+                    account.balance()
+            );
             throw new AratiriException("Insufficient balance", HttpStatus.BAD_REQUEST.value());
         }
 
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
                 .userId(userId)
-                .amount(BitcoinConstants.satoshisToBtc(amountSat))
+                .amount(BitcoinConstants.satoshisToBtc(totalDebitSat))
                 .currency(TransactionCurrency.BTC)
                 .type(TransactionType.LIGHTNING_DEBIT)
                 .status(TransactionStatus.PENDING)
@@ -230,7 +253,11 @@ public class PaymentsAdapter implements PaymentsPort {
         feeRequest.setTargetConf(normalizedRequest.getTargetConf());
 
         OnChainPaymentDTOs.EstimateFeeResponseDTO feeResponse = estimateOnChainFee(feeRequest, userId);
-        long totalAmount = normalizedRequest.getSatsAmount() + feeResponse.getFeeSat();
+        long amountSat = normalizedRequest.getSatsAmount();
+        long networkFeeSat = feeResponse.getFeeSat();
+        long platformFeeSat = feeResponse.getPlatformFeeSat();
+        long totalFeeSat = Math.addExact(networkFeeSat, platformFeeSat);
+        long totalAmount = Math.addExact(amountSat, totalFeeSat);
 
         if (account.balance() < totalAmount) {
             throw new AratiriException("Insufficient balance to cover amount and fee", HttpStatus.BAD_REQUEST.value());
@@ -271,9 +298,42 @@ public class PaymentsAdapter implements PaymentsPort {
             OnChainPaymentDTOs.EstimateFeeResponseDTO responseDTO = new OnChainPaymentDTOs.EstimateFeeResponseDTO();
             responseDTO.setFeeSat(estimate.feeSat());
             responseDTO.setSatPerVbyte(estimate.satPerVbyte());
+            long amountSat = normalizedRequest.getSatsAmount();
+            long platformFeeSat = calculateOnChainPlatformFee(amountSat);
+            responseDTO.setPlatformFeeSat(platformFeeSat);
+            responseDTO.setTotalFeeSat(Math.addExact(estimate.feeSat(), platformFeeSat));
             return responseDTO;
         } catch (Exception e) {
             throw new AratiriException("Error estimating fee: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
+        }
+    }
+
+    private long calculateLightningPlatformFee(long amountSat) {
+        return calculateFee(amountSat, lightningFixedFeeSat, lightningFeePercent);
+    }
+
+    private long calculateOnChainPlatformFee(long amountSat) {
+        return calculateFee(amountSat, onChainFixedFeeSat, onChainFeePercent);
+    }
+
+    private long calculateFee(long amountSat, long fixedFeeSat, BigDecimal percentageFee) {
+        BigDecimal effectivePercentage = percentageFee != null ? percentageFee : BigDecimal.ZERO;
+        long percentageFeeSat = 0L;
+        try {
+            if (effectivePercentage.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal fee = effectivePercentage
+                        .multiply(BigDecimal.valueOf(amountSat))
+                        .divide(ONE_HUNDRED, 0, RoundingMode.CEILING);
+                percentageFeeSat = fee.longValueExact();
+            }
+            long fee = Math.addExact(fixedFeeSat, percentageFeeSat);
+            logger.info("Calculated fee: {}", fee);
+            return fee;
+        } catch (ArithmeticException ex) {
+            throw new AratiriException(
+                    "Configured payment fees exceed supported limits.",
+                    HttpStatus.INTERNAL_SERVER_ERROR.value()
+            );
         }
     }
 

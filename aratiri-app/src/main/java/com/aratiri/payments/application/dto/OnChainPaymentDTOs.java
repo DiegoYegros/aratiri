@@ -50,5 +50,11 @@ public class OnChainPaymentDTOs {
 
         @JsonProperty("sat_per_vbyte")
         private long satPerVbyte;
+
+        @JsonProperty("platform_fee_sat")
+        private long platformFeeSat;
+
+        @JsonProperty("total_fee_sat")
+        private long totalFeeSat;
     }
 }
