@@ -23,6 +23,10 @@ exporters:
     labels:
       attributes:
         service.name: service_name
+
+  debug/logs:
+    verbosity: detailed
+
 service:
   pipelines:
     traces:
@@ -36,4 +40,4 @@ service:
     logs:
       receivers: [ otlp ]
       processors: [ batch ]
-      exporters: [ loki ]
+      exporters: [ loki, debug/logs ]

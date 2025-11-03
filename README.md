@@ -52,3 +52,4 @@ Once the service starts, generated OpenAPI documentation is available at `/swagg
 - [Application configuration](aratiri-app/src/main/resources/application.yml)
 - [Core domain module](aratiri-core)
 - [Trusted issuer local testing guide](docs/trusted-issuers-local-testing.md)
+- [Observability troubleshooting](docs/logging-debugging.md)

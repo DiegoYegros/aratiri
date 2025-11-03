@@ -2,6 +2,11 @@
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
+    <springProperty scope="context"
+                    name="otelLogAppenderEnabled"
+                    source="logging.otel.appender.enabled"
+                    defaultValue="false"/>
+
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>${CONSOLE_LOG_PATTERN}</pattern>
@@ -9,9 +14,22 @@
         </encoder>
     </appender>
 
-    <root level="INFO">
-        <appender-ref ref="CONSOLE" />
-    </root>
+    <if condition='property("otelLogAppenderEnabled").equalsIgnoreCase("true")'>
+        <then>
+            <appender name="OTEL"
+                      class="io.opentelemetry.instrumentation.logback.v1_0.OpenTelemetryAppender"/>
+
+            <root level="INFO">
+                <appender-ref ref="CONSOLE" />
+                <appender-ref ref="OTEL" />
+            </root>
+        </then>
+        <else>
+            <root level="INFO">
+                <appender-ref ref="CONSOLE" />
+            </root>
+        </else>
+    </if>
 
     <logger name="org.apache.kafka" level="WARN"/>
     <logger name="io.grpc.netty" level="WARN"/>
