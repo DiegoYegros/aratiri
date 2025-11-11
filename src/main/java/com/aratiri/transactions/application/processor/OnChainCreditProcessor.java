@@ -21,14 +21,13 @@ public class OnChainCreditProcessor implements TransactionProcessor {
         long amountInSats = transaction.getAmount();
         logger.info("Crediting {} sats to account from on-chain transaction.", amountInSats);
         long delta = amountInSats;
-        long newBalance = accountLedgerService.appendEntryForUser(
+        return accountLedgerService.appendEntryForUser(
                 transaction.getUserId(),
                 transaction.getId(),
                 delta,
                 AccountEntryType.ONCHAIN_CREDIT,
                 "On-chain deposit"
         );
-        return newBalance;
     }
 
     @Override

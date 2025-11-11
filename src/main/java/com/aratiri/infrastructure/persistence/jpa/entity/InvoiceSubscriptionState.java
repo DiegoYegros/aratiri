@@ -20,4 +20,6 @@ public class InvoiceSubscriptionState {
     private long addIndex;
 
     private long settleIndex;
+
+    private long lastTxBlockHeight;
 }

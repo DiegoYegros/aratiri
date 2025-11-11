@@ -108,17 +108,6 @@ public class PaymentsAdapter implements PaymentsPort {
         long amountSat = decodedInvoice.amountSatoshis();
         long platformFeeSat = calculateLightningPlatformFee(amountSat);
         long totalDebitSat = Math.addExact(amountSat, platformFeeSat);
-        PaymentAccount account = accountsPort.getAccount(userId);
-        if (account.balance() < totalDebitSat) {
-            logger.info(
-                    "Insufficient balance. Tried to pay {} (including {} sat fee) but balance was {}",
-                    totalDebitSat,
-                    platformFeeSat,
-                    account.balance()
-            );
-            throw new AratiriException("Insufficient balance", HttpStatus.BAD_REQUEST.value());
-        }
-
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
                 .userId(userId)
                 .amountSat(totalDebitSat)
@@ -128,7 +117,6 @@ public class PaymentsAdapter implements PaymentsPort {
                 .referenceId(paymentHash)
                 .description("Lightning Payment: " + decodedInvoice.description())
                 .build();
-
         TransactionDTOResponse txDto = transactionsPort.createTransaction(txRequest);
         PaymentInitiatedEvent eventPayload = new PaymentInitiatedEvent(userId, txDto.getId(), request);
         persistOutboxMessage(new OutboxMessage(
@@ -156,10 +144,6 @@ public class PaymentsAdapter implements PaymentsPort {
         }
 
         long amountSat = decodedInvoice.amountSatoshis();
-        PaymentAccount senderAccount = accountsPort.getAccount(senderId);
-        if (senderAccount.balance() < amountSat) {
-            throw new AratiriException("Insufficient balance for internal transfer", HttpStatus.BAD_REQUEST.value());
-        }
         if (internalInvoice.userId().equals(senderId)) {
             throw new AratiriException("Payment to self is not allowed.", HttpStatus.BAD_REQUEST.value());
         }
@@ -265,10 +249,6 @@ public class PaymentsAdapter implements PaymentsPort {
         long platformFeeSat = feeResponse.getPlatformFeeSat();
         long totalFeeSat = Math.addExact(networkFeeSat, platformFeeSat);
         long totalAmount = Math.addExact(amountSat, totalFeeSat);
-
-        if (account.balance() < totalAmount) {
-            throw new AratiriException("Insufficient balance to cover amount and fee", HttpStatus.BAD_REQUEST.value());
-        }
         if (account.bitcoinAddress().equals(normalizedRequest.getAddress())) {
             throw new AratiriException("Payment to self not allowed.", HttpStatus.BAD_REQUEST.value());
         }

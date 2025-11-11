@@ -1,8 +1,10 @@
 package com.aratiri.infrastructure.messaging.listener;
 
 import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.infrastructure.persistence.jpa.entity.InvoiceSubscriptionState;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.transactions.application.event.OnChainTransactionReceivedEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
@@ -39,18 +41,20 @@ public class OnChainTransactionListener {
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(true);
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private StreamObserver<Transaction> transactionStreamObserver;
+    private final InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
 
     public OnChainTransactionListener(
             LightningGrpc.LightningStub lightningAsyncStub,
             AccountRepository accountRepository,
             TransactionsPort transactionsService,
             OutboxEventRepository outboxEventRepository,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.lightningAsyncStub = lightningAsyncStub;
         this.accountRepository = accountRepository;
         this.transactionsService = transactionsService;
         this.outboxEventRepository = outboxEventRepository;
         this.objectMapper = objectMapper;
+        this.invoiceSubscriptionStateRepository = invoiceSubscriptionStateRepository;
     }
 
     @PostConstruct
@@ -92,8 +96,12 @@ public class OnChainTransactionListener {
         try {
             logger.info("Establishing on-chain transaction subscription stream");
             isListening.set(true);
-            GetTransactionsRequest request = GetTransactionsRequest.newBuilder().build();
-
+            InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton")
+                    .orElse(InvoiceSubscriptionState.builder().id("singleton").build());
+            logger.info("Subscribing to transactions from block height [{}]", state.getLastTxBlockHeight());
+            GetTransactionsRequest request = GetTransactionsRequest.newBuilder()
+                    .setStartHeight((int) state.getLastTxBlockHeight())
+                    .build();
             transactionStreamObserver = new StreamObserver<>() {
                 @Override
                 public void onNext(Transaction transaction) {
@@ -168,6 +176,12 @@ public class OnChainTransactionListener {
                                 .payload(objectMapper.writeValueAsString(eventPayload))
                                 .build();
                         outboxEventRepository.save(outboxEvent);
+                        InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton")
+                                .orElse(InvoiceSubscriptionState.builder().id("singleton").build());
+                        if (transaction.getBlockHeight() > state.getLastTxBlockHeight()) {
+                            state.setLastTxBlockHeight(transaction.getBlockHeight());
+                            invoiceSubscriptionStateRepository.save(state);
+                        }
                         logger.info("Saved ONCHAIN_TRANSACTION_RECEIVED event to outbox for txHash: {}", transaction.getTxHash());
                     } catch (Exception e) {
                         logger.error("Failed to create outbox event for on-chain transaction.", e);
