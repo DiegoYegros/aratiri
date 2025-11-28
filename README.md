@@ -15,7 +15,7 @@ Aratiri is meant for institutions and platforms that already safeguard their use
 ## Getting Started
 ###  Requirements
 * LND Node (mainnet or testnet)
-* Java 21
+* Java 25
 * Docker (optional)
 * Access to your node's admin macaroon and TLS cert.
 * PostgreSQL
@@ -50,5 +50,4 @@ Once the service starts, generated OpenAPI documentation is available at `/swagg
 ### Shortcuts
 - [Docker Compose stack](docker-compose.yml)
 - [Application configuration](aratiri-app/src/main/resources/application.yml)
-- [Core domain module](aratiri-core)
 - [Trusted issuer local testing guide](docs/trusted-issuers-local-testing.md)
