@@ -15,7 +15,7 @@ Aratiri is meant for institutions and platforms that already safeguard their use
 ## Getting Started
 ###  Requirements
 * LND Node (mainnet or testnet)
-* Java 21
+* Java 25
 * Docker (optional)
 * Access to your node's admin macaroon and TLS cert.
 * PostgreSQL
