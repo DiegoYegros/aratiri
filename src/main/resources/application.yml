@@ -55,6 +55,8 @@ spring:
     listener:
       ack-mode: manual_immediate
   flyway:
+    enabled: true
+    baseline-on-migrate: true
     schemas: ${SPRING_FLYWAY_SCHEMAS:aratiri}
     default-schema: ${SPRING_FLYWAY_DEFAULT_SCHEMA:aratiri}
 grpc:
