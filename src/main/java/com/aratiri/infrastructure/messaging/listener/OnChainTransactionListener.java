@@ -23,6 +23,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,7 +37,7 @@ public class OnChainTransactionListener {
     private final AccountRepository accountRepository;
     private final TransactionsPort transactionsService;
     private final OutboxEventRepository outboxEventRepository;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
     private final AtomicBoolean isListening = new AtomicBoolean(false);
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(true);
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
@@ -48,12 +49,12 @@ public class OnChainTransactionListener {
             AccountRepository accountRepository,
             TransactionsPort transactionsService,
             OutboxEventRepository outboxEventRepository,
-            ObjectMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
+            JsonMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.lightningAsyncStub = lightningAsyncStub;
         this.accountRepository = accountRepository;
         this.transactionsService = transactionsService;
         this.outboxEventRepository = outboxEventRepository;
-        this.objectMapper = objectMapper;
+        this.jsonMapper = objectMapper;
         this.invoiceSubscriptionStateRepository = invoiceSubscriptionStateRepository;
     }
 
@@ -173,7 +174,7 @@ public class OnChainTransactionListener {
                                 .aggregateType("ONCHAIN_TRANSACTION")
                                 .aggregateId(transaction.getTxHash())
                                 .eventType(KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED.getCode())
-                                .payload(objectMapper.writeValueAsString(eventPayload))
+                                .payload(jsonMapper.writeValueAsString(eventPayload))
                                 .build();
                         outboxEventRepository.save(outboxEvent);
                         InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton")

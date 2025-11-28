@@ -1,8 +1,8 @@
-package com.aratiri.infrastructure.configuration;
+package com.aratiri.infrastructure.configuration.security;
 
 import com.aratiri.auth.infrastructure.security.AratiriJwtAuthenticationConverter;
 import com.aratiri.auth.infrastructure.security.ChainedJwtDecoder;
-import com.aratiri.infrastructure.configuration.security.AratiriSecurityProperties;
+import com.aratiri.infrastructure.configuration.AratiriProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

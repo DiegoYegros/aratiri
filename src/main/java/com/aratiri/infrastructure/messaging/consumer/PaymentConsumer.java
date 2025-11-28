@@ -3,12 +3,12 @@ package com.aratiri.infrastructure.messaging.consumer;
 import com.aratiri.payments.application.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.payments.application.event.PaymentInitiatedEvent;
 import com.aratiri.payments.application.port.in.PaymentsPort;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 @Component
 @RequiredArgsConstructor
@@ -16,12 +16,12 @@ import org.springframework.stereotype.Component;
 public class PaymentConsumer {
 
     private final PaymentsPort paymentsPort;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
 
     @KafkaListener(topics = "payment.initiated", groupId = "payment-group")
     public void handlePaymentInitiated(String message, Acknowledgment acknowledgment) {
         try {
-            PaymentInitiatedEvent event = objectMapper.readValue(message, PaymentInitiatedEvent.class);
+            PaymentInitiatedEvent event = jsonMapper.readValue(message, PaymentInitiatedEvent.class);
             paymentsPort.initiateGrpcLightningPayment(event.getTransactionId(), event.getUserId(), event.getPayRequest());
             acknowledgment.acknowledge();
         } catch (Exception e) {
@@ -32,7 +32,7 @@ public class PaymentConsumer {
     @KafkaListener(topics = "onchain.payment.initiated", groupId = "payment-group")
     public void handleOnChainPaymentInitiated(String message, Acknowledgment acknowledgment) {
         try {
-            OnChainPaymentInitiatedEvent event = objectMapper.readValue(message, OnChainPaymentInitiatedEvent.class);
+            OnChainPaymentInitiatedEvent event = jsonMapper.readValue(message, OnChainPaymentInitiatedEvent.class);
             paymentsPort.initiateGrpcOnChainPayment(event.getTransactionId(), event.getUserId(), event.getPaymentRequest());
             acknowledgment.acknowledge();
         } catch (Exception e) {

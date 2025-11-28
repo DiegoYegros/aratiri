@@ -2,12 +2,12 @@ package com.aratiri.generaldata.infrastructure.currency;
 
 import com.aratiri.generaldata.application.port.out.CurrencyConversionPort;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -20,12 +20,12 @@ public class CurrencyConversionAdapter implements CurrencyConversionPort {
     private static final Logger logger = LoggerFactory.getLogger(CurrencyConversionAdapter.class);
 
     private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
     private final AratiriProperties aratiriProperties;
 
-    public CurrencyConversionAdapter(RestTemplate restTemplate, ObjectMapper objectMapper, AratiriProperties aratiriProperties) {
+    public CurrencyConversionAdapter(RestTemplate restTemplate, JsonMapper jsonMapper, AratiriProperties aratiriProperties) {
         this.restTemplate = restTemplate;
-        this.objectMapper = objectMapper;
+        this.jsonMapper = jsonMapper;
         this.aratiriProperties = aratiriProperties;
     }
 
@@ -54,7 +54,7 @@ public class CurrencyConversionAdapter implements CurrencyConversionPort {
                 logger.warn("No response from fallback API for BTC rates");
                 return null;
             }
-            Map<String, Object> response = objectMapper.readValue(jsonResponse, new TypeReference<>() {
+            Map<String, Object> response = jsonMapper.readValue(jsonResponse, new TypeReference<>() {
             });
             if (response == null || !response.containsKey("btc")) {
                 logger.warn("Invalid response format from fallback API");
@@ -103,7 +103,7 @@ public class CurrencyConversionAdapter implements CurrencyConversionPort {
         String apiUrl = String.format(aratiriProperties.getCoingeckoApiUrlTemplate(), currency.toLowerCase());
         try {
             String jsonResponse = restTemplate.getForObject(apiUrl, String.class);
-            Map<String, Map<String, Double>> response = objectMapper.readValue(jsonResponse, new TypeReference<>() {
+            Map<String, Map<String, Double>> response = jsonMapper.readValue(jsonResponse, new TypeReference<>() {
             });
             if (response != null && response.containsKey("bitcoin") && response.get("bitcoin").containsKey(currency.toLowerCase())) {
                 Double price = response.get("bitcoin").get(currency.toLowerCase());

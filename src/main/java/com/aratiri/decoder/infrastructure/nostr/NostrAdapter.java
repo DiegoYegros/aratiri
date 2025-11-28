@@ -2,13 +2,13 @@ package com.aratiri.decoder.infrastructure.nostr;
 
 import com.aratiri.decoder.application.port.out.NostrPort;
 import com.aratiri.shared.exception.AratiriException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.RestTemplate;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -18,7 +18,7 @@ public class NostrAdapter implements NostrPort {
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private RestTemplate restTemplate;
     private NostrClient nostrClient;
-    private ObjectMapper objectMapper;
+    private JsonMapper jsonMapper;
 
     @Override
     public CompletableFuture<String> getLud16FromNpub(String npub) {
@@ -26,9 +26,9 @@ public class NostrAdapter implements NostrPort {
             if (profileEvent != null && profileEvent.has("content")) {
                 try {
                     String content = profileEvent.get("content").asText();
-                    JsonNode contentNode = objectMapper.readTree(content);
+                    JsonNode contentNode = jsonMapper.readTree(content);
                     if (contentNode.has("lud16")) {
-                        return contentNode.get("lud16").asText();
+                        return contentNode.get("lud16").asString();
                     }
                 } catch (Exception e) {
                     throw new AratiriException("Failed to parse nostr content.", HttpStatus.INTERNAL_SERVER_ERROR.value());
@@ -43,9 +43,9 @@ public class NostrAdapter implements NostrPort {
             if (profileEvent != null && profileEvent.has("content")) {
                 try {
                     String content = profileEvent.get("content").asText();
-                    JsonNode contentNode = objectMapper.readTree(content);
+                    JsonNode contentNode = jsonMapper.readTree(content);
                     if (contentNode.has("lud16")) {
-                        return contentNode.get("lud16").asText();
+                        return contentNode.get("lud16").asString();
                     }
                 } catch (Exception e) {
                     throw new AratiriException("Failed to parse nostr profile content.", HttpStatus.INTERNAL_SERVER_ERROR.value());
@@ -69,13 +69,13 @@ public class NostrAdapter implements NostrPort {
                 logger.info("Fetching NIP-05 data from: {}", url);
 
                 String response = restTemplate.getForObject(url, String.class);
-                JsonNode root = objectMapper.readTree(response);
+                JsonNode root = jsonMapper.readTree(response);
 
                 JsonNode names = root.path("names");
                 if (names.isMissingNode() || !names.has(name)) {
                     return null;
                 }
-                String pubkey = names.get(name).asText();
+                String pubkey = names.get(name).asString();
                 logger.info("Found pubkey for {}: {}", nip05Identifier, pubkey);
                 return getLud16FromPubkey(pubkey).join();
 

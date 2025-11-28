@@ -9,11 +9,9 @@ import com.aratiri.transactions.application.dto.TransactionCurrency;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
+import org.springframework.kafka.annotation.BackOff;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -22,8 +20,8 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 @Component
 @RequiredArgsConstructor
@@ -32,11 +30,11 @@ public class InvoiceSettledConsumer {
 
     private final TransactionsPort transactionsService;
     private final LightningInvoiceRepository lightningInvoiceRepository;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
 
     @KafkaListener(topics = "invoice.settled", groupId = "invoice-listener-group")
     @RetryableTopic(
-            backoff = @Backoff(delay = 1000, multiplier = 2.0),
+            backOff = @BackOff(delay = 1000, multiplier = 2.0),
             topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE,
             dltStrategy = org.springframework.kafka.retrytopic.DltStrategy.FAIL_ON_ERROR,
             include = {Exception.class, AratiriException.class}
@@ -50,7 +48,7 @@ public class InvoiceSettledConsumer {
         log.info("Received invoice settlement message from topic: {}, partition: {}, offset: {}",
                 topic, partition, offset);
         try {
-            InvoiceSettledEvent event = objectMapper.readValue(message, InvoiceSettledEvent.class);
+            InvoiceSettledEvent event = jsonMapper.readValue(message, InvoiceSettledEvent.class);
             long amountInSats = event.getAmount();
             log.info("Processing invoice settlement for user: {}, amount: {} sats, paymentRequest: {}",
                     event.getUserId(), amountInSats, event.getPaymentHash());
@@ -76,9 +74,6 @@ public class InvoiceSettledConsumer {
             transactionsService.createAndSettleTransaction(request);
             log.info("Successfully processed invoice settlement for user: {}", event.getUserId());
             acknowledgment.acknowledge();
-        } catch (JsonProcessingException e) {
-            log.error("Couldn't deserialze invoice settlement message: {}", message, e);
-            throw new AratiriException("Deserialization failed", HttpStatus.INTERNAL_SERVER_ERROR.value());
         } catch (Exception e) {
             log.error("Failed to process invoice settlement: {}", message, e);
             throw e;
@@ -93,10 +88,10 @@ public class InvoiceSettledConsumer {
         log.error("Invoice settlement failed after all retries. Topic: {}, Message: {}, Error: {}",
                 topic, message, exceptionMessage);
         try {
-            InvoiceSettledEvent event = objectMapper.readValue(message, InvoiceSettledEvent.class);
+            InvoiceSettledEvent event = jsonMapper.readValue(message, InvoiceSettledEvent.class);
             log.error("Failed invoice: userId={}, amount={}, paymentRequest={}",
                     event.getUserId(), event.getAmount(), event.getPaymentHash());
-        } catch (JsonProcessingException e) {
+        } catch (Exception e) {
             log.error("Could not deserialize failed message for dead letter handling: {}", message, e);
         }
     }

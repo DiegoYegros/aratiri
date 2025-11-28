@@ -8,13 +8,13 @@ import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscription
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lnrpc.Invoice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -26,15 +26,15 @@ public class InvoiceProcessorService {
 
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final OutboxEventRepository outboxEventRepository;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
     private final InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
 
     public InvoiceProcessorService(LightningInvoiceRepository lightningInvoiceRepository,
                                    OutboxEventRepository outboxEventRepository,
-                                   ObjectMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
+                                   JsonMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.outboxEventRepository = outboxEventRepository;
-        this.objectMapper = objectMapper;
+        this.jsonMapper = objectMapper;
         this.invoiceSubscriptionStateRepository = invoiceSubscriptionStateRepository;
     }
 
@@ -83,7 +83,7 @@ public class InvoiceProcessorService {
                     .aggregateType("Invoice")
                     .aggregateId(invoiceEntity.getId())
                     .eventType(KafkaTopics.INVOICE_SETTLED.getCode())
-                    .payload(objectMapper.writeValueAsString(eventPayload))
+                    .payload(jsonMapper.writeValueAsString(eventPayload))
                     .build();
 
             outboxEventRepository.save(outboxEvent);

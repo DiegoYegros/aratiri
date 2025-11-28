@@ -12,7 +12,6 @@ import com.aratiri.transactions.application.event.InternalTransferCompletedEvent
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import com.aratiri.transactions.application.processor.TransactionProcessor;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import invoicesrpc.CancelInvoiceMsg;
 import invoicesrpc.InvoicesGrpc;
@@ -21,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -40,17 +40,17 @@ public class TransactionsAdapter implements TransactionsPort {
     private final TransactionsRepository transactionsRepository;
     private final Map<TransactionType, TransactionProcessor> processors;
     private final LightningInvoiceRepository lightningInvoiceRepository;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
     private final InvoicesGrpc.InvoicesBlockingStub invoiceBlockingStub;
     private final OutboxEventRepository outboxEventRepository;
     private final TransactionEventRepository transactionEventRepository;
 
-    public TransactionsAdapter(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, ObjectMapper objectMapper, InvoicesGrpc.InvoicesBlockingStub invoiceStub, OutboxEventRepository outboxEventRepository, TransactionEventRepository transactionEventRepository) {
+    public TransactionsAdapter(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, JsonMapper jsonMapper, InvoicesGrpc.InvoicesBlockingStub invoiceStub, OutboxEventRepository outboxEventRepository, TransactionEventRepository transactionEventRepository) {
         this.transactionsRepository = transactionsRepository;
         this.processors = processorList.stream()
                 .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
         this.lightningInvoiceRepository = lightningInvoiceRepository;
-        this.objectMapper = objectMapper;
+        this.jsonMapper = jsonMapper;
         this.invoiceBlockingStub = invoiceStub;
         this.outboxEventRepository = outboxEventRepository;
         this.transactionEventRepository = transactionEventRepository;
@@ -296,7 +296,7 @@ public class TransactionsAdapter implements TransactionsPort {
                     .aggregateType("INTERNAL_TRANSFER")
                     .aggregateId(event.getTransactionId())
                     .eventType(KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode())
-                    .payload(objectMapper.writeValueAsString(completedEvent))
+                    .payload(jsonMapper.writeValueAsString(completedEvent))
                     .build();
             outboxEventRepository.save(outboxEvent);
         } catch (Exception e) {

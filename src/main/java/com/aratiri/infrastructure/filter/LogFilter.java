@@ -27,12 +27,13 @@ public class LogFilter extends OncePerRequestFilter {
 
     private static final Logger logger = LoggerFactory.getLogger(LogFilter.class);
     private static final List<String> SENSITIVE_FIELDS = Arrays.asList("password", "token", "accessToken", "refreshToken", "jwt");
+    public static final int CACHE_LIMIT = 100_000;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(request);
+        ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(request, CACHE_LIMIT);
         ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(response);
         long startTime = System.currentTimeMillis();
 

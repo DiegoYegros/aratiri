@@ -5,7 +5,6 @@ import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.payments.application.event.PaymentSentEvent;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -13,6 +12,7 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Map;
 
@@ -22,7 +22,7 @@ import java.util.Map;
 public class NotificationConsumer {
 
     private final NotificationPort notificationsService;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
 
     @KafkaListener(topics = {"invoice.settled", "internal.transfer.completed", "payment.sent"}, groupId = "notification-group")
     public void handlePaymentSettledForNotification(String message, @Header(KafkaHeaders.RECEIVED_TOPIC) String topic, Acknowledgment ack) {
@@ -33,7 +33,7 @@ public class NotificationConsumer {
             Map<String, Object> notificationPayload;
 
             if (topic.equals(KafkaTopics.INVOICE_SETTLED.getCode())) {
-                InvoiceSettledEvent event = objectMapper.readValue(message, InvoiceSettledEvent.class);
+                InvoiceSettledEvent event = jsonMapper.readValue(message, InvoiceSettledEvent.class);
                 userId = event.getUserId();
                 eventName = "payment_received";
                 notificationPayload = Map.of(
@@ -43,7 +43,7 @@ public class NotificationConsumer {
                         "memo", event.getMemo()
                 );
             } else if (topic.equals(KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode())) {
-                InternalTransferCompletedEvent event = objectMapper.readValue(message, InternalTransferCompletedEvent.class);
+                InternalTransferCompletedEvent event = jsonMapper.readValue(message, InternalTransferCompletedEvent.class);
                 userId = event.getReceiverId();
                 eventName = "payment_received";
                 notificationPayload = Map.of(
@@ -54,7 +54,7 @@ public class NotificationConsumer {
                 );
                 notificationsService.sendNotification(event.getSenderId(), "payment_sent", "dummy_payload");
             } else if (topic.equals(KafkaTopics.PAYMENT_SENT.getCode())) {
-                PaymentSentEvent event = objectMapper.readValue(message, PaymentSentEvent.class);
+                PaymentSentEvent event = jsonMapper.readValue(message, PaymentSentEvent.class);
                 userId = event.getUserId();
                 eventName = "payment_sent";
                 notificationPayload = Map.of(

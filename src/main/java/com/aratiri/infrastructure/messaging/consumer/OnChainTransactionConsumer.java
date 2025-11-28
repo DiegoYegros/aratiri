@@ -6,13 +6,13 @@ import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.transactions.application.event.OnChainTransactionReceivedEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 @Component
 @RequiredArgsConstructor
@@ -20,12 +20,12 @@ import org.springframework.stereotype.Component;
 public class OnChainTransactionConsumer {
 
     private final TransactionsPort transactionsService;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
 
     @KafkaListener(topics = "onchain.transaction.received", groupId = "transaction-group")
     public void handleOnChainTransactionReceived(String message, Acknowledgment acknowledgment) {
         try {
-            OnChainTransactionReceivedEvent event = objectMapper.readValue(message, OnChainTransactionReceivedEvent.class);
+            OnChainTransactionReceivedEvent event = jsonMapper.readValue(message, OnChainTransactionReceivedEvent.class);
             if (transactionsService.existsByReferenceId(event.getTxHash())) {
                 log.warn("Transaction with reference ID {} already processed. Skipping.", event.getTxHash());
                 acknowledgment.acknowledge();
