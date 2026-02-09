@@ -14,4 +14,6 @@ public interface AccountEntryRepository extends JpaRepository<AccountEntryEntity
     Optional<AccountEntryEntity> findFirstByAccountOrderByCreatedAtDescIdDesc(AccountEntity account);
 
     Optional<AccountEntryEntity> findFirstByAccount_IdOrderByCreatedAtDescIdDesc(String accountId);
+
+    Optional<AccountEntryEntity> findFirstByAccount_IdAndTransactionIdOrderByCreatedAtDescIdDesc(String accountId, String transactionId);
 }

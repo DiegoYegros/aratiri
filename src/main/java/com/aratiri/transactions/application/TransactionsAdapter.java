@@ -10,11 +10,10 @@ import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
+import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import com.aratiri.transactions.application.processor.TransactionProcessor;
-import com.google.protobuf.ByteString;
-import invoicesrpc.CancelInvoiceMsg;
-import invoicesrpc.InvoicesGrpc;
+import com.aratiri.payments.application.event.PaymentSentEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -36,22 +35,26 @@ public class TransactionsAdapter implements TransactionsPort {
             TransactionType.LIGHTNING_CREDIT,
             TransactionType.ONCHAIN_CREDIT
     );
+    private static final Set<TransactionType> PAYMENT_SENT_TYPES = Set.of(
+            TransactionType.LIGHTNING_DEBIT,
+            TransactionType.INVOICE_DEBIT,
+            TransactionType.ONCHAIN_DEBIT
+    );
+    private static final String INTERNAL_TRANSFER_PREFIX = "Internal transfer";
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final TransactionsRepository transactionsRepository;
     private final Map<TransactionType, TransactionProcessor> processors;
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final JsonMapper jsonMapper;
-    private final InvoicesGrpc.InvoicesBlockingStub invoiceBlockingStub;
     private final OutboxEventRepository outboxEventRepository;
     private final TransactionEventRepository transactionEventRepository;
 
-    public TransactionsAdapter(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, JsonMapper jsonMapper, InvoicesGrpc.InvoicesBlockingStub invoiceStub, OutboxEventRepository outboxEventRepository, TransactionEventRepository transactionEventRepository) {
+    public TransactionsAdapter(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, JsonMapper jsonMapper, OutboxEventRepository outboxEventRepository, TransactionEventRepository transactionEventRepository) {
         this.transactionsRepository = transactionsRepository;
         this.processors = processorList.stream()
                 .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.jsonMapper = jsonMapper;
-        this.invoiceBlockingStub = invoiceStub;
         this.outboxEventRepository = outboxEventRepository;
         this.transactionEventRepository = transactionEventRepository;
     }
@@ -268,17 +271,6 @@ public class TransactionsAdapter implements TransactionsPort {
         createAndSettleTransaction(creditRequest);
         LightningInvoiceEntity invoice = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash()).orElseThrow();
 
-        try {
-            CancelInvoiceMsg cancelInvoiceMsg = CancelInvoiceMsg.newBuilder()
-                    .setPaymentHash(ByteString.copyFrom(HexFormat.of().parseHex(event.getPaymentHash())))
-                    .build();
-            invoiceBlockingStub.cancelInvoice(cancelInvoiceMsg);
-            logger.info("Successfully canceled invoice on LND for internal transfer.");
-        } catch (Exception e) {
-            logger.error("Failed to cancel invoice on LND", e);
-            throw new AratiriException("Failed to cancel invoice on LND: " + e.getMessage());
-        }
-
         invoice.setInvoiceState(LightningInvoiceEntity.InvoiceState.SETTLED);
         invoice.setAmountPaidSats(event.getAmountSat());
         invoice.setSettledAt(LocalDateTime.now());
@@ -299,10 +291,23 @@ public class TransactionsAdapter implements TransactionsPort {
                     .payload(jsonMapper.writeValueAsString(completedEvent))
                     .build();
             outboxEventRepository.save(outboxEvent);
-        } catch (Exception e) {
-            logger.error("Failed to create outbox event for InternalTransferCompletedEvent", e);
-            throw new AratiriException("Failed to publish settlement event for internal transfer.");
-        }
+            } catch (Exception e) {
+                logger.error("Failed to create outbox event for InternalTransferCompletedEvent", e);
+                throw new AratiriException("Failed to publish settlement event for internal transfer.");
+            }
+
+            try {
+                InternalInvoiceCancelEvent cancelEvent = new InternalInvoiceCancelEvent(event.getPaymentHash());
+                OutboxEventEntity cancelOutboxEvent = OutboxEventEntity.builder()
+                        .aggregateType("INTERNAL_INVOICE_CANCEL")
+                        .aggregateId(event.getPaymentHash())
+                        .eventType(KafkaTopics.INTERNAL_INVOICE_CANCEL.getCode())
+                        .payload(jsonMapper.writeValueAsString(cancelEvent))
+                        .build();
+                outboxEventRepository.save(cancelOutboxEvent);
+            } catch (Exception e) {
+                logger.error("Failed to create outbox event for InternalInvoiceCancelEvent", e);
+            }
 
         logger.info("Successfully processed internal transfer for transactionId: {}", event.getTransactionId());
     }
@@ -327,5 +332,37 @@ public class TransactionsAdapter implements TransactionsPort {
                 .details(details)
                 .build();
         transactionEventRepository.save(event);
+        if (status == TransactionStatus.COMPLETED) {
+            maybePublishPaymentSent(transaction);
+        }
+    }
+
+    private void maybePublishPaymentSent(TransactionEntity transaction) {
+        if (!PAYMENT_SENT_TYPES.contains(transaction.getType())) {
+            return;
+        }
+        String description = transaction.getDescription();
+        if (description != null && description.toLowerCase(Locale.ROOT).startsWith(INTERNAL_TRANSFER_PREFIX.toLowerCase(Locale.ROOT))) {
+            return;
+        }
+        try {
+            PaymentSentEvent eventPayload = new PaymentSentEvent(
+                    transaction.getUserId(),
+                    transaction.getId(),
+                    transaction.getAmount(),
+                    transaction.getReferenceId(),
+                    LocalDateTime.now(),
+                    transaction.getDescription()
+            );
+            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
+                    .aggregateType("PAYMENT_SENT")
+                    .aggregateId(transaction.getId())
+                    .eventType(KafkaTopics.PAYMENT_SENT.getCode())
+                    .payload(jsonMapper.writeValueAsString(eventPayload))
+                    .build();
+            outboxEventRepository.save(outboxEvent);
+        } catch (Exception e) {
+            logger.error("Failed to create outbox event for PaymentSentEvent", e);
+        }
     }
 }

@@ -22,7 +22,8 @@ public class AccountLedgerService {
 
     @Transactional
     public long appendEntryForUser(String userId, String transactionId, long deltaSats, AccountEntryType entryType, String description) {
-        AccountEntity account = accountRepository.findByUserId(userId);
+        AccountEntity account = accountRepository.findByUserIdForUpdate(userId)
+                .orElse(null);
         if (account == null) {
             throw new AratiriException("Account not found for user: " + userId);
         }
@@ -31,7 +32,7 @@ public class AccountLedgerService {
 
     @Transactional
     public long appendEntry(String accountId, String transactionId, long deltaSats, AccountEntryType entryType, String description) {
-        AccountEntity account = accountRepository.findById(accountId)
+        AccountEntity account = accountRepository.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new AratiriException("Account not found for id: " + accountId));
         return appendEntry(account, transactionId, deltaSats, entryType, description);
     }
@@ -55,6 +56,15 @@ public class AccountLedgerService {
     }
 
     private long appendEntry(AccountEntity account, String transactionId, long deltaSats, AccountEntryType entryType, String description) {
+        if (transactionId != null) {
+            return accountEntryRepository.findFirstByAccount_IdAndTransactionIdOrderByCreatedAtDescIdDesc(account.getId(), transactionId)
+                    .map(AccountEntryEntity::getBalanceAfter)
+                    .orElseGet(() -> appendNewEntry(account, transactionId, deltaSats, entryType, description));
+        }
+        return appendNewEntry(account, transactionId, deltaSats, entryType, description);
+    }
+
+    private long appendNewEntry(AccountEntity account, String transactionId, long deltaSats, AccountEntryType entryType, String description) {
         long previousBalance = accountEntryRepository.findFirstByAccountOrderByCreatedAtDescIdDesc(account)
                 .map(AccountEntryEntity::getBalanceAfter)
                 .orElse(0L);

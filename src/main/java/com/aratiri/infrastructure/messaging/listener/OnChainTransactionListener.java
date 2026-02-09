@@ -159,20 +159,22 @@ public class OnChainTransactionListener {
             }
             logger.info("[{}] is our address. Processing.", output.getAddress());
             accountRepository.findByBitcoinAddress(output.getAddress()).ifPresent(account -> {
-                if (transactionsService.existsByReferenceId(transaction.getTxHash())) {
-                    logger.warn("Transaction already processed: {}", transaction.getTxHash());
+                String referenceId = transaction.getTxHash() + ":" + output.getOutputIndex();
+                if (transactionsService.existsByReferenceId(referenceId)) {
+                    logger.warn("Transaction already processed: {}", referenceId);
                     return;
                 }
                 if (transaction.getNumConfirmations() > 0) {
                     OnChainTransactionReceivedEvent eventPayload = new OnChainTransactionReceivedEvent(
                             account.getUser().getId(),
                             output.getAmount(),
-                            transaction.getTxHash()
+                            transaction.getTxHash(),
+                            output.getOutputIndex()
                     );
                     try {
                         OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
                                 .aggregateType("ONCHAIN_TRANSACTION")
-                                .aggregateId(transaction.getTxHash())
+                                .aggregateId(referenceId)
                                 .eventType(KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED.getCode())
                                 .payload(jsonMapper.writeValueAsString(eventPayload))
                                 .build();

@@ -52,7 +52,13 @@ public class NotificationConsumer {
                         "paymentRequest", event.getPaymentHash(),
                         "memo", event.getMemo()
                 );
-                notificationsService.sendNotification(event.getSenderId(), "payment_sent", "dummy_payload");
+                Map<String, Object> senderPayload = Map.of(
+                        "message", "Payment Sent",
+                        "amountSats", event.getAmountSat(),
+                        "paymentRequest", event.getPaymentHash(),
+                        "memo", event.getMemo()
+                );
+                notificationsService.sendNotification(event.getSenderId(), "payment_sent", senderPayload);
             } else if (topic.equals(KafkaTopics.PAYMENT_SENT.getCode())) {
                 PaymentSentEvent event = jsonMapper.readValue(message, PaymentSentEvent.class);
                 userId = event.getUserId();

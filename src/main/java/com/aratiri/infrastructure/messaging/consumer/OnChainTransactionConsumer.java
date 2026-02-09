@@ -26,8 +26,9 @@ public class OnChainTransactionConsumer {
     public void handleOnChainTransactionReceived(String message, Acknowledgment acknowledgment) {
         try {
             OnChainTransactionReceivedEvent event = jsonMapper.readValue(message, OnChainTransactionReceivedEvent.class);
-            if (transactionsService.existsByReferenceId(event.getTxHash())) {
-                log.warn("Transaction with reference ID {} already processed. Skipping.", event.getTxHash());
+            String referenceId = event.getTxHash() + ":" + event.getOutputIndex();
+            if (transactionsService.existsByReferenceId(referenceId)) {
+                log.warn("Transaction with reference ID {} already processed. Skipping.", referenceId);
                 acknowledgment.acknowledge();
                 return;
             }
@@ -38,7 +39,7 @@ public class OnChainTransactionConsumer {
                     TransactionType.ONCHAIN_CREDIT,
                     TransactionStatus.COMPLETED,
                     "On-chain payment received",
-                    event.getTxHash()
+                    referenceId
             );
             transactionsService.createAndSettleTransaction(creditRequest);
             acknowledgment.acknowledge();

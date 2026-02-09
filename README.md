@@ -49,5 +49,5 @@ Once the service starts, generated OpenAPI documentation is available at `/swagg
 
 ### Shortcuts
 - [Docker Compose stack](docker-compose.yml)
-- [Application configuration](aratiri-app/src/main/resources/application.yml)
+- [Application configuration](src/main/resources/application.yml)
 - [Trusted issuer local testing guide](docs/trusted-issuers-local-testing.md)
