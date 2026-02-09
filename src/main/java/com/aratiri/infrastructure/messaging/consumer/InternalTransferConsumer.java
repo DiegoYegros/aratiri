@@ -21,10 +21,14 @@ public class InternalTransferConsumer {
     public void handleInternalTransfer(String message, Acknowledgment acknowledgment) {
         try {
             InternalTransferInitiatedEvent event = jsonMapper.readValue(message, InternalTransferInitiatedEvent.class);
+            log.info("Processing internal transfer event. txId={}, senderId={}, receiverId={}, amountSat={}",
+                    event.getTransactionId(), event.getSenderId(), event.getReceiverId(), event.getAmountSat());
             transactionsService.processInternalTransfer(event);
             acknowledgment.acknowledge();
+            log.info("Internal transfer processed and acknowledged. txId={}", event.getTransactionId());
         } catch (Exception e) {
             log.error("Failed to process internal transfer: {}", message, e);
+            throw new RuntimeException("Internal transfer processing failed", e);
         }
     }
 }
