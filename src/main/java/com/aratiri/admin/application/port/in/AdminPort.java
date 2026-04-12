@@ -34,5 +34,7 @@ public interface AdminPort {
 
     NodeSettingsDTO getNodeSettings();
 
+    NodeSettingsDTO updateNodeSettings(UpdateNodeSettingsRequestDTO request);
+
     NodeSettingsDTO updateAutoManagePeers(boolean enabled);
 }

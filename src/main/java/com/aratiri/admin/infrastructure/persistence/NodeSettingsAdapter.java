@@ -17,21 +17,35 @@ public class NodeSettingsAdapter implements NodeSettingsPort {
 
     @Override
     public NodeSettings loadSettings() {
-        NodeSettingsEntity settings = nodeSettingsRepository.findById("singleton")
-                .orElseGet(() -> nodeSettingsRepository.save(new NodeSettingsEntity(false)));
+        NodeSettingsEntity settings = loadEntity();
         return toDomain(settings);
     }
 
     @Override
-    public NodeSettings updateAutoManagePeers(boolean enabled) {
-        NodeSettingsEntity entity = nodeSettingsRepository.findById("singleton")
-                .orElseGet(() -> new NodeSettingsEntity(false));
-        entity.setAutoManagePeers(enabled);
+    public NodeSettings saveSettings(NodeSettings settings) {
+        NodeSettingsEntity entity = loadEntity();
+        entity.setAutoManagePeers(settings.autoManagePeers());
+        entity.setTransactionReconciliationMinAgeMs(settings.transactionReconciliationMinAgeMs());
         NodeSettingsEntity updated = nodeSettingsRepository.save(entity);
         return toDomain(updated);
     }
 
+    private NodeSettingsEntity loadEntity() {
+        return nodeSettingsRepository.findById(NodeSettings.SINGLETON_ID)
+                .orElseGet(() -> nodeSettingsRepository.save(
+                        new NodeSettingsEntity(
+                                false,
+                                NodeSettings.DEFAULT_TRANSACTION_RECONCILIATION_MIN_AGE_MS
+                        )
+                ));
+    }
+
     private NodeSettings toDomain(NodeSettingsEntity entity) {
-        return new NodeSettings(entity.isAutoManagePeers(), entity.getCreatedAt(), entity.getUpdatedAt());
+        return new NodeSettings(
+                entity.isAutoManagePeers(),
+                entity.getTransactionReconciliationMinAgeMs(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt()
+        );
     }
 }

@@ -6,5 +6,5 @@ public interface NodeSettingsPort {
 
     NodeSettings loadSettings();
 
-    NodeSettings updateAutoManagePeers(boolean enabled);
+    NodeSettings saveSettings(NodeSettings settings);
 }

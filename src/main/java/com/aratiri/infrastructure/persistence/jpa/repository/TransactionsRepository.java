@@ -21,7 +21,9 @@ public interface TransactionsRepository extends JpaRepository<TransactionEntity,
 
     boolean existsByReferenceId(String referenceId);
 
-    @Query("SELECT t FROM TransactionEntity t WHERE t.createdAt < :timestamp " +
+    @Query("SELECT t FROM TransactionEntity t WHERE t.type = com.aratiri.transactions.application.dto.TransactionType.LIGHTNING_DEBIT " +
+            "AND t.referenceId IS NOT NULL " +
+            "AND t.createdAt < :timestamp " +
             "AND EXISTS (SELECT pending FROM TransactionEventEntity pending WHERE pending.transaction = t " +
             "AND pending.eventType = com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType.STATUS_CHANGED " +
             "AND pending.status = com.aratiri.transactions.application.dto.TransactionStatus.PENDING) " +

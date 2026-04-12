@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lnrpc.CloseStatusUpdate;
 import lnrpc.GetInfoResponse;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -168,9 +169,15 @@ public class AdminAPI {
     }
 
     @GetMapping("/settings")
-    @Operation(summary = "Get current node settings")
+    @Operation(summary = "Get current application settings")
     public ResponseEntity<NodeSettingsDTO> getNodeSettings() {
         return ResponseEntity.ok(adminPort.getNodeSettings());
+    }
+
+    @PutMapping("/settings")
+    @Operation(summary = "Update application settings")
+    public ResponseEntity<NodeSettingsDTO> updateSettings(@Valid @RequestBody UpdateNodeSettingsRequestDTO request) {
+        return ResponseEntity.ok(adminPort.updateNodeSettings(request));
     }
 
     @PutMapping("/settings/auto-manage-peers")

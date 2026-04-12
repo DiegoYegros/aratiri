@@ -1,5 +1,6 @@
 package com.aratiri.infrastructure.persistence.jpa.entity;
 
+import com.aratiri.admin.domain.NodeSettings;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -16,10 +17,13 @@ import java.time.Instant;
 public class NodeSettingsEntity {
 
     @Id
-    private String id = "singleton";
+    private String id = NodeSettings.SINGLETON_ID;
 
     @Column(nullable = false)
     private boolean autoManagePeers = false;
+
+    @Column(nullable = false)
+    private long transactionReconciliationMinAgeMs = NodeSettings.DEFAULT_TRANSACTION_RECONCILIATION_MIN_AGE_MS;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
@@ -32,8 +36,9 @@ public class NodeSettingsEntity {
     public NodeSettingsEntity() {
     }
 
-    public NodeSettingsEntity(boolean autoManagePeers) {
-        this.id = "singleton";
+    public NodeSettingsEntity(boolean autoManagePeers, long transactionReconciliationMinAgeMs) {
+        this.id = NodeSettings.SINGLETON_ID;
         this.autoManagePeers = autoManagePeers;
+        this.transactionReconciliationMinAgeMs = transactionReconciliationMinAgeMs;
     }
 }

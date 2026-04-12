@@ -10,6 +10,9 @@ public class NodeSettingsDTO {
     @JsonProperty("auto_manage_peers")
     private boolean autoManagePeers;
 
+    @JsonProperty("transaction_reconciliation_min_age_ms")
+    private long transactionReconciliationMinAgeMs;
+
     @JsonProperty("created_at")
     private Instant createdAt;
 

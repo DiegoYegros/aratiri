@@ -1,5 +1,7 @@
 package com.aratiri.infrastructure.scheduling.job;
 
+import com.aratiri.admin.application.port.out.NodeSettingsPort;
+import com.aratiri.admin.domain.NodeSettings;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.payments.application.port.in.PaymentsPort;
@@ -11,7 +13,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,14 +21,17 @@ public class TransactionReconciliationJob {
 
     private static final Logger logger = LoggerFactory.getLogger(TransactionReconciliationJob.class);
     private final TransactionsRepository transactionsRepository;
+    private final NodeSettingsPort nodeSettingsPort;
     private final PaymentsPort paymentsPort;
     private final TransactionsPort transactionsService;
 
     public TransactionReconciliationJob(
             TransactionsRepository transactionsRepository,
+            NodeSettingsPort nodeSettingsPort,
             PaymentsPort paymentsPort,
             TransactionsPort transactionsService) {
         this.transactionsRepository = transactionsRepository;
+        this.nodeSettingsPort = nodeSettingsPort;
         this.paymentsPort = paymentsPort;
         this.transactionsService = transactionsService;
     }
@@ -35,13 +39,19 @@ public class TransactionReconciliationJob {
     @Scheduled(fixedDelay = 60000)
     public void reconcilePendingPayments() {
         logger.debug("Starting pending payments reconciliation task.");
-        Instant fiveMinutesAgo = Instant.now().minus(5, ChronoUnit.MINUTES);
-        List<TransactionEntity> pendingTransactions = transactionsRepository.findPendingTransactionsOlderThan(fiveMinutesAgo);
+        NodeSettings settings = nodeSettingsPort.loadSettings();
+        long minAgeMs = Math.max(0L, settings.transactionReconciliationMinAgeMs());
+        Instant reconciliationThreshold = Instant.now().minusMillis(minAgeMs);
+        List<TransactionEntity> pendingTransactions = transactionsRepository.findPendingTransactionsOlderThan(reconciliationThreshold);
         if (pendingTransactions.isEmpty()) {
             logger.debug("No pending transactions to reconcile.");
             return;
         }
-        logger.info("Found {} pending transactions to reconcile.", pendingTransactions.size());
+        logger.info(
+                "Found {} pending transactions to reconcile using a minimum age of {} ms.",
+                pendingTransactions.size(),
+                minAgeMs
+        );
         for (TransactionEntity transaction : pendingTransactions) {
             try {
                 reconcileTransaction(transaction);
@@ -54,6 +64,10 @@ public class TransactionReconciliationJob {
 
     private void reconcileTransaction(TransactionEntity transaction) {
         String paymentHash = transaction.getReferenceId();
+        if (paymentHash == null || paymentHash.isBlank()) {
+            logger.debug("Skipping reconciliation for transaction {} because it has no payment hash.", transaction.getId());
+            return;
+        }
         logger.info("Reconciling transaction ID: {}, Payment Hash: {}", transaction.getId(), paymentHash);
         Optional<Payment> paymentStatusOpt = paymentsPort.checkPaymentStatusOnNode(paymentHash);
         if (paymentStatusOpt.isEmpty()) {

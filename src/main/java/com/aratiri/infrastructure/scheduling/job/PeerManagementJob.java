@@ -2,8 +2,9 @@ package com.aratiri.infrastructure.scheduling.job;
 
 import com.aratiri.admin.application.dto.ConnectPeerRequestDTO;
 import com.aratiri.admin.application.dto.NodeInfoDTO;
-import com.aratiri.admin.application.dto.NodeSettingsDTO;
 import com.aratiri.admin.application.port.in.AdminPort;
+import com.aratiri.admin.application.port.out.NodeSettingsPort;
+import com.aratiri.admin.domain.NodeSettings;
 import com.aratiri.shared.exception.AratiriException;
 import lnrpc.Peer;
 import org.slf4j.Logger;
@@ -22,19 +23,21 @@ public class PeerManagementJob {
     private static final Logger logger = LoggerFactory.getLogger(PeerManagementJob.class);
 
     private final AdminPort adminPort;
+    private final NodeSettingsPort nodeSettingsPort;
 
     @Value("${aratiri.peer.management.target.count:20}")
     private int targetPeerCount;
 
-    public PeerManagementJob(AdminPort adminPort) {
+    public PeerManagementJob(AdminPort adminPort, NodeSettingsPort nodeSettingsPort) {
         this.adminPort = adminPort;
+        this.nodeSettingsPort = nodeSettingsPort;
     }
 
     // once a day
     @Scheduled(fixedDelayString = "${aratiri.peer.management.interval:86400000}")
     public void managePeers() {
-        NodeSettingsDTO settings = adminPort.getNodeSettings();
-        if (settings == null || !settings.isAutoManagePeers()) {
+        NodeSettings settings = nodeSettingsPort.loadSettings();
+        if (settings == null || !settings.autoManagePeers()) {
             logger.debug("Automatic peer management is disabled in node settings. Skipping job.");
             return;
         }

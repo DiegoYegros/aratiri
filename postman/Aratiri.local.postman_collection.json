@@ -1,0 +1,664 @@
+{
+  "info": {
+    "_postman_id": "491e93b2-7394-4b47-a164-b414706eef46",
+    "name": "Aratiri Local",
+    "description": "Curated local Postman collection for Aratiri. Uses the seeded Alice and Bob users from Flyway and groups requests by domain, with a top-level demo flow that can be run in order.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 Demo Flow",
+      "description": "Run these requests from top to bottom against the local seeded data.",
+      "item": [
+        {
+          "name": "01 Login Alice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('aliceAccessToken', json.accessToken);",
+                  "pm.environment.set('aliceRefreshToken', json.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{aliceEmail}}\",\n  \"password\": \"{{alicePassword}}\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": "{{baseUrl}}/v1/auth/login",
+            "description": "Seeded local user. Verified to work with password123."
+          },
+          "response": []
+        },
+        {
+          "name": "02 Login Bob",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('bobAccessToken', json.accessToken);",
+                  "pm.environment.set('bobRefreshToken', json.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{bobEmail}}\",\n  \"password\": \"{{bobPassword}}\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": "{{baseUrl}}/v1/auth/login"
+          },
+          "response": []
+        },
+        {
+          "name": "03 Alice Me",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('aliceUserId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/auth/me"
+          },
+          "response": []
+        },
+        {
+          "name": "04 Alice Account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('aliceAccountId', json.id);",
+                  "pm.environment.set('aliceUserId', json.user_id);",
+                  "pm.environment.set('aliceAlias', json.alias);",
+                  "pm.environment.set('aliceLnurl', json.lnurl);",
+                  "pm.environment.set('aliceBitcoinAddress', json.bitcoin_address);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/accounts/account",
+            "description": "This response already contains the account QR data as base64 fields."
+          },
+          "response": []
+        },
+        {
+          "name": "05 Alice Public LNURL Metadata",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('aliceLnurlCallback', json.callback);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/.well-known/lnurlp/{{aliceAliasLocal}}"
+          },
+          "response": []
+        },
+        {
+          "name": "06 Alice Generate Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('generatedInvoice', json.payment_request);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sats_amount\": {{invoiceSats}},\n  \"memo\": \"{{invoiceMemo}}\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": "{{baseUrl}}/v1/invoices"
+          },
+          "response": []
+        },
+        {
+          "name": "07 Bob Decode Generated Invoice",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/invoices/invoice/decode/{{generatedInvoice}}"
+          },
+          "response": []
+        },
+        {
+          "name": "08 Bob Pay Generated Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('latestTransactionId', json.transactionId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice\": \"{{generatedInvoice}}\",\n  \"feeLimitSat\": {{feeLimitSat}},\n  \"timeoutSeconds\": {{timeoutSeconds}}\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": "{{baseUrl}}/v1/payments/invoice"
+          },
+          "response": []
+        },
+        {
+          "name": "09 Bob Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/accounts/account/transactions?from={{dateFrom}}&to={{dateTo}}"
+          },
+          "response": []
+        },
+        {
+          "name": "10 Confirm Latest Transaction (requires funded balance)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/transactions/{{latestTransactionId}}/confirm",
+            "description": "Included for completeness. On the default seed this is expected to fail until the paying account has funds."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login Alice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('aliceAccessToken', json.accessToken);",
+                  "pm.environment.set('aliceRefreshToken', json.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{aliceEmail}}\",\n  \"password\": \"{{alicePassword}}\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": "{{baseUrl}}/v1/auth/login"
+          },
+          "response": []
+        },
+        {
+          "name": "Login Bob",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('bobAccessToken', json.accessToken);",
+                  "pm.environment.set('bobRefreshToken', json.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{bobEmail}}\",\n  \"password\": \"{{bobPassword}}\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": "{{baseUrl}}/v1/auth/login"
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Alice Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('aliceAccessToken', json.accessToken);",
+                  "pm.environment.set('aliceRefreshToken', json.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{aliceRefreshToken}}\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": "{{baseUrl}}/v1/auth/refresh"
+          },
+          "response": []
+        },
+        {
+          "name": "Alice Me",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('aliceUserId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/auth/me"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout Alice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{aliceRefreshToken}}\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": "{{baseUrl}}/v1/auth/logout",
+            "description": "The local app currently requires both a bearer token and the refresh token body for logout to succeed."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Accounts",
+      "item": [
+        {
+          "name": "Alice Current Account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('aliceAccountId', json.id);",
+                  "pm.environment.set('aliceUserId', json.user_id);",
+                  "pm.environment.set('aliceAlias', json.alias);",
+                  "pm.environment.set('aliceLnurl', json.lnurl);",
+                  "pm.environment.set('aliceBitcoinAddress', json.bitcoin_address);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/accounts/account"
+          },
+          "response": []
+        },
+        {
+          "name": "Bob Current Account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('bobAccountId', json.id);",
+                  "pm.environment.set('bobUserId', json.user_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/accounts/account"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alice Account By ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/accounts/account/{{aliceAccountId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alice Account By User ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/accounts/account/user/{{aliceUserId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Alice Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/accounts/account/transactions?from={{dateFrom}}&to={{dateTo}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Supported Fiat Currencies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/general-data/currencies"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Public & Decoder",
+      "item": [
+        {
+          "name": "Alice Public LNURL Metadata",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('aliceLnurlCallback', json.callback);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/.well-known/lnurlp/{{aliceAliasLocal}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Alice LNURL Callback Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.pr) pm.environment.set('generatedLnurlInvoice', json.pr);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lnurl/callback/{{aliceAliasLocal}}?amount={{lnurlAmountMsat}}&comment={{lnurlComment}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Decode Alice Alias",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/decoder?input={{aliceAlias}}",
+            "description": "Authenticated decode call. The current local app requires JWT here."
+          },
+          "response": []
+        },
+        {
+          "name": "Decode Alice LNURL",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/decoder?input={{aliceLnurl}}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Invoices & LNURL Payments",
+      "item": [
+        {
+          "name": "Alice Generate Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('generatedInvoice', json.payment_request);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sats_amount\": {{invoiceSats}},\n  \"memo\": \"{{invoiceMemo}}\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": "{{baseUrl}}/v1/invoices"
+          },
+          "response": []
+        },
+        {
+          "name": "Bob Decode Latest Invoice",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/invoices/invoice/decode/{{generatedInvoice}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Bob Pay Latest Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('latestTransactionId', json.transactionId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice\": \"{{generatedInvoice}}\",\n  \"feeLimitSat\": {{feeLimitSat}},\n  \"timeoutSeconds\": {{timeoutSeconds}}\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": "{{baseUrl}}/v1/payments/invoice"
+          },
+          "response": []
+        },
+        {
+          "name": "Bob LNURL Pay Alice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set('latestLnurlTransactionId', json.transactionId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callback\": \"{{aliceLnurlCallback}}\",\n  \"amount_msat\": {{lnurlAmountMsat}},\n  \"comment\": \"{{lnurlComment}}\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": "{{baseUrl}}/v1/lnurl/pay"
+          },
+          "response": []
+        },
+        {
+          "name": "Bob Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/accounts/account/transactions?from={{dateFrom}}&to={{dateTo}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Latest LNURL Transaction (requires funded balance)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/transactions/{{latestLnurlTransactionId}}/confirm"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

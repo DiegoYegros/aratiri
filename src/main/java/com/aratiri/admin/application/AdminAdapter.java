@@ -183,14 +183,37 @@ public class AdminAdapter implements AdminPort {
     }
 
     @Override
+    public NodeSettingsDTO updateNodeSettings(UpdateNodeSettingsRequestDTO request) {
+        NodeSettings current = nodeSettingsPort.loadSettings();
+        NodeSettings updated = nodeSettingsPort.saveSettings(new NodeSettings(
+                request.getAutoManagePeers() != null
+                        ? request.getAutoManagePeers()
+                        : current.autoManagePeers(),
+                request.getTransactionReconciliationMinAgeMs() != null
+                        ? request.getTransactionReconciliationMinAgeMs()
+                        : current.transactionReconciliationMinAgeMs(),
+                current.createdAt(),
+                current.updatedAt()
+        ));
+        return toDto(updated);
+    }
+
+    @Override
     public NodeSettingsDTO updateAutoManagePeers(boolean enabled) {
-        NodeSettings settings = nodeSettingsPort.updateAutoManagePeers(enabled);
-        return toDto(settings);
+        NodeSettings current = nodeSettingsPort.loadSettings();
+        NodeSettings updated = nodeSettingsPort.saveSettings(new NodeSettings(
+                enabled,
+                current.transactionReconciliationMinAgeMs(),
+                current.createdAt(),
+                current.updatedAt()
+        ));
+        return toDto(updated);
     }
 
     private NodeSettingsDTO toDto(NodeSettings settings) {
         NodeSettingsDTO dto = new NodeSettingsDTO();
         dto.setAutoManagePeers(settings.autoManagePeers());
+        dto.setTransactionReconciliationMinAgeMs(settings.transactionReconciliationMinAgeMs());
         dto.setCreatedAt(settings.createdAt());
         dto.setUpdatedAt(settings.updatedAt());
         return dto;
