@@ -83,10 +83,18 @@ aratiri:
   currency:
     conversion:
       api:
-        url: ${ARATIRI_CURRENCY_CONVERSION_API_URL:https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=%s}\
+        url: ${ARATIRI_CURRENCY_CONVERSION_API_URL:https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=%s}
+      history:
+        api:
+          url: ${ARATIRI_CURRENCY_CONVERSION_HISTORY_API_URL:https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=%s&days=%s}
       fallback:
         api:
           url: ${ARATIRI_CURRENCY_CONVERSION_FALLBACK_API_URL:https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/%s.json}
+      cache:
+        current:
+          ttl-seconds: ${ARATIRI_CURRENCY_CONVERSION_CACHE_CURRENT_TTL_SECONDS:10}
+        history:
+          ttl-seconds: ${ARATIRI_CURRENCY_CONVERSION_CACHE_HISTORY_TTL_SECONDS:300}
   accounts:
     fiat:
       currencies: ${ARATIRI_ACCOUNTS_FIAT_CURRENCIES:usd,pyg,ars,eur}

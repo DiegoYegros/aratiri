@@ -1,5 +1,7 @@
 package com.aratiri.generaldata.infrastructure.currency;
 
+import com.aratiri.generaldata.domain.BtcPricePoint;
+import com.aratiri.generaldata.domain.BtcPriceRange;
 import com.aratiri.generaldata.application.port.out.CurrencyConversionPort;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
 import org.slf4j.Logger;
@@ -7,9 +9,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,11 +28,13 @@ public class CurrencyConversionAdapter implements CurrencyConversionPort {
     private final RestTemplate restTemplate;
     private final JsonMapper jsonMapper;
     private final AratiriProperties aratiriProperties;
+    private final Clock clock;
 
-    public CurrencyConversionAdapter(RestTemplate restTemplate, JsonMapper jsonMapper, AratiriProperties aratiriProperties) {
+    public CurrencyConversionAdapter(RestTemplate restTemplate, JsonMapper jsonMapper, AratiriProperties aratiriProperties, Clock clock) {
         this.restTemplate = restTemplate;
         this.jsonMapper = jsonMapper;
         this.aratiriProperties = aratiriProperties;
+        this.clock = clock;
     }
 
     @Override
@@ -39,10 +47,54 @@ public class CurrencyConversionAdapter implements CurrencyConversionPort {
                 prices.put(currency, fromCoinGecko);
             } else {
                 BigDecimal btcPriceFromFallback = getBtcPriceFromFallback(currency);
-                prices.put(currency, btcPriceFromFallback);
+                if (btcPriceFromFallback != null) {
+                    prices.put(currency, btcPriceFromFallback);
+                }
             }
         });
         return prices;
+    }
+
+    @Override
+    public List<BtcPricePoint> getBtcPriceHistory(String currency, BtcPriceRange range) {
+        String apiUrl = String.format(
+                aratiriProperties.getCoingeckoMarketChartApiUrlTemplate(),
+                currency.toLowerCase(),
+                range.coingeckoDays()
+        );
+        logger.info("Fetching BTC price history in {} for range {} from CoinGecko...", currency.toUpperCase(), range.code());
+        try {
+            String jsonResponse = restTemplate.getForObject(apiUrl, String.class);
+            if (jsonResponse == null) {
+                throw new IllegalStateException("No response from CoinGecko market chart API.");
+            }
+            JsonNode response = jsonMapper.readTree(jsonResponse);
+            JsonNode prices = response.path("prices");
+            if (!prices.isArray()) {
+                throw new IllegalStateException("Invalid market chart response format.");
+            }
+
+            Instant cutoff = Instant.now(clock).minus(range.duration());
+            List<BtcPricePoint> points = new ArrayList<>();
+            for (JsonNode point : prices) {
+                if (!point.isArray() || point.size() < 2 || point.get(0).isNull() || point.get(1).isNull()) {
+                    continue;
+                }
+                Instant timestamp = Instant.ofEpochMilli(point.get(0).longValue());
+                if (timestamp.isBefore(cutoff)) {
+                    continue;
+                }
+                points.add(new BtcPricePoint(timestamp, point.get(1).decimalValue()));
+            }
+
+            if (points.isEmpty()) {
+                throw new IllegalStateException("No BTC price history points available.");
+            }
+            return points;
+        } catch (Exception e) {
+            logger.error("Failed to fetch BTC price history in {} for range {}", currency.toUpperCase(), range.code(), e);
+            throw new IllegalStateException("Failed to fetch BTC price history.", e);
+        }
     }
 
     private BigDecimal getBtcPriceFromFallback(String currency) {

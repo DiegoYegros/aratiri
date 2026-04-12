@@ -6,7 +6,7 @@ That is the best fit here because it keeps import and sharing simple while still
 
 - `00 Demo Flow`: quickest end-to-end path using seeded demo users.
 - `Auth`: token lifecycle and current-user requests.
-- `Accounts`: account lookups, balances, QR-bearing account payloads, and transactions.
+- `Accounts`: account lookups, balances, QR-bearing account payloads, transactions, and general-data requests used by the dashboard.
 - `Public & Decoder`: public LNURL endpoints plus authenticated decoder calls.
 - `Invoices & LNURL Payments`: invoice generation and payment initiation flows.
 
@@ -44,6 +44,7 @@ It will:
 
 - `GET /v1/accounts/account` includes the QR-bearing fields already, so there is no separate QR generation endpoint to call for the user flow.
 - `POST /v1/transactions/{id}/confirm` is included, but on the default local seed it is expected to fail until the paying account is funded.
+- `GET /v1/general-data/btc-price/current` and `GET /v1/general-data/btc-price/history` use `btcPriceCurrency` and `btcPriceRange` environment variables.
 - `POST /v1/auth/logout` only succeeds when both of these are sent:
   - bearer access token
   - refresh token in the request body

@@ -464,6 +464,30 @@
             "url": "{{baseUrl}}/v1/general-data/currencies"
           },
           "response": []
+        },
+        {
+          "name": "Current BTC Price",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/general-data/btc-price/current?currency={{btcPriceCurrency}}",
+            "description": "Returns the latest cached BTC spot price for the selected fiat currency. Default cache TTL is 10 seconds."
+          },
+          "response": []
+        },
+        {
+          "name": "BTC Price History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+            ],
+            "url": "{{baseUrl}}/v1/general-data/btc-price/history?currency={{btcPriceCurrency}}&range={{btcPriceRange}}",
+            "description": "Returns BTC price history points for the selected fiat currency and range. Supported ranges: 1h, 24h, 7d."
+          },
+          "response": []
         }
       ]
     },

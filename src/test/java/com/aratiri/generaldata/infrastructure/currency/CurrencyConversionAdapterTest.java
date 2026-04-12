@@ -10,6 +10,9 @@ import org.springframework.web.client.RestTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -31,10 +34,13 @@ class CurrencyConversionAdapterTest {
 
     private CurrencyConversionAdapter currencyConversionAdapter;
 
+    private Clock clock;
+
     @BeforeEach
     void setUp() {
         JsonMapper jsonMapper = new JsonMapper();
-        currencyConversionAdapter = new CurrencyConversionAdapter(restTemplate, jsonMapper, aratiriProperties);
+        clock = Clock.fixed(Instant.parse("2026-04-12T12:00:00Z"), ZoneOffset.UTC);
+        currencyConversionAdapter = new CurrencyConversionAdapter(restTemplate, jsonMapper, aratiriProperties, clock);
     }
 
     @Test
@@ -101,5 +107,44 @@ class CurrencyConversionAdapterTest {
 
         assertNotNull(result);
         assertNull(result.get("usd"));
+    }
+
+    @Test
+    void getBtcPriceHistory_shouldParseAndFilterRequestedRange() {
+        long olderThanOneHour = Instant.parse("2026-04-12T10:45:00Z").toEpochMilli();
+        long withinOneHour = Instant.parse("2026-04-12T11:30:00Z").toEpochMilli();
+        long latestPoint = Instant.parse("2026-04-12T12:00:00Z").toEpochMilli();
+        String historyResponse = String.format(
+                "{\"prices\":[[%d,83000.0],[%d,83500.5],[%d,84010.25]]}",
+                olderThanOneHour,
+                withinOneHour,
+                latestPoint
+        );
+
+        when(aratiriProperties.getCoingeckoMarketChartApiUrlTemplate())
+                .thenReturn("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=%s&days=%s");
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(historyResponse);
+
+        var result = currencyConversionAdapter.getBtcPriceHistory("usd", com.aratiri.generaldata.domain.BtcPriceRange.ONE_HOUR);
+
+        assertEquals(2, result.size());
+        assertEquals(Instant.parse("2026-04-12T11:30:00Z"), result.get(0).timestamp());
+        assertEquals(BigDecimal.valueOf(83500.5), result.get(0).price());
+        assertEquals(Instant.parse("2026-04-12T12:00:00Z"), result.get(1).timestamp());
+        assertEquals(BigDecimal.valueOf(84010.25), result.get(1).price());
+    }
+
+    @Test
+    void getBtcPriceHistory_shouldThrowWhenResponseIsInvalid() {
+        when(aratiriProperties.getCoingeckoMarketChartApiUrlTemplate())
+                .thenReturn("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=%s&days=%s");
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn("{}");
+
+        IllegalStateException exception = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> currencyConversionAdapter.getBtcPriceHistory("usd", com.aratiri.generaldata.domain.BtcPriceRange.ONE_HOUR)
+        );
+
+        assertEquals("Failed to fetch BTC price history.", exception.getMessage());
     }
 }

@@ -35,8 +35,17 @@ public class AratiriProperties {
     @Value("${aratiri.currency.conversion.api.url:https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=%s}")
     private String coingeckoApiUrlTemplate;
 
+    @Value("${aratiri.currency.conversion.history.api.url:https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=%s&days=%s}")
+    private String coingeckoMarketChartApiUrlTemplate;
+
     @Value("${aratiri.currency.conversion.fallback.api.url:https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/%s.json}")
     private String fallbackApiUrlTemplate;
+
+    @Value("${aratiri.currency.conversion.cache.current.ttl-seconds:10}")
+    private long btcPriceCurrentCacheTtlSeconds;
+
+    @Value("${aratiri.currency.conversion.cache.history.ttl-seconds:300}")
+    private long btcPriceHistoryCacheTtlSeconds;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
