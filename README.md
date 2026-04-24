@@ -2,7 +2,8 @@
 
 A multi-user Bitcoin Lightning and on-chain middleware platform.
 
-## Purpose 
+## Purpose
+
 Aratiri is meant for institutions and platforms that already safeguard their users' funds and want to integrate Bitcoin and Lightning capabilities into their existing financial architecture. You remain the custodian of your users' bitcoin. Aratiri facilitates the interactions with the Bitcoin network. Aratiri is not a self-custodial wallet.
 
 ## Features
@@ -65,7 +66,93 @@ Avoid running from `target/` or IDE compiler outputs. Aratiri uses Gradle build 
 - Run tests using Gradle.
 
 ### Transactional flow
-![img.png](docs/transactional_flow.png)
+
+Aratiri sits between **your** custody layer and **LND**: HTTP APIs record intent and money movement in PostgreSQL first. Side effects that must not be lost (calling LND, notifying users) are deferred using an **outbox** row in the same database transaction, then published to **Kafka** on a schedule so workers can retry independently. Some Kafka topics are also read by a **notification** consumer for email-side effects, not only for ledger updates.
+
+#### System context
+
+```mermaid
+flowchart TB
+  subgraph custodian [Custodian_and_integrators]
+    clients[REST_API_clients]
+  end
+  subgraph aratiri [Aratiri_runtime]
+    apis[HTTP_controllers]
+    core[Application_services]
+    data[(PostgreSQL)]
+    bus[(Apache_Kafka)]
+    clients --> apis
+    apis --> core
+    core --> data
+    core --> bus
+    bus --> core
+  end
+  subgraph node [Lightning_node]
+    lnd[LND_gRPC]
+  end
+  core <--> lnd
+```
+
+#### Outbox pattern and topics
+
+```mermaid
+flowchart TB
+  subgraph writes [Same_DB_transaction]
+    httpApis[HTTP_APIs]
+    adapters[Payments_Invoices_Transactions_etc]
+    pg[(PostgreSQL_ledger_and_outbox)]
+    httpApis --> adapters
+    adapters --> pg
+  end
+
+  subgraph lndStreams [LND_push_streams]
+    lndNode[LND]
+    invoiceStream[subscribeInvoices]
+    chainStream[subscribeTransactions]
+    lndNode --> invoiceStream
+    lndNode --> chainStream
+    invoiceStream --> adapters
+    chainStream --> adapters
+  end
+
+  subgraph publish [Outbox_publisher]
+    outboxJob[OutboxEventJob]
+    kafkaBus[(Kafka)]
+    pg --> outboxJob
+    outboxJob --> kafkaBus
+  end
+
+  subgraph ledgerConsumers [Ledger_and_node_workers]
+    paymentCons[PaymentConsumer]
+    internalCons[InternalTransferConsumer]
+    settledCons[InvoiceSettledConsumer]
+    onchainCons[OnChainTransactionConsumer]
+    cancelCons[InternalInvoiceCancelConsumer]
+  end
+
+  subgraph sideEffects [Side_effects]
+    notifyCons[NotificationConsumer]
+  end
+
+  kafkaBus -->|payment.initiated| paymentCons
+  kafkaBus -->|onchain.payment.initiated| paymentCons
+  kafkaBus -->|internal.transfer.initiated| internalCons
+  kafkaBus -->|invoice.settled| settledCons
+  kafkaBus -->|onchain.transaction.received| onchainCons
+  kafkaBus -->|internal.invoice.cancel| cancelCons
+  kafkaBus -->|invoice.settled| notifyCons
+  kafkaBus -->|internal.transfer.completed| notifyCons
+  kafkaBus -->|payment.sent| notifyCons
+
+  paymentCons --> adapters
+  internalCons --> adapters
+  settledCons --> adapters
+  onchainCons --> adapters
+  cancelCons --> lndNode
+  adapters --> lndNode
+```
+
+Topic names match [`KafkaTopics`](src/main/java/com/aratiri/infrastructure/messaging/KafkaTopics.java) in the codebase.
 
 ### Shortcuts
 - [Docker Compose stack](docker-compose.yml)
