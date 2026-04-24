@@ -9,11 +9,14 @@ public class JsonUtils {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
+    private JsonUtils() {
+    }
+
     public static String toJson(Object payload) {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
-            throw new AratiriException("Failed to map string to json: "+ e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
+            throw new AratiriException("Failed to map string to json: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 }

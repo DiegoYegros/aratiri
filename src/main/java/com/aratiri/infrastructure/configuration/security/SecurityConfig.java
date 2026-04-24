@@ -46,8 +46,10 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
+    @SuppressWarnings("java:S4502")
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) {
         return http
+                // API authentication is stateless Bearer/JWT, so there is no cookie session for CSRF to exploit.
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/v1/auth/login",
@@ -83,20 +85,24 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) {
         return config.getAuthenticationManager();
     }
 
     @Bean
     public RoleHierarchy roleHierarchy() {
-        return RoleHierarchyImpl.fromHierarchy("ROLE_SUPERADMIN > ROLE_ADMIN \n" +
-                "ROLE_ADMIN > ROLE_VIEWER \n" +
-                "ROLE_VIEWER > ROLE_USER");
+        return RoleHierarchyImpl.fromHierarchy("""
+                ROLE_SUPERADMIN > ROLE_ADMIN
+                ROLE_ADMIN > ROLE_VIEWER
+                ROLE_VIEWER > ROLE_USER
+                """);
     }
 
     @Bean
+    @SuppressWarnings("java:S1874")
     public MethodSecurityExpressionHandler methodSecurityExpressionHandler(RoleHierarchy roleHierarchy) {
         DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
+        // Spring Security still routes method-security hierarchy support through this deprecated setter.
         expressionHandler.setRoleHierarchy(roleHierarchy);
         return expressionHandler;
     }

@@ -22,7 +22,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -33,6 +32,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class AccountsAdapter implements AccountsPort {
+
+    private static final String ACCOUNT_NOT_FOUND_FOR_USER = "Account not found for user";
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountPersistencePort accountPersistencePort;
@@ -64,14 +65,14 @@ public class AccountsAdapter implements AccountsPort {
     @Override
     public AccountDTO getAccount(String id) {
         Account account = accountPersistencePort.findById(id)
-                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new AratiriException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
         return buildAccountDTO(account);
     }
 
     @Override
     public AccountDTO getAccountByUserId(String userId) {
         Account account = accountPersistencePort.findByUserId(userId)
-                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new AratiriException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
         return buildAccountDTO(account);
     }
 
@@ -108,10 +109,10 @@ public class AccountsAdapter implements AccountsPort {
     @Override
     public AccountDTO creditBalance(String userId, long satsAmount) {
         Account account = accountPersistencePort.findByUserId(userId)
-                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new AratiriException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
         accountLedgerService.appendEntry(account.id(), null, satsAmount, AccountEntryType.MANUAL_ADJUSTMENT, "Manual credit adjustment");
         Account refreshed = accountPersistencePort.findById(account.id())
-                .orElseThrow(() -> new AratiriException("Account not found for user", HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new AratiriException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
         return buildAccountDTO(refreshed);
     }
 
@@ -153,7 +154,7 @@ public class AccountsAdapter implements AccountsPort {
                             .fiatEquivalents(fiatEquivalents)
                             .build();
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private String determineAlias(String requestedAlias) {

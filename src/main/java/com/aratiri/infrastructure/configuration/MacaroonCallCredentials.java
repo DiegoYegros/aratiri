@@ -2,8 +2,6 @@ package com.aratiri.infrastructure.configuration;
 
 import io.grpc.CallCredentials;
 import io.grpc.Metadata;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -12,7 +10,6 @@ import java.nio.file.Paths;
 import java.util.concurrent.Executor;
 
 public class MacaroonCallCredentials extends CallCredentials {
-    private final Logger logger = LoggerFactory.getLogger(getClass());
     private final String macaroon;
 
     public MacaroonCallCredentials(String macaroon) {
@@ -24,7 +21,7 @@ public class MacaroonCallCredentials extends CallCredentials {
             byte[] macaroonBytes = Files.readAllBytes(Paths.get(macaroonPath));
             return new String(macaroonBytes, StandardCharsets.US_ASCII).trim();
         } catch (IOException e) {
-            throw new RuntimeException("Failed to load macaroon file from path: " + macaroonPath, e);
+            throw new IllegalStateException("Failed to load macaroon file from path: " + macaroonPath, e);
         }
     }
 

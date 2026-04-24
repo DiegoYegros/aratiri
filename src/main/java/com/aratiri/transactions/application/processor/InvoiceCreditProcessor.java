@@ -21,14 +21,13 @@ public class InvoiceCreditProcessor implements TransactionProcessor {
         long amountInSats = transaction.getAmount();
         logger.info("AmountInSats = {}", amountInSats);
         long delta = amountInSats;
-        long newBalance = accountLedgerService.appendEntryForUser(
+        return accountLedgerService.appendEntryForUser(
                 transaction.getUserId(),
                 transaction.getId(),
                 delta,
                 AccountEntryType.LIGHTNING_CREDIT,
                 "Lightning invoice settled"
         );
-        return newBalance;
     }
 
     @Override

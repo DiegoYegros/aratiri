@@ -180,7 +180,7 @@ public class AuthAPI {
         byte[] decoded;
         try {
             decoded = Base64.getDecoder().decode(base64Credentials);
-        } catch (IllegalArgumentException ex) {
+        } catch (IllegalArgumentException _) {
             throw new AratiriException("Invalid Basic authentication header", HttpStatus.UNAUTHORIZED.value());
         }
         String[] parts = new String(decoded, StandardCharsets.UTF_8).split(":", 2);

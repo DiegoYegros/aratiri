@@ -14,7 +14,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 @RequiredArgsConstructor
@@ -65,7 +67,7 @@ public class DecoderAdapter implements DecoderPort {
         try {
             logger.info("Decoding Lightning Invoice: {}", input);
             return success("lightning_invoice", invoiceDecodingPort.decodeInvoice(input));
-        } catch (Exception e) {
+        } catch (Exception _) {
             return error("Invalid Lightning Invoice");
         }
     }
@@ -78,7 +80,10 @@ public class DecoderAdapter implements DecoderPort {
                 return resolveLightningAddress(lightningAddress);
             }
             return error("No Lightning Address found for this npub.");
-        } catch (Exception e) {
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+            return error("Could not resolve npub.");
+        } catch (ExecutionException _) {
             return error("Could not resolve npub.");
         }
     }
@@ -98,11 +103,11 @@ public class DecoderAdapter implements DecoderPort {
             String aliasOnly = input.contains("@") ? input.split("@")[0] : input;
             logger.info("Trying alias lookup: {}", aliasOnly);
             return success("alias", lnurlPort.getInternalMetadata(aliasOnly));
-        } catch (AratiriException e) {
+        } catch (AratiriException _) {
             if (input.contains("@")) {
                 try {
                     return resolveLightningAddress(input);
-                } catch (Exception ex) {
+                } catch (Exception _) {
                     logger.debug("Failed to resolve '{}' as Lightning Address. Trying NIP-05...", input);
                 }
             }
@@ -120,7 +125,10 @@ public class DecoderAdapter implements DecoderPort {
                     return resolveLightningAddress(lightningAddress);
                 }
             }
-        } catch (Exception ex) {
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+            logger.debug("Interrupted while resolving '{}' as NIP-05", input);
+        } catch (ExecutionException | TimeoutException ex) {
             logger.debug("Failed to resolve '{}' as NIP-05: {}", input, ex.getMessage());
         }
         return null;

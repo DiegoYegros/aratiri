@@ -15,6 +15,9 @@ import java.util.concurrent.CompletableFuture;
 @AllArgsConstructor
 public class NostrAdapter implements NostrPort {
 
+    private static final String CONTENT_FIELD = "content";
+    private static final String LUD16_FIELD = "lud16";
+
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private RestTemplate restTemplate;
     private NostrClient nostrClient;
@@ -23,14 +26,14 @@ public class NostrAdapter implements NostrPort {
     @Override
     public CompletableFuture<String> getLud16FromNpub(String npub) {
         return nostrClient.fetchProfile(npub).thenApply(profileEvent -> {
-            if (profileEvent != null && profileEvent.has("content")) {
+            if (profileEvent != null && profileEvent.has(CONTENT_FIELD)) {
                 try {
-                    String content = profileEvent.get("content").asText();
+                    String content = profileEvent.get(CONTENT_FIELD).asText();
                     JsonNode contentNode = jsonMapper.readTree(content);
-                    if (contentNode.has("lud16")) {
-                        return contentNode.get("lud16").asString();
+                    if (contentNode.has(LUD16_FIELD)) {
+                        return contentNode.get(LUD16_FIELD).asString();
                     }
-                } catch (Exception e) {
+                } catch (Exception _) {
                     throw new AratiriException("Failed to parse nostr content.", HttpStatus.INTERNAL_SERVER_ERROR.value());
                 }
             }
@@ -40,14 +43,14 @@ public class NostrAdapter implements NostrPort {
 
     private CompletableFuture<String> getLud16FromPubkey(String hexKey) {
         return nostrClient.fetchProfileByHex(hexKey).thenApply(profileEvent -> {
-            if (profileEvent != null && profileEvent.has("content")) {
+            if (profileEvent != null && profileEvent.has(CONTENT_FIELD)) {
                 try {
-                    String content = profileEvent.get("content").asText();
+                    String content = profileEvent.get(CONTENT_FIELD).asText();
                     JsonNode contentNode = jsonMapper.readTree(content);
-                    if (contentNode.has("lud16")) {
-                        return contentNode.get("lud16").asString();
+                    if (contentNode.has(LUD16_FIELD)) {
+                        return contentNode.get(LUD16_FIELD).asString();
                     }
-                } catch (Exception e) {
+                } catch (Exception _) {
                     throw new AratiriException("Failed to parse nostr profile content.", HttpStatus.INTERNAL_SERVER_ERROR.value());
                 }
             }

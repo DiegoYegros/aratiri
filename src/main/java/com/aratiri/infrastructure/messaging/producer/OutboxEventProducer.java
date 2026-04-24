@@ -19,8 +19,7 @@ public class OutboxEventProducer {
             kafkaTemplate.send(topic.getCode(), payload);
             logger.info("Successfully sent event from outbox to Kafka topic: {}", topic.getCode());
         } catch (Exception e) {
-            logger.error("Failed to send event from outbox to Kafka topic: {}", topic.getCode(), e);
-            throw e;
+            throw new IllegalStateException("Failed to send event from outbox to Kafka topic: " + topic.getCode(), e);
         }
     }
 }

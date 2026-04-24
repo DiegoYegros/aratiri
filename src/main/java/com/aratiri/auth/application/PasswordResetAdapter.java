@@ -11,9 +11,9 @@ import com.aratiri.shared.exception.AratiriException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Random;
 
 @Service
 public class PasswordResetAdapter implements PasswordResetPort {
@@ -24,7 +24,7 @@ public class PasswordResetAdapter implements PasswordResetPort {
     private final UserCommandPort userCommandPort;
     private final PasswordEncoderPort passwordEncoderPort;
     private final Clock clock;
-    private final Random random = new Random();
+    private final SecureRandom random = new SecureRandom();
 
     public PasswordResetAdapter(
             LoadUserPort loadUserPort,

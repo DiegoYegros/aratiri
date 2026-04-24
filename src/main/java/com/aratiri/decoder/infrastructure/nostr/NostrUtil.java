@@ -4,6 +4,9 @@ import com.aratiri.shared.util.Bech32Util;
 
 public class NostrUtil {
 
+    private NostrUtil() {
+    }
+
     public static String npubToHex(String npub) {
         Bech32Util.Bech32Data decoded = Bech32Util.bech32Decode(npub);
         byte[] data = decoded.data();

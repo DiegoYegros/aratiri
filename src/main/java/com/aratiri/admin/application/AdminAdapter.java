@@ -93,7 +93,7 @@ public class AdminAdapter implements AdminPort {
         int outputIndex;
         try {
             outputIndex = Integer.parseInt(parts[1]);
-        } catch (NumberFormatException ex) {
+        } catch (NumberFormatException _) {
             throw new AratiriException("Invalid channel point output index", HttpStatus.BAD_REQUEST.value());
         }
         return lightningNodeAdminPort.closeChannel(parts[0], outputIndex, request.isForce());
@@ -110,7 +110,7 @@ public class AdminAdapter implements AdminPort {
                                 .pubKey(node.getPubKey())
                                 .alias(node.getAlias())
                                 .color(node.getColor())
-                                .addresses(node.getAddressesList().stream().map(NodeAddress::getAddr).collect(Collectors.toList()))
+                                .addresses(node.getAddressesList().stream().map(NodeAddress::getAddr).toList())
                                 .capacity(0L)
                                 .numChannels(0)
                                 .betweennessCentrality(nodeMetrics.getBetweennessCentralityOrDefault(
@@ -127,7 +127,7 @@ public class AdminAdapter implements AdminPort {
                 .sorted(Comparator.comparing(NodeInfoDTO::getBetweennessCentrality).reversed()
                         .thenComparing(NodeInfoDTO::getCapacity).reversed()
                         .thenComparing(NodeInfoDTO::getNumChannels).reversed())
-                .collect(Collectors.toList());
+                .toList();
         return new RemotesResponseDTO(nodes);
     }
 

@@ -54,45 +54,6 @@ sonarLint {
     }
     ignoredPaths.add('build/**')
     ignoredPaths.add('**/generated/**')
-    rules {
-        // Initial gate baseline: these rules already flag legacy code and should be re-enabled as focused cleanup PRs.
-        disable(
-                'java:S1192',
-                'java:S1186',
-                'java:S3776',
-                'java:S2387',
-                'java:S6809',
-                'java:S1452',
-                'java:S1128',
-                'java:S1874',
-                'java:S7467',
-                'java:S135',
-                'java:S6201',
-                'java:S1130',
-                'java:S119',
-                'java:S2094',
-                'java:S1165',
-                'java:S1488',
-                'java:S2245',
-                'java:S4502',
-                'java:S6204',
-                'java:S1118',
-                'java:S112',
-                'java:S1181',
-                'java:S2139',
-                'java:S1141',
-                'java:S1172',
-                'java:S106',
-                'java:S6218',
-                'java:S2629',
-                'java:S3457',
-                'java:S2142',
-                'java:S1481',
-                'java:S1144',
-                'java:S6126',
-                'java:S1068'
-        )
-    }
 }
 
 dependencies {
@@ -170,9 +131,7 @@ tasks.named('test') {
 }
 
 tasks.named('check') {
-    dependsOn(tasks.matching { task ->
-        task.name in ['sonarLintMain', 'sonarLintTest', 'sonarlintMain', 'sonarlintTest']
-    })
+    dependsOn(tasks.named('sonarlintMain'), tasks.named('sonarlintTest'))
 }
 
 tasks.named('jar') {

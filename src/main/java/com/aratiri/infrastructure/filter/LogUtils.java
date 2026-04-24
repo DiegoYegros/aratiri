@@ -4,6 +4,9 @@ public class LogUtils {
 
     private static final int DEFAULT_ALIGNMENT = 30;
 
+    private LogUtils() {
+    }
+
     /**
      * Formats a log message with standardized alignment using default position (30 chars)
      *
@@ -31,8 +34,8 @@ public class LogUtils {
         }
         String beforeColon = formatted.substring(0, colonIndex).trim();
         String afterColon = formatted.substring(colonIndex + 1).trim();
-        String paddedBefore = String.format("%-" + alignmentPosition + "s", beforeColon);
-        return paddedBefore + ": " + afterColon;
+        String paddedBefore = padRight(beforeColon, alignmentPosition);
+        return String.format("%s: %s", paddedBefore, afterColon);
     }
 
     /**
@@ -55,8 +58,15 @@ public class LogUtils {
      * @return Formatted string with aligned colon
      */
     public static String formatKeyValue(int alignmentPosition, String key, Object value) {
-        String paddedKey = String.format("%-" + alignmentPosition + "s", key);
-        return paddedKey + ": " + (value != null ? value.toString() : "null");
+        String paddedKey = padRight(key, alignmentPosition);
+        return String.format("%s: %s", paddedKey, value != null ? value.toString() : "null");
+    }
+
+    private static String padRight(String value, int alignmentPosition) {
+        if (value.length() >= alignmentPosition) {
+            return value;
+        }
+        return value + " ".repeat(alignmentPosition - value.length());
     }
 
     /**

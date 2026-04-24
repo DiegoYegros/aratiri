@@ -1,6 +1,6 @@
 package com.aratiri.accounts.infrastructure.alias;
 
-import java.util.Random;
+import java.security.SecureRandom;
 
 public class AliasGenerator {
     private static final String[] ADJECTIVES = {
@@ -11,7 +11,10 @@ public class AliasGenerator {
             "koala", "penguin", "lynx", "otter", "panda", "fox", "eagle", "owl", "cat"
     };
 
-    private static final Random random = new Random();
+    private static final SecureRandom random = new SecureRandom();
+
+    private AliasGenerator() {
+    }
 
     public static String generateAlias() {
         String adjective = ADJECTIVES[random.nextInt(ADJECTIVES.length)];

@@ -8,6 +8,9 @@ import lombok.Data;
 
 public class OnChainPaymentDTOs {
 
+    private OnChainPaymentDTOs() {
+    }
+
     @Data
     public static class SendOnChainRequestDTO {
         @NotBlank(message = "Bitcoin address cannot be blank")

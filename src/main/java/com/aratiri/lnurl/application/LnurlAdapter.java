@@ -65,7 +65,7 @@ public class LnurlAdapter implements LnurlApplicationPort {
     public LnurlpResponseDTO getExternalLnurlMetadata(String url) {
         try {
             return lnurlRemotePort.fetchMetadata(url);
-        } catch (Exception e) {
+        } catch (Exception _) {
             throw new AratiriException("Failed to fetch LNURL metadata from external URL.", HttpStatus.BAD_GATEWAY.value());
         }
     }
@@ -97,7 +97,7 @@ public class LnurlAdapter implements LnurlApplicationPort {
         LnurlCallbackResponseDTO callbackResponse;
         try {
             callbackResponse = lnurlRemotePort.fetchCallbackInvoice(finalCallbackUrl);
-        } catch (Exception e) {
+        } catch (Exception _) {
             throw new AratiriException("Failed to fetch invoice from LNURL callback.", HttpStatus.BAD_GATEWAY.value());
         }
         if (callbackResponse == null || callbackResponse.getPaymentRequest() == null || callbackResponse.getPaymentRequest().isEmpty()) {

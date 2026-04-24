@@ -145,6 +145,6 @@ class CurrencyConversionAdapterTest {
                 () -> currencyConversionAdapter.getBtcPriceHistory("usd", com.aratiri.generaldata.domain.BtcPriceRange.ONE_HOUR)
         );
 
-        assertEquals("Failed to fetch BTC price history.", exception.getMessage());
+        assertEquals("Failed to fetch BTC price history in USD for range 1h.", exception.getMessage());
     }
 }

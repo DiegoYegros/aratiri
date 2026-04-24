@@ -28,7 +28,7 @@ public class InternalTransferConsumer {
             log.info("Internal transfer processed and acknowledged. txId={}", event.getTransactionId());
         } catch (Exception e) {
             log.error("Failed to process internal transfer: {}", message, e);
-            throw new RuntimeException("Internal transfer processing failed", e);
+            throw new IllegalStateException("Internal transfer processing failed", e);
         }
     }
 }

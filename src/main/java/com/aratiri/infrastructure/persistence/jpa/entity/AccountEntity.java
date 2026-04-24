@@ -23,5 +23,6 @@ public class AccountEntity {
     private String alias;
 
     public AccountEntity() {
+        // Required by JPA.
     }
 }

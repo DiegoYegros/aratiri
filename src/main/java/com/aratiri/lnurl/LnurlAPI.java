@@ -38,7 +38,7 @@ public class LnurlAPI {
             summary = "LNURL-pay callback",
             description = "Handles the LNURL-pay callback request to generate a Lightning invoice. This is the second step in the LNURL-pay flow where the wallet calls this endpoint with the payment amount (and optional comment) to receive a Lightning invoice. The generated invoice is then paid by the wallet to complete the payment. This endpoint creates the actual Lightning invoice through the connected Lightning node."
     )
-    public ResponseEntity<?> lnurlCallback(
+    public ResponseEntity<Object> lnurlCallback(
             @PathVariable String alias,
             @RequestParam long amount,
             @RequestParam(required = false) String comment

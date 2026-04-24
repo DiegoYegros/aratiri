@@ -13,9 +13,9 @@ import com.aratiri.shared.exception.AratiriException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Random;
 
 @Service
 public class RegistrationAdapter implements RegistrationPort {
@@ -29,7 +29,7 @@ public class RegistrationAdapter implements RegistrationPort {
     private final RefreshTokenPort refreshTokenPort;
     private final LoadUserPort loadUserPort;
     private final Clock clock;
-    private final Random random = new Random();
+    private final SecureRandom random = new SecureRandom();
 
     public RegistrationAdapter(
             RegistrationDraftPort registrationDraftPort,

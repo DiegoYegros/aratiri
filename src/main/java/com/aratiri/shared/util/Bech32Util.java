@@ -11,6 +11,37 @@ public class Bech32Util {
     private static final int[] GENERATOR = {0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3};
 
     public record Bech32Data(String hrp, byte[] data) {
+        public Bech32Data {
+            data = Arrays.copyOf(data, data.length);
+        }
+
+        @Override
+        public byte[] data() {
+            return Arrays.copyOf(data, data.length);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof Bech32Data(String otherHrp, byte[] otherData))) {
+                return false;
+            }
+            return hrp.equals(otherHrp) && Arrays.equals(data, otherData);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = hrp.hashCode();
+            result = 31 * result + Arrays.hashCode(data);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "Bech32Data[hrp=" + hrp + ", data=" + Arrays.toString(data) + "]";
+        }
     }
 
     public static String encodeLnurl(String url) {

@@ -21,6 +21,10 @@ import java.util.Map;
 @Slf4j
 public class NotificationConsumer {
 
+    private static final String MESSAGE_KEY = "message";
+    private static final String AMOUNT_SATS_KEY = "amountSats";
+    private static final String PAYMENT_REQUEST_KEY = "paymentRequest";
+
     private final NotificationPort notificationsService;
     private final JsonMapper jsonMapper;
 
@@ -37,9 +41,9 @@ public class NotificationConsumer {
                 userId = event.getUserId();
                 eventName = "payment_received";
                 notificationPayload = Map.of(
-                        "message", "Payment Received",
-                        "amountSats", event.getAmount(),
-                        "paymentRequest", event.getPaymentHash(),
+                        MESSAGE_KEY, "Payment Received",
+                        AMOUNT_SATS_KEY, event.getAmount(),
+                        PAYMENT_REQUEST_KEY, event.getPaymentHash(),
                         "memo", event.getMemo()
                 );
             } else if (topic.equals(KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode())) {
@@ -47,15 +51,15 @@ public class NotificationConsumer {
                 userId = event.getReceiverId();
                 eventName = "payment_received";
                 notificationPayload = Map.of(
-                        "message", "Payment Received",
-                        "amountSats", event.getAmountSat(),
-                        "paymentRequest", event.getPaymentHash(),
+                        MESSAGE_KEY, "Payment Received",
+                        AMOUNT_SATS_KEY, event.getAmountSat(),
+                        PAYMENT_REQUEST_KEY, event.getPaymentHash(),
                         "memo", event.getMemo()
                 );
                 Map<String, Object> senderPayload = Map.of(
-                        "message", "Payment Sent",
-                        "amountSats", event.getAmountSat(),
-                        "paymentRequest", event.getPaymentHash(),
+                        MESSAGE_KEY, "Payment Sent",
+                        AMOUNT_SATS_KEY, event.getAmountSat(),
+                        PAYMENT_REQUEST_KEY, event.getPaymentHash(),
                         "memo", event.getMemo()
                 );
                 notificationsService.sendNotification(event.getSenderId(), "payment_sent", senderPayload);
@@ -64,10 +68,10 @@ public class NotificationConsumer {
                 userId = event.getUserId();
                 eventName = "payment_sent";
                 notificationPayload = Map.of(
-                        "message", "Payment Sent",
+                        MESSAGE_KEY, "Payment Sent",
                         "transactionId", event.getTransactionId(),
-                        "amountSats", event.getAmount(),
-                        "paymentRequest", event.getPaymentHash(),
+                        AMOUNT_SATS_KEY, event.getAmount(),
+                        PAYMENT_REQUEST_KEY, event.getPaymentHash(),
                         "memo", event.getMemo()
                 );
             } else {

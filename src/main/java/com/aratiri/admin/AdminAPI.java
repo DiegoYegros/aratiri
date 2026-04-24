@@ -22,7 +22,6 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/v1/admin")
@@ -49,7 +48,7 @@ public class AdminAPI {
     @GetMapping("/peers")
     @Operation(summary = "List all connected peers")
     public ResponseEntity<List<PeerDTO>> listPeers() {
-        List<PeerDTO> peerDTOs = adminPort.listPeers().stream().map(PeerDTO::fromGrpc).collect(Collectors.toList());
+        List<PeerDTO> peerDTOs = adminPort.listPeers().stream().map(PeerDTO::fromGrpc).toList();
         return ResponseEntity.ok(peerDTOs);
     }
 
@@ -58,11 +57,12 @@ public class AdminAPI {
             summary = "Get Lightning Node information",
             description = "Gets general information about the connected Lightning node"
     )
+    @SuppressWarnings("java:S1874")
     public ResponseEntity<NodeInfoResponseDTO> getNodeInfo() {
         GetInfoResponse info = adminPort.getNodeInfo();
         List<com.aratiri.admin.application.dto.ChainDTO> chains = info.getChainsList().stream()
                 .map(chain -> new com.aratiri.admin.application.dto.ChainDTO(chain.getChain(), chain.getNetwork()))
-                .collect(Collectors.toList());
+                .toList();
         NodeInfoResponseDTO response = NodeInfoResponseDTO.builder()
                 .version(info.getVersion())
                 .commitHash(info.getCommitHash())

@@ -53,7 +53,7 @@ public class GeneralDataAdapter implements GeneralDataPort {
         try {
             List<BtcPricePoint> points = cachedBtcPriceService.getBtcPriceHistory(normalizedCurrency, normalizedRange);
             return new BtcPriceHistoryResponseDTO(normalizedCurrency, normalizedRange.code(), points);
-        } catch (IllegalStateException ex) {
+        } catch (IllegalStateException _) {
             throw new AratiriException(
                     "BTC price history is unavailable for currency [" + normalizedCurrency + "] and range [" + normalizedRange.code() + "].",
                     HttpStatus.SERVICE_UNAVAILABLE.value()

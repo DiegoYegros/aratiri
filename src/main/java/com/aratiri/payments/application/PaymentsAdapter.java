@@ -81,7 +81,7 @@ public class PaymentsAdapter implements PaymentsPort {
 
         Optional<InternalLightningInvoice> internalInvoiceOpt = lightningInvoicePort.findByPaymentHash(paymentHash);
         if (internalInvoiceOpt.isPresent()) {
-            return processInternalTransfer(request, userId, decodedInvoice, internalInvoiceOpt.get());
+            return processInternalTransfer(userId, decodedInvoice, internalInvoiceOpt.get());
         }
 
         return processExternalPayment(request, userId, paymentHash, decodedInvoice);
@@ -134,7 +134,6 @@ public class PaymentsAdapter implements PaymentsPort {
     }
 
     private PaymentResponseDTO processInternalTransfer(
-            PayInvoiceRequestDTO request,
             String senderId,
             DecodedInvoice decodedInvoice,
             InternalLightningInvoice internalInvoice
@@ -278,7 +277,9 @@ public class PaymentsAdapter implements PaymentsPort {
     }
 
     @Override
+    @SuppressWarnings("java:S1172")
     public OnChainPaymentDTOs.EstimateFeeResponseDTO estimateOnChainFee(OnChainPaymentDTOs.EstimateFeeRequestDTO request, String userId) {
+        // The port keeps userId for authorization-aware implementations; this adapter only needs the normalized request.
         OnChainPaymentDTOs.EstimateFeeRequestDTO normalizedRequest = normalizeFeeRequest(request);
         try {
             OnChainFeeEstimate estimate = lightningNodePort.estimateOnChainFee(normalizedRequest);
@@ -316,7 +317,7 @@ public class PaymentsAdapter implements PaymentsPort {
             long fee = Math.addExact(fixedFeeSat, percentageFeeSat);
             logger.info("Calculated fee: {}", fee);
             return fee;
-        } catch (ArithmeticException ex) {
+        } catch (ArithmeticException _) {
             throw new AratiriException(
                     "Configured payment fees exceed supported limits.",
                     HttpStatus.INTERNAL_SERVER_ERROR.value()
@@ -328,7 +329,7 @@ public class PaymentsAdapter implements PaymentsPort {
         try {
             outboxEventPort.save(message);
             logger.info("Saved {} event to outbox for aggregateId: {}", message.eventType(), message.aggregateId());
-        } catch (Exception e) {
+        } catch (Exception _) {
             throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }

@@ -7,6 +7,7 @@ import java.util.concurrent.CompletableFuture;
 public class NoopNostrClient implements NostrClient {
     @Override
     public void connectWithRetry() {
+        // Intentionally empty because this implementation disables Nostr integration.
     }
 
     @Override

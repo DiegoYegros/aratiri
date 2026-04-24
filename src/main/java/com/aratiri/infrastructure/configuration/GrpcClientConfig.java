@@ -80,7 +80,7 @@ public class GrpcClientConfig {
             logger.info("Using TLS certificate: {}", tlsCert.getAbsolutePath());
 
             if (!tlsCert.exists()) {
-                throw new RuntimeException("TLS certificate not found: " + tlsCert.getAbsolutePath());
+                throw new IllegalStateException("TLS certificate not found: " + tlsCert.getAbsolutePath());
             }
 
             builder.sslContext(

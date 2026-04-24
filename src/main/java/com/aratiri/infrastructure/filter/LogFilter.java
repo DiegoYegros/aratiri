@@ -19,13 +19,15 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 @Component
 @Order(1)
 public class LogFilter extends OncePerRequestFilter {
 
-    private static final Logger logger = LoggerFactory.getLogger(LogFilter.class);
+    private static final Logger log = LoggerFactory.getLogger(LogFilter.class);
     private static final List<String> SENSITIVE_FIELDS = Arrays.asList("password", "token", "accessToken", "refreshToken", "jwt");
     public static final int CACHE_LIMIT = 100_000;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -46,32 +48,41 @@ public class LogFilter extends OncePerRequestFilter {
     }
 
     private void logRequest(ContentCachingRequestWrapper request) {
-        logger.info(LogUtils.formatKeyValue("Method", request.getMethod()));
-        logger.info(LogUtils.formatKeyValue("URI", request.getRequestURI()));
-        logger.debug(LogUtils.formatKeyValue("Query String", request.getQueryString()));
-        logger.debug(LogUtils.formatKeyValue("Content Type", request.getContentType()));
+        if (log.isInfoEnabled()) {
+            log.info(LogUtils.formatKeyValue("Method", request.getMethod()));
+            log.info(LogUtils.formatKeyValue("URI", request.getRequestURI()));
+        }
+        if (log.isDebugEnabled()) {
+            log.debug(LogUtils.formatKeyValue("Query String", request.getQueryString()));
+            log.debug(LogUtils.formatKeyValue("Content Type", request.getContentType()));
+        }
         logHeaders(request);
         String requestBody = getRequestBody(request);
-        if (!requestBody.isEmpty()) {
-            logger.info(LogUtils.formatKeyValue("Request Body", maskSensitiveData(requestBody)));
+        if (!requestBody.isEmpty() && log.isInfoEnabled()) {
+            log.info(LogUtils.formatKeyValue("Request Body", maskSensitiveData(requestBody)));
         }
     }
 
     private void logResponse(ContentCachingResponseWrapper response, long timeTaken) {
-        logger.info(LogUtils.formatKeyValue("Status", response.getStatus()));
-        logger.info(LogUtils.formatKeyValue("Time Taken", timeTaken + " ms"));
+        if (log.isInfoEnabled()) {
+            log.info(LogUtils.formatKeyValue("Status", response.getStatus()));
+            log.info(LogUtils.formatKeyValue("Time Taken", timeTaken + " ms"));
+        }
         String responseBody = getResponseBody(response);
-        if (!responseBody.isEmpty()) {
-            logger.debug(LogUtils.formatKeyValue("Response Body", maskSensitiveData(responseBody)));
+        if (!responseBody.isEmpty() && log.isDebugEnabled()) {
+            log.debug(LogUtils.formatKeyValue("Response Body", maskSensitiveData(responseBody)));
         }
     }
 
     private void logHeaders(HttpServletRequest request) {
-        logger.debug(LogUtils.formatKeyValue("Headers", ""));
+        if (!log.isDebugEnabled()) {
+            return;
+        }
+        log.debug(LogUtils.formatKeyValue("Headers", ""));
         Enumeration<String> headerNames = request.getHeaderNames();
         while (headerNames.hasMoreElements()) {
             String headerName = headerNames.nextElement();
-            logger.debug(LogUtils.formatKeyValue("  " + headerName, request.getHeader(headerName)));
+            log.debug(LogUtils.formatKeyValue("  " + headerName, request.getHeader(headerName)));
         }
     }
 
@@ -81,7 +92,7 @@ public class LogFilter extends OncePerRequestFilter {
             try {
                 return new String(content, request.getCharacterEncoding());
             } catch (UnsupportedEncodingException e) {
-                logger.error("Could not read request body", e);
+                log.error("Could not read request body", e);
             }
         }
         return "";
@@ -93,7 +104,7 @@ public class LogFilter extends OncePerRequestFilter {
             try {
                 return new String(content, response.getCharacterEncoding());
             } catch (UnsupportedEncodingException e) {
-                logger.error("Could not read response body", e);
+                log.error("Could not read response body", e);
             }
         }
         return "";
@@ -106,13 +117,14 @@ public class LogFilter extends OncePerRequestFilter {
                 maskFields((ObjectNode) jsonNode);
             }
             return objectMapper.writeValueAsString(jsonNode);
-        } catch (IOException e) {
+        } catch (IOException _) {
             return "Not a JSON body, cannot mask.";
         }
     }
 
     private void maskFields(ObjectNode node) {
-        node.fields().forEachRemaining(entry -> {
+        Iterator<Map.Entry<String, JsonNode>> fields = node.properties().iterator();
+        fields.forEachRemaining(entry -> {
             String fieldName = entry.getKey().toLowerCase();
             if (SENSITIVE_FIELDS.stream().anyMatch(fieldName::contains)) {
                 node.put(entry.getKey(), "[REDACTED]");

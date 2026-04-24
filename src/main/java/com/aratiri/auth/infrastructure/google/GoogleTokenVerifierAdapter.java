@@ -37,7 +37,7 @@ public class GoogleTokenVerifierAdapter implements GoogleTokenVerifierPort {
             String email = payload.getEmail();
             String name = (String) payload.get("name");
             return new GoogleUserProfile(email, name);
-        } catch (GeneralSecurityException | IOException ex) {
+        } catch (GeneralSecurityException | IOException _) {
             throw new AratiriException("Unable to verify Google token", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }

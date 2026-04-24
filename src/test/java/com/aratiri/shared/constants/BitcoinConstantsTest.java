@@ -1,7 +1,5 @@
 package com.aratiri.shared.constants;
 
-import com.aratiri.shared.constants.BitcoinConstants;
-
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

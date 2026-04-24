@@ -8,7 +8,6 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -50,7 +49,7 @@ public class ForceClosedChannelDTO {
         this.recoveredBalance = forceClosedChannel.getRecoveredBalance();
         this.pendingHtlcs = forceClosedChannel.getPendingHtlcsList().stream()
                 .map(PendingHtlcDTO::new)
-                .collect(Collectors.toList());
+                .toList();
         this.anchor = forceClosedChannel.getAnchor().name();
     }
 }

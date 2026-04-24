@@ -92,6 +92,10 @@ public class TransactionsAdapter implements TransactionsPort {
     @Transactional
     public TransactionDTOResponse createAndSettleTransaction(CreateTransactionRequest request) {
         logger.info("In createAndSettleTransaction. Received object [{}]", request);
+        return createAndSettleTransactionInternal(request);
+    }
+
+    private TransactionDTOResponse createAndSettleTransactionInternal(CreateTransactionRequest request) {
         if (!SETTLEABLE_TYPES.contains(request.getType())) {
             throw new AratiriException(
                     String.format("Transaction type [%s] is not valid for the create-and-settle flow.", request.getType()),
@@ -133,7 +137,7 @@ public class TransactionsAdapter implements TransactionsPort {
         Map<String, List<TransactionEventEntity>> eventsByTransaction = groupEventsByTransaction(transactions);
         return transactions.stream()
                 .map(tx -> mapToDto(TransactionAggregate.from(tx, eventsByTransaction.getOrDefault(tx.getId(), List.of()))))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -268,7 +272,7 @@ public class TransactionsAdapter implements TransactionsPort {
                 "Internal transfer from: " + event.getSenderId(),
                 event.getPaymentHash()
         );
-        createAndSettleTransaction(creditRequest);
+        createAndSettleTransactionInternal(creditRequest);
         LightningInvoiceEntity invoice = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash()).orElseThrow();
 
         invoice.setInvoiceState(LightningInvoiceEntity.InvoiceState.SETTLED);

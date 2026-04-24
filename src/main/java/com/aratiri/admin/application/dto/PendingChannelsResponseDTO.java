@@ -8,7 +8,6 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -32,19 +31,20 @@ public class PendingChannelsResponseDTO {
     @Schema(description = "Channels that are cooperatively closing and waiting for the closing transaction to confirm.")
     private List<WaitingCloseChannelDTO> waitingCloseChannels;
 
+    @SuppressWarnings("java:S1874")
     public PendingChannelsResponseDTO(PendingChannelsResponse pendingChannels) {
         this.totalLimboBalance = pendingChannels.getTotalLimboBalance();
         this.pendingOpenChannels = pendingChannels.getPendingOpenChannelsList().stream()
                 .map(PendingOpenChannelDTO::new)
-                .collect(Collectors.toList());
+                .toList();
         this.pendingClosingChannels = pendingChannels.getPendingClosingChannelsList().stream()
                 .map(ClosedChannelDTO::new)
-                .collect(Collectors.toList());
+                .toList();
         this.pendingForceClosingChannels = pendingChannels.getPendingForceClosingChannelsList().stream()
                 .map(ForceClosedChannelDTO::new)
-                .collect(Collectors.toList());
+                .toList();
         this.waitingCloseChannels = pendingChannels.getWaitingCloseChannelsList().stream()
                 .map(WaitingCloseChannelDTO::new)
-                .collect(Collectors.toList());
+                .toList();
     }
 }

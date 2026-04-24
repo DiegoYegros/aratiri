@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,58 +52,73 @@ public class NostrClientImpl implements NostrClient {
         }
 
         try {
-            client = new WebSocketClient(new URI(relayUrl)) {
-                @Override
-                public void onOpen(ServerHandshake handshakedata) {
-                    logger.info("Connected to Nostr relay: {}", relayUrl);
-                    connected = true;
-                    retryCount.set(0);
-                }
-
-                @Override
-                public void onMessage(String message) {
-                    try {
-                        JsonNode jsonNode = objectMapper.readTree(message);
-                        if (jsonNode.isArray() && jsonNode.get(0).asText().equals("EVENT")) {
-                            String subscriptionId = jsonNode.get(1).asText();
-                            JsonNode eventNode = jsonNode.get(2);
-                            CompletableFuture<JsonNode> future = pendingRequests.remove(subscriptionId);
-                            if (future != null) {
-                                future.complete(eventNode);
-                            }
-                        }
-                    } catch (Exception e) {
-                        logger.error("Error processing Nostr message", e);
-                    }
-                }
-
-                @Override
-                public void onClose(int code, String reason, boolean remote) {
-                    logger.warn("Disconnected from Nostr relay: {}. Reason: {}", relayUrl, reason);
-                    connected = false;
-                    if (retryCount.get() < maxRetries) {
-                        scheduleReconnection();
-                    } else {
-                        logger.error("Max retries reached. Could not connect to Nostr relay.");
-                    }
-                }
-
-                @Override
-                public void onError(Exception ex) {
-                    logger.error("Nostr WebSocket error", ex);
-                    connected = false;
-                }
-            };
-
+            client = createClient();
             logger.info("Attempting to connect to Nostr relay: {}", relayUrl);
             client.connect();
-        } catch (Exception e) {
+        } catch (URISyntaxException e) {
             logger.error("Failed to connect to Nostr relay", e);
             if (retryCount.get() < maxRetries) {
                 scheduleReconnection();
             } else {
                 logger.error("Got exception. Could not connect to Nostr relay. Message is: {}", e.getMessage());
             }
+        }
+    }
+
+    private WebSocketClient createClient() throws URISyntaxException {
+        return new WebSocketClient(new URI(relayUrl)) {
+            @Override
+            public void onOpen(ServerHandshake handshakedata) {
+                logger.info("Connected to Nostr relay: {}", relayUrl);
+                connected = true;
+                retryCount.set(0);
+            }
+
+            @Override
+            public void onMessage(String message) {
+                handleMessage(message);
+            }
+
+            @Override
+            public void onClose(int code, String reason, boolean remote) {
+                handleClose(reason);
+            }
+
+            @Override
+            public void onError(Exception ex) {
+                logger.error("Nostr WebSocket error", ex);
+                connected = false;
+            }
+        };
+    }
+
+    private void handleMessage(String message) {
+        try {
+            JsonNode jsonNode = objectMapper.readTree(message);
+            if (jsonNode.isArray() && jsonNode.get(0).asText().equals("EVENT")) {
+                completePendingRequest(jsonNode);
+            }
+        } catch (Exception e) {
+            logger.error("Error processing Nostr message", e);
+        }
+    }
+
+    private void completePendingRequest(JsonNode jsonNode) {
+        String subscriptionId = jsonNode.get(1).asText();
+        JsonNode eventNode = jsonNode.get(2);
+        CompletableFuture<JsonNode> future = pendingRequests.remove(subscriptionId);
+        if (future != null) {
+            future.complete(eventNode);
+        }
+    }
+
+    private void handleClose(String reason) {
+        logger.warn("Disconnected from Nostr relay: {}. Reason: {}", relayUrl, reason);
+        connected = false;
+        if (retryCount.get() < maxRetries) {
+            scheduleReconnection();
+        } else {
+            logger.error("Max retries reached. Could not connect to Nostr relay.");
         }
     }
 

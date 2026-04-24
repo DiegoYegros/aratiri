@@ -8,12 +8,14 @@ import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscription
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
+import com.aratiri.shared.exception.AratiriException;
 import lnrpc.Invoice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDateTime;
@@ -40,7 +42,7 @@ public class InvoiceProcessorService {
 
     @Transactional
     @Async
-    public void processInvoiceUpdate(Invoice invoice) throws Exception {
+    public void processInvoiceUpdate(Invoice invoice) {
         if (invoice.getState().equals(Invoice.InvoiceState.OPEN)) {
             return;
         }
@@ -79,14 +81,7 @@ public class InvoiceProcessorService {
                     invoiceEntity.getMemo()
             );
 
-            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
-                    .aggregateType("Invoice")
-                    .aggregateId(invoiceEntity.getId())
-                    .eventType(KafkaTopics.INVOICE_SETTLED.getCode())
-                    .payload(jsonMapper.writeValueAsString(eventPayload))
-                    .build();
-
-            outboxEventRepository.save(outboxEvent);
+            saveInvoiceSettledEvent(invoiceEntity, eventPayload);
             logger.info("Saved INVOICE_SETTLED event to outbox for invoiceId: {}", invoiceEntity.getId());
         } else {
             lightningInvoiceRepository.save(invoiceEntity);
@@ -95,6 +90,21 @@ public class InvoiceProcessorService {
         state.setAddIndex(invoice.getAddIndex());
         state.setSettleIndex(invoice.getSettleIndex());
         invoiceSubscriptionStateRepository.save(state);
+    }
+
+    private void saveInvoiceSettledEvent(LightningInvoiceEntity invoiceEntity, InvoiceSettledEvent eventPayload) {
+        try {
+            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
+                    .aggregateType("Invoice")
+                    .aggregateId(invoiceEntity.getId())
+                    .eventType(KafkaTopics.INVOICE_SETTLED.getCode())
+                    .payload(jsonMapper.writeValueAsString(eventPayload))
+                    .build();
+
+            outboxEventRepository.save(outboxEvent);
+        } catch (Exception e) {
+            throw new AratiriException("Failed to create outbox event for settled invoice.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
+        }
     }
 
     private LightningInvoiceEntity.InvoiceState mapInvoiceState(Invoice.InvoiceState grpcState) {

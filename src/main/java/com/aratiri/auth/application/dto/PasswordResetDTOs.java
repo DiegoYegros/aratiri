@@ -7,6 +7,9 @@ import lombok.Data;
 
 public class PasswordResetDTOs {
 
+    private PasswordResetDTOs() {
+    }
+
     @Data
     public static class ForgotPasswordRequestDTO {
         @Email(message = "Email should be valid")

@@ -8,7 +8,6 @@ import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscription
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.transactions.application.event.OnChainTransactionReceivedEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.grpc.stub.StreamObserver;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -20,7 +19,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
@@ -32,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class OnChainTransactionListener {
 
     private static final Logger logger = LoggerFactory.getLogger(OnChainTransactionListener.class);
+    private static final String SUBSCRIPTION_STATE_ID = "singleton";
 
     private final LightningGrpc.LightningStub lightningAsyncStub;
     private final AccountRepository accountRepository;
@@ -87,7 +86,6 @@ public class OnChainTransactionListener {
         stopListening();
     }
 
-    @Async
     public void subscribeToTransactions() {
         if (isListening.get()) {
             logger.debug("Already listening to on-chain transactions, skipping");
@@ -97,8 +95,8 @@ public class OnChainTransactionListener {
         try {
             logger.info("Establishing on-chain transaction subscription stream");
             isListening.set(true);
-            InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton")
-                    .orElse(InvoiceSubscriptionState.builder().id("singleton").build());
+            InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById(SUBSCRIPTION_STATE_ID)
+                    .orElse(InvoiceSubscriptionState.builder().id(SUBSCRIPTION_STATE_ID).build());
             logger.info("Subscribing to transactions from block height [{}]", state.getLastTxBlockHeight());
             GetTransactionsRequest request = GetTransactionsRequest.newBuilder()
                     .setStartHeight((int) state.getLastTxBlockHeight())
@@ -153,44 +151,58 @@ public class OnChainTransactionListener {
         logger.info("Received on-chain transaction: {}", transaction.getTxHash());
 
         for (OutputDetail output : transaction.getOutputDetailsList()) {
-            if (!output.getIsOurAddress()) {
-                logger.info("[{}] Is not our address. Skipping.", output.getAddress());
-                continue;
-            }
-            logger.info("[{}] is our address. Processing.", output.getAddress());
-            accountRepository.findByBitcoinAddress(output.getAddress()).ifPresent(account -> {
-                String referenceId = transaction.getTxHash() + ":" + output.getOutputIndex();
-                if (transactionsService.existsByReferenceId(referenceId)) {
-                    logger.warn("Transaction already processed: {}", referenceId);
-                    return;
-                }
-                if (transaction.getNumConfirmations() > 0) {
-                    OnChainTransactionReceivedEvent eventPayload = new OnChainTransactionReceivedEvent(
-                            account.getUser().getId(),
-                            output.getAmount(),
-                            transaction.getTxHash(),
-                            output.getOutputIndex()
-                    );
-                    try {
-                        OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
-                                .aggregateType("ONCHAIN_TRANSACTION")
-                                .aggregateId(referenceId)
-                                .eventType(KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED.getCode())
-                                .payload(jsonMapper.writeValueAsString(eventPayload))
-                                .build();
-                        outboxEventRepository.save(outboxEvent);
-                        InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton")
-                                .orElse(InvoiceSubscriptionState.builder().id("singleton").build());
-                        if (transaction.getBlockHeight() > state.getLastTxBlockHeight()) {
-                            state.setLastTxBlockHeight(transaction.getBlockHeight());
-                            invoiceSubscriptionStateRepository.save(state);
-                        }
-                        logger.info("Saved ONCHAIN_TRANSACTION_RECEIVED event to outbox for txHash: {}", transaction.getTxHash());
-                    } catch (Exception e) {
-                        logger.error("Failed to create outbox event for on-chain transaction.", e);
-                    }
-                }
-            });
+            processOutput(transaction, output);
+        }
+    }
+
+    private void processOutput(Transaction transaction, OutputDetail output) {
+        if (!output.getIsOurAddress()) {
+            logger.info("[{}] Is not our address. Skipping.", output.getAddress());
+            return;
+        }
+
+        logger.info("[{}] is our address. Processing.", output.getAddress());
+        accountRepository.findByBitcoinAddress(output.getAddress())
+                .ifPresent(account -> processOwnedOutput(transaction, output, account.getUser().getId()));
+    }
+
+    private void processOwnedOutput(Transaction transaction, OutputDetail output, String userId) {
+        String referenceId = transaction.getTxHash() + ":" + output.getOutputIndex();
+        if (transactionsService.existsByReferenceId(referenceId)) {
+            logger.warn("Transaction already processed: {}", referenceId);
+            return;
+        }
+        if (transaction.getNumConfirmations() <= 0) {
+            return;
+        }
+
+        OnChainTransactionReceivedEvent eventPayload = new OnChainTransactionReceivedEvent(
+                userId,
+                output.getAmount(),
+                transaction.getTxHash(),
+                output.getOutputIndex()
+        );
+        try {
+            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
+                    .aggregateType("ONCHAIN_TRANSACTION")
+                    .aggregateId(referenceId)
+                    .eventType(KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED.getCode())
+                    .payload(jsonMapper.writeValueAsString(eventPayload))
+                    .build();
+            outboxEventRepository.save(outboxEvent);
+            updateLastProcessedBlockHeight(transaction.getBlockHeight());
+            logger.info("Saved ONCHAIN_TRANSACTION_RECEIVED event to outbox for txHash: {}", transaction.getTxHash());
+        } catch (Exception e) {
+            logger.error("Failed to create outbox event for on-chain transaction.", e);
+        }
+    }
+
+    private void updateLastProcessedBlockHeight(long blockHeight) {
+        InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById(SUBSCRIPTION_STATE_ID)
+                .orElse(InvoiceSubscriptionState.builder().id(SUBSCRIPTION_STATE_ID).build());
+        if (blockHeight > state.getLastTxBlockHeight()) {
+            state.setLastTxBlockHeight(blockHeight);
+            invoiceSubscriptionStateRepository.save(state);
         }
     }
 }

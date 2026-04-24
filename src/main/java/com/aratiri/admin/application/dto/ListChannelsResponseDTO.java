@@ -9,7 +9,6 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -40,7 +39,7 @@ public class ListChannelsResponseDTO {
                 channel.getRemoteBalance(),
                 channel.getActive(),
                 channel.getPrivate()
-        )).collect(Collectors.toList());
+        )).toList();
         this.pendingChannels = new PendingChannelsResponseDTO(pendingChannels);
     }
 }

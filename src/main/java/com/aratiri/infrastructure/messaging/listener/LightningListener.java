@@ -13,7 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -67,7 +66,6 @@ public class LightningListener {
         stopListening();
     }
 
-    @Async
     public void subscribeToInvoices() {
         if (isListening.get()) {
             logger.debug("Already listening to invoices, skipping");
