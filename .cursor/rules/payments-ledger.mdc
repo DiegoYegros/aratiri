@@ -15,7 +15,7 @@ alwaysApply: false
 - Treat monetary values in the core payments and ledger path as satoshis stored in integer types (`long` in Java, `BIGINT` in Postgres).
 - Keep business flow orchestration in application services and keep persistence and network details behind ports and adapters.
 - New async payment or transaction workflows should follow the existing outbox pattern: persist an outbox event and let the outbox job publish it.
-- Define and reuse Kafka topics through `KafkaTopics`; do not introduce ad hoc topic string literals.
+- Define and reuse Kafka topics through `KafkaTopics` (outbox / producers) and `KafkaTopicNames` (`@KafkaListener`, header comparisons); do not introduce ad hoc topic string literals.
 - Preserve idempotency protections around transaction references and account ledger entries unless a feature explicitly changes those guarantees.
 - When adding database changes in this area, use Flyway migrations and preserve existing uniqueness and consistency constraints unless the feature intentionally changes them.
 
@@ -25,6 +25,7 @@ Canonical examples:
 - `@src/main/java/com/aratiri/infrastructure/persistence/ledger/AccountLedgerService.java`
 - `@src/main/java/com/aratiri/infrastructure/scheduling/job/OutboxEventJob.java`
 - `@src/main/java/com/aratiri/infrastructure/messaging/KafkaTopics.java`
+- `@src/main/java/com/aratiri/infrastructure/messaging/KafkaTopicNames.java`
 - `@src/main/resources/db/migration/V4.0.0__append_only_ledger.sql`
 - `@src/main/resources/db/migration/V4.0.2__unify_monetary_units.sql`
 - `@src/main/resources/db/migration/V4.0.5__ledger_idempotency_and_event_types.sql`

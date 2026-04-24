@@ -1,5 +1,6 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
 import com.aratiri.transactions.application.dto.TransactionCurrency;
 import com.aratiri.transactions.application.dto.TransactionStatus;
@@ -22,7 +23,7 @@ public class OnChainTransactionConsumer {
     private final TransactionsPort transactionsService;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(topics = "onchain.transaction.received", groupId = "transaction-group")
+    @KafkaListener(topics = KafkaTopicNames.ONCHAIN_TRANSACTION_RECEIVED, groupId = "transaction-group")
     public void handleOnChainTransactionReceived(String message, Acknowledgment acknowledgment) {
         try {
             OnChainTransactionReceivedEvent event = jsonMapper.readValue(message, OnChainTransactionReceivedEvent.class);
@@ -48,6 +49,7 @@ public class OnChainTransactionConsumer {
             acknowledgment.acknowledge();
         } catch (Exception e) {
             log.error("Failed to process on-chain transaction received event: {}", message, e);
+            throw new IllegalStateException("onchain.transaction.received processing failed", e);
         }
     }
 }

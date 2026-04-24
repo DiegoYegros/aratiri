@@ -1,5 +1,6 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.payments.application.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.payments.application.event.PaymentInitiatedEvent;
 import com.aratiri.payments.application.port.in.PaymentsPort;
@@ -18,7 +19,7 @@ public class PaymentConsumer {
     private final PaymentsPort paymentsPort;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(topics = "payment.initiated", groupId = "payment-group")
+    @KafkaListener(topics = KafkaTopicNames.PAYMENT_INITIATED, groupId = "payment-group")
     public void handlePaymentInitiated(String message, Acknowledgment acknowledgment) {
         try {
             PaymentInitiatedEvent event = jsonMapper.readValue(message, PaymentInitiatedEvent.class);
@@ -26,10 +27,11 @@ public class PaymentConsumer {
             acknowledgment.acknowledge();
         } catch (Exception e) {
             log.error("Failed to process payment initiated event: {}", message, e);
+            throw new IllegalStateException("payment.initiated processing failed", e);
         }
     }
 
-    @KafkaListener(topics = "onchain.payment.initiated", groupId = "payment-group")
+    @KafkaListener(topics = KafkaTopicNames.ONCHAIN_PAYMENT_INITIATED, groupId = "payment-group")
     public void handleOnChainPaymentInitiated(String message, Acknowledgment acknowledgment) {
         try {
             OnChainPaymentInitiatedEvent event = jsonMapper.readValue(message, OnChainPaymentInitiatedEvent.class);
@@ -37,6 +39,7 @@ public class PaymentConsumer {
             acknowledgment.acknowledge();
         } catch (Exception e) {
             log.error("Failed to process on-chain payment initiated event: {}", message, e);
+            throw new IllegalStateException("onchain.payment.initiated processing failed", e);
         }
     }
 }

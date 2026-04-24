@@ -1,7 +1,7 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
 import com.aratiri.auth.application.port.out.NotificationPort;
-import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.payments.application.event.PaymentSentEvent;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
@@ -28,7 +28,14 @@ public class NotificationConsumer {
     private final NotificationPort notificationsService;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(topics = {"invoice.settled", "internal.transfer.completed", "payment.sent"}, groupId = "notification-group")
+    @KafkaListener(
+            topics = {
+                    KafkaTopicNames.INVOICE_SETTLED,
+                    KafkaTopicNames.INTERNAL_TRANSFER_COMPLETED,
+                    KafkaTopicNames.PAYMENT_SENT
+            },
+            groupId = "notification-group"
+    )
     public void handlePaymentSettledForNotification(String message, @Header(KafkaHeaders.RECEIVED_TOPIC) String topic, Acknowledgment ack) {
         log.info("In NotificationConsumer, received the topic [{}]", topic);
         try {
@@ -36,7 +43,7 @@ public class NotificationConsumer {
             String eventName;
             Map<String, Object> notificationPayload;
 
-            if (topic.equals(KafkaTopics.INVOICE_SETTLED.getCode())) {
+            if (topic.equals(KafkaTopicNames.INVOICE_SETTLED)) {
                 InvoiceSettledEvent event = jsonMapper.readValue(message, InvoiceSettledEvent.class);
                 userId = event.getUserId();
                 eventName = "payment_received";
@@ -46,7 +53,7 @@ public class NotificationConsumer {
                         PAYMENT_REQUEST_KEY, event.getPaymentHash(),
                         "memo", event.getMemo()
                 );
-            } else if (topic.equals(KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode())) {
+            } else if (topic.equals(KafkaTopicNames.INTERNAL_TRANSFER_COMPLETED)) {
                 InternalTransferCompletedEvent event = jsonMapper.readValue(message, InternalTransferCompletedEvent.class);
                 userId = event.getReceiverId();
                 eventName = "payment_received";
@@ -63,7 +70,7 @@ public class NotificationConsumer {
                         "memo", event.getMemo()
                 );
                 notificationsService.sendNotification(event.getSenderId(), "payment_sent", senderPayload);
-            } else if (topic.equals(KafkaTopics.PAYMENT_SENT.getCode())) {
+            } else if (topic.equals(KafkaTopicNames.PAYMENT_SENT)) {
                 PaymentSentEvent event = jsonMapper.readValue(message, PaymentSentEvent.class);
                 userId = event.getUserId();
                 eventName = "payment_sent";
@@ -75,13 +82,15 @@ public class NotificationConsumer {
                         "memo", event.getMemo()
                 );
             } else {
-                log.warn("Unknown topic in NotificationConsumer: {}", topic);
+                log.warn("Unknown topic in NotificationConsumer: {} — acknowledging to avoid blocking the partition", topic);
+                ack.acknowledge();
                 return;
             }
             notificationsService.sendNotification(userId, eventName, notificationPayload);
             ack.acknowledge();
         } catch (Exception e) {
             log.error("Failed to process event for notification from topic {}: {}", topic, message, e);
+            throw new IllegalStateException("notification consumer processing failed for topic: " + topic, e);
         }
     }
 }

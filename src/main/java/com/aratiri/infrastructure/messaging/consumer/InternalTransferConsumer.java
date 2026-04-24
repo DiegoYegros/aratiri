@@ -1,5 +1,6 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +18,7 @@ public class InternalTransferConsumer {
     private final TransactionsPort transactionsService;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(topics = "internal.transfer.initiated", groupId = "internal-transfer-group")
+    @KafkaListener(topics = KafkaTopicNames.INTERNAL_TRANSFER_INITIATED, groupId = "internal-transfer-group")
     public void handleInternalTransfer(String message, Acknowledgment acknowledgment) {
         try {
             InternalTransferInitiatedEvent event = jsonMapper.readValue(message, InternalTransferInitiatedEvent.class);

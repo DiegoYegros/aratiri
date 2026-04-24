@@ -1,5 +1,6 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import invoicesrpc.CancelInvoiceMsg;
 import invoicesrpc.InvoicesGrpc;
@@ -20,7 +21,7 @@ public class InternalInvoiceCancelConsumer {
     private final InvoicesGrpc.InvoicesBlockingStub invoicesBlockingStub;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(topics = "internal.invoice.cancel", groupId = "internal-invoice-cancel-group")
+    @KafkaListener(topics = KafkaTopicNames.INTERNAL_INVOICE_CANCEL, groupId = "internal-invoice-cancel-group")
     public void handleInternalInvoiceCancel(String message, Acknowledgment acknowledgment) {
         try {
             InternalInvoiceCancelEvent event = jsonMapper.readValue(message, InternalInvoiceCancelEvent.class);
@@ -32,6 +33,7 @@ public class InternalInvoiceCancelConsumer {
             log.info("Canceled internal invoice for paymentHash: {}", event.getPaymentHash());
         } catch (Exception e) {
             log.error("Failed to cancel internal invoice: {}", message, e);
+            throw new IllegalStateException("internal.invoice.cancel processing failed", e);
         }
     }
 }

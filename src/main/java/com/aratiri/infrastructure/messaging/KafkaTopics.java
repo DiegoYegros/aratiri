@@ -10,14 +10,14 @@ import java.util.stream.Collectors;
 
 @Getter
 public enum KafkaTopics {
-    INVOICE_SETTLED("invoice.settled"),
-    INTERNAL_TRANSFER_INITIATED("internal.transfer.initiated"),
-    INTERNAL_TRANSFER_COMPLETED("internal.transfer.completed"),
-    INTERNAL_INVOICE_CANCEL("internal.invoice.cancel"),
-    PAYMENT_SENT("payment.sent"),
-    PAYMENT_INITIATED("payment.initiated"),
-    ONCHAIN_PAYMENT_INITIATED("onchain.payment.initiated"),
-    ONCHAIN_TRANSACTION_RECEIVED("onchain.transaction.received");
+    INVOICE_SETTLED(KafkaTopicNames.INVOICE_SETTLED),
+    INTERNAL_TRANSFER_INITIATED(KafkaTopicNames.INTERNAL_TRANSFER_INITIATED),
+    INTERNAL_TRANSFER_COMPLETED(KafkaTopicNames.INTERNAL_TRANSFER_COMPLETED),
+    INTERNAL_INVOICE_CANCEL(KafkaTopicNames.INTERNAL_INVOICE_CANCEL),
+    PAYMENT_SENT(KafkaTopicNames.PAYMENT_SENT),
+    PAYMENT_INITIATED(KafkaTopicNames.PAYMENT_INITIATED),
+    ONCHAIN_PAYMENT_INITIATED(KafkaTopicNames.ONCHAIN_PAYMENT_INITIATED),
+    ONCHAIN_TRANSACTION_RECEIVED(KafkaTopicNames.ONCHAIN_TRANSACTION_RECEIVED);
 
     private static final Map<String, KafkaTopics> CODE_TO_TOPIC = Arrays.stream(values())
         .collect(Collectors.toUnmodifiableMap(KafkaTopics::getCode, Function.identity()));

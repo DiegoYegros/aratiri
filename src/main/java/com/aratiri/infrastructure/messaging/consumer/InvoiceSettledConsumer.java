@@ -1,5 +1,6 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
@@ -32,7 +33,7 @@ public class InvoiceSettledConsumer {
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(topics = "invoice.settled", groupId = "invoice-listener-group")
+    @KafkaListener(topics = KafkaTopicNames.INVOICE_SETTLED, groupId = "invoice-listener-group")
     @RetryableTopic(
             backOff = @BackOff(delay = 1000, multiplier = 2.0),
             topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE,
