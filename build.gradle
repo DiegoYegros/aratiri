@@ -131,9 +131,33 @@ tasks.named('test') {
 }
 
 tasks.named('check') {
-    dependsOn(tasks.named('sonarlintMain'), tasks.named('sonarlintTest'))
+    dependsOn(tasks.named('sonarlintMain'), tasks.named('sonarlintTest'), tasks.named('verifyProtoClassesInBootJar'))
 }
 
 tasks.named('jar') {
     enabled = false
+}
+
+tasks.register('verifyProtoClassesInBootJar') {
+    group = 'verification'
+    description = 'Verifies proto-generated classes are packaged in the boot jar'
+    dependsOn(tasks.named('bootJar'))
+
+    doLast {
+        def expectedPackagePaths = ['lnrpc/', 'routerrpc/', 'invoicesrpc/']
+        def bootJarFile = tasks.named('bootJar').get().archiveFile.get().asFile
+        def jarEntries = zipTree(bootJarFile).files.collect { file ->
+            file.path.replace('\\', '/')
+        }
+
+        def missingPackages = expectedPackagePaths.findAll { packagePath ->
+            !jarEntries.any { entry -> entry.contains("/${packagePath}") }
+        }
+
+        if (!missingPackages.isEmpty()) {
+            throw new GradleException(
+                    "Missing expected proto package classes in boot jar ${bootJarFile.name}: ${missingPackages.join(', ')}"
+            )
+        }
+    }
 }

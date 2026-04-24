@@ -44,6 +44,26 @@ docker compose --profile full-stack up --build -d
 
 Once the service starts, generated OpenAPI documentation is available at `/swagger-ui.html`
 
+#### 4. Local Gradle build and run (recommended)
+When running locally, use Gradle outputs from `build/` so generated protobuf classes are always on the runtime classpath.
+
+```bash
+./gradlew clean build
+java -jar build/libs/<artifact>.jar
+```
+
+You can also run directly with:
+
+```bash
+./gradlew bootRun
+```
+
+Avoid running from `target/` or IDE compiler outputs. Aratiri uses Gradle build artifacts, and mixing output folders can cause runtime `ClassNotFoundException`/`NoClassDefFoundError` for generated proto/grpc classes.
+
+#### 5. IDE setup for local development
+- Build and run using Gradle.
+- Run tests using Gradle.
+
 ### Transactional flow
 ![img.png](docs/transactional_flow.png)
 
