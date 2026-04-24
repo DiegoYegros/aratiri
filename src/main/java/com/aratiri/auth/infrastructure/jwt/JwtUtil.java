@@ -35,7 +35,7 @@ public class JwtUtil {
     }
 
     public String extractUsername(String token) {
-        return Jwts.parserBuilder()
+        return Jwts.parser()
                 .setSigningKey(aratiriProperties.getJwtSecret().getBytes())
                 .build()
                 .parseClaimsJws(token)
@@ -48,7 +48,7 @@ public class JwtUtil {
     }
 
     private boolean isTokenExpired(String token) {
-        return Jwts.parserBuilder()
+        return Jwts.parser()
                 .setSigningKey(aratiriProperties.getJwtSecret().getBytes())
                 .build()
                 .parseClaimsJws(token)

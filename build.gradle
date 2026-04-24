@@ -1,3 +1,5 @@
+import org.springframework.boot.gradle.plugin.SpringBootPlugin
+
 plugins {
     id 'java'
     id 'org.springframework.boot' version '4.0.0'
@@ -25,12 +27,12 @@ version = providers.gradleProperty('appVersion')
         .get()
 
 ext {
-    grpcVersion = '1.72.0'
+    grpcVersion = '1.75.0'
     protobufVersion = '4.30.2'
     springGrpcVersion = '0.8.0'
     springdocOpenapiStarterWebmvcUiVersion = '2.8.0'
     zxingVersion = '3.5.3'
-    jsonWebTokenVersion = '0.11.5'
+    jsonWebTokenVersion = '0.12.6'
     jakartaAnnotationApiVersion = '2.1.1'
     googleApiClientVersion = '2.2.0'
     javaWebSocketVersion = '1.5.3'
@@ -57,11 +59,11 @@ sonarLint {
 }
 
 dependencies {
-    implementation platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
+    implementation platform(SpringBootPlugin.BOM_COORDINATES)
     implementation platform("org.springframework.grpc:spring-grpc-dependencies:${springGrpcVersion}")
-    annotationProcessor platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
-    testImplementation platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
-    testAnnotationProcessor platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
+    annotationProcessor platform(SpringBootPlugin.BOM_COORDINATES)
+    testImplementation platform(SpringBootPlugin.BOM_COORDINATES)
+    testAnnotationProcessor platform(SpringBootPlugin.BOM_COORDINATES)
 
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
