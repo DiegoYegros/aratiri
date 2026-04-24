@@ -277,9 +277,8 @@ public class PaymentsAdapter implements PaymentsPort {
     }
 
     @Override
-    @SuppressWarnings("java:S1172")
     public OnChainPaymentDTOs.EstimateFeeResponseDTO estimateOnChainFee(OnChainPaymentDTOs.EstimateFeeRequestDTO request, String userId) {
-        // The port keeps userId for authorization-aware implementations; this adapter only needs the normalized request.
+        logger.debug("Estimating on-chain fee for user {}", userId);
         OnChainPaymentDTOs.EstimateFeeRequestDTO normalizedRequest = normalizeFeeRequest(request);
         try {
             OnChainFeeEstimate estimate = lightningNodePort.estimateOnChainFee(normalizedRequest);

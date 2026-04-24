@@ -6,8 +6,6 @@ import com.aratiri.infrastructure.configuration.AratiriProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
-import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -46,11 +44,10 @@ public class SecurityConfig {
     }
 
     @Bean
-    @SuppressWarnings("java:S4502")
     public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) {
         return http
-                // API authentication is stateless Bearer/JWT, so there is no cookie session for CSRF to exploit.
-                .csrf(AbstractHttpConfigurer::disable)
+                // Stateless Bearer/JWT API: no browser session cookies for CSRF to target (see Spring stateless API guidance).
+                .csrf(AbstractHttpConfigurer::disable) // NOSONAR java:S4502
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/v1/auth/login",
                                 "/v1/auth/register",
@@ -96,15 +93,6 @@ public class SecurityConfig {
                 ROLE_ADMIN > ROLE_VIEWER
                 ROLE_VIEWER > ROLE_USER
                 """);
-    }
-
-    @Bean
-    @SuppressWarnings("java:S1874")
-    public MethodSecurityExpressionHandler methodSecurityExpressionHandler(RoleHierarchy roleHierarchy) {
-        DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
-        // Spring Security still routes method-security hierarchy support through this deprecated setter.
-        expressionHandler.setRoleHierarchy(roleHierarchy);
-        return expressionHandler;
     }
 
     @Bean

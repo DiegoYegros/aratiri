@@ -57,11 +57,11 @@ public class AdminAPI {
             summary = "Get Lightning Node information",
             description = "Gets general information about the connected Lightning node"
     )
-    @SuppressWarnings("java:S1874")
     public ResponseEntity<NodeInfoResponseDTO> getNodeInfo() {
         GetInfoResponse info = adminPort.getNodeInfo();
+        // lnrpc.Chain#chain is deprecated upstream (bitcoin is implied); expose a stable value for API clients.
         List<com.aratiri.admin.application.dto.ChainDTO> chains = info.getChainsList().stream()
-                .map(chain -> new com.aratiri.admin.application.dto.ChainDTO(chain.getChain(), chain.getNetwork()))
+                .map(chain -> new com.aratiri.admin.application.dto.ChainDTO("bitcoin", chain.getNetwork()))
                 .toList();
         NodeInfoResponseDTO response = NodeInfoResponseDTO.builder()
                 .version(info.getVersion())

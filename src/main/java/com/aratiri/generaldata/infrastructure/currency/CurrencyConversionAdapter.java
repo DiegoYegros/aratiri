@@ -126,12 +126,11 @@ public class CurrencyConversionAdapter implements CurrencyConversionPort {
                 return null;
             }
             Object btcRatesObj = response.get(BTC_ID);
-            if (!(btcRatesObj instanceof Map)) {
+            if (!(btcRatesObj instanceof Map<?, ?>)) {
                 logger.warn("BTC rates not in expected format from fallback API");
                 return null;
             }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> btcRates = (Map<String, Object>) btcRatesObj;
+            Map<String, Object> btcRates = jsonMapper.convertValue(btcRatesObj, new TypeReference<Map<String, Object>>() {});
             String targetCurrency = currency.toLowerCase();
             if (!btcRates.containsKey(targetCurrency)) {
                 logger.warn("Currency {} not found in fallback API", currencyCode);

@@ -22,7 +22,10 @@ public class PendingChannelsResponseDTO {
     @Schema(description = "Channels that are in the process of being opened.")
     private List<PendingOpenChannelDTO> pendingOpenChannels;
 
-    @Schema(description = "Channels that are in a cooperative close flow but awaiting on-chain confirmation. Deprecated upstream but included for completeness.")
+    @Schema(
+            description = "Previously cooperatively closing channels awaiting confirmation. "
+                    + "LND deprecated this bucket; the list is always empty and the field exists only for stable API shape."
+    )
     private List<ClosedChannelDTO> pendingClosingChannels;
 
     @Schema(description = "Channels that were force closed and are waiting for funds to mature.")
@@ -31,15 +34,12 @@ public class PendingChannelsResponseDTO {
     @Schema(description = "Channels that are cooperatively closing and waiting for the closing transaction to confirm.")
     private List<WaitingCloseChannelDTO> waitingCloseChannels;
 
-    @SuppressWarnings("java:S1874")
     public PendingChannelsResponseDTO(PendingChannelsResponse pendingChannels) {
         this.totalLimboBalance = pendingChannels.getTotalLimboBalance();
         this.pendingOpenChannels = pendingChannels.getPendingOpenChannelsList().stream()
                 .map(PendingOpenChannelDTO::new)
                 .toList();
-        this.pendingClosingChannels = pendingChannels.getPendingClosingChannelsList().stream()
-                .map(ClosedChannelDTO::new)
-                .toList();
+        this.pendingClosingChannels = List.of();
         this.pendingForceClosingChannels = pendingChannels.getPendingForceClosingChannelsList().stream()
                 .map(ForceClosedChannelDTO::new)
                 .toList();
