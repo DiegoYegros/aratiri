@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class Bech32UtilTest {
+class Bech32UtilTest {
 
     @Test
     void testEncodeLnurl() {

@@ -12,12 +12,29 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up JDK 25
         uses: actions/setup-java@v4
         with:
           java-version: '25'
           distribution: 'temurin'
           cache: 'gradle'
+      - name: Resolve app version and Docker tags
+        run: |
+          APP_VERSION="$(./gradlew cV -q -Prelease.quiet)"
+          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/aratiri-app"
+
+          echo "APP_VERSION=${APP_VERSION}" >> "$GITHUB_ENV"
+          {
+            echo "DOCKER_TAGS<<EOF"
+            echo "${IMAGE}:${GITHUB_SHA}"
+            if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
+              echo "${IMAGE}:${APP_VERSION}"
+              echo "${IMAGE}:latest"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_ENV"
       - name: Build with Gradle
         run: ./gradlew --no-daemon clean build
       - name: Log in to Docker Hub
@@ -31,7 +48,10 @@ jobs:
           context: .
           file: ./dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/aratiri-app:latest,${{ secrets.DOCKERHUB_USERNAME }}/aratiri-app:${{ github.sha }}
+          build-args: |
+            APP_VERSION=${{ env.APP_VERSION }}
+            VCS_REF=${{ github.sha }}
+          tags: ${{ env.DOCKER_TAGS }}
 
   deploy:
     needs: build-and-push

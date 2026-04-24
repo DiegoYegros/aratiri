@@ -58,7 +58,8 @@ class BitcoinConstantsTest {
     @Test
     void satoshisPerBtc_shouldBe100Million() {
         assertEquals(100_000_000L, BitcoinConstants.SATOSHIS_PER_BTC_LONG);
-        assertEquals(new BigDecimal("100000000"), BitcoinConstants.SATOSHIS_PER_BTC);
+        BigDecimal actualSatoshisPerBtc = BitcoinConstants.SATOSHIS_PER_BTC;
+        assertEquals(new BigDecimal("100000000"), actualSatoshisPerBtc);
     }
 
     @Test

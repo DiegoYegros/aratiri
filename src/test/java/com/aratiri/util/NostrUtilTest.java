@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class NostrUtilTest {
+class NostrUtilTest {
     @Test
     void testNpubToHex() {
         String npub = "npub1p3rfw7wscmzfn9z3fa74nzgyqe70p57j8mws0e88dh7awjepmzcq7jgxl9";

@@ -2,11 +2,27 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.0.0'
     id 'com.google.protobuf' version '0.9.5'
+    id 'pl.allegro.tech.build.axion-release' version '1.21.1'
+    id 'name.remal.sonarlint' version '7.0.1'
 }
 
 group = 'com.aratiri'
-version = '0.0.1-SNAPSHOT'
 description = 'A multi-user Bitcoin Lightning and on-chain middleware platform'
+
+scmVersion {
+    tag {
+        prefix.set('v')
+    }
+    useHighestVersion.set(true)
+    versionCreator('simple')
+    versionIncrementer('incrementPatch')
+    releaseOnlyOnReleaseBranches = true
+    releaseBranchNames = ['master']
+}
+
+version = providers.gradleProperty('appVersion')
+        .orElse(provider { scmVersion.version })
+        .get()
 
 ext {
     grpcVersion = '1.72.0'
@@ -23,6 +39,59 @@ ext {
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+springBoot {
+    buildInfo()
+}
+
+sonarLint {
+    ignoreFailures = false
+    isGeneratedCodeIgnored = true
+    languages {
+        include('java')
+    }
+    ignoredPaths.add('build/**')
+    ignoredPaths.add('**/generated/**')
+    rules {
+        // Initial gate baseline: these rules already flag legacy code and should be re-enabled as focused cleanup PRs.
+        disable(
+                'java:S1192',
+                'java:S1186',
+                'java:S3776',
+                'java:S2387',
+                'java:S6809',
+                'java:S1452',
+                'java:S1128',
+                'java:S1874',
+                'java:S7467',
+                'java:S135',
+                'java:S6201',
+                'java:S1130',
+                'java:S119',
+                'java:S2094',
+                'java:S1165',
+                'java:S1488',
+                'java:S2245',
+                'java:S4502',
+                'java:S6204',
+                'java:S1118',
+                'java:S112',
+                'java:S1181',
+                'java:S2139',
+                'java:S1141',
+                'java:S1172',
+                'java:S106',
+                'java:S6218',
+                'java:S2629',
+                'java:S3457',
+                'java:S2142',
+                'java:S1481',
+                'java:S1144',
+                'java:S6126',
+                'java:S1068'
+        )
     }
 }
 
@@ -98,6 +167,12 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+tasks.named('check') {
+    dependsOn(tasks.matching { task ->
+        task.name in ['sonarLintMain', 'sonarLintTest', 'sonarlintMain', 'sonarlintTest']
+    })
 }
 
 tasks.named('jar') {
