@@ -1,0 +1,24 @@
+---
+description: "Core architecture conventions for the Aratiri backend."
+alwaysApply: true
+---
+
+# Aratiri Architecture
+
+- Preserve the existing package-by-domain structure under `src/main/java/com/aratiri` (`auth`, `payments`, `invoices`, `transactions`, `accounts`, `generaldata`, `lnurl`, etc.).
+- Follow the existing ports/adapters split:
+  - HTTP controllers live as `*API.java` at the domain package root.
+  - Use cases and orchestration live in `application/`.
+  - Contracts live in `application/port/in` and `application/port/out`.
+  - External integrations, persistence, and framework code live in `infrastructure/`.
+- Prefer small changes inside an existing domain package over creating new top-level packages or generic shared abstractions.
+- Controllers should depend on `application.port.in` interfaces, not directly on repositories or infrastructure adapters.
+- Application services should depend on out ports, not concrete infrastructure classes.
+- Put schema changes in Flyway migrations under `src/main/resources/db/migration`; do not encode schema drift through ad hoc runtime code.
+- Do not edit generated or runtime-only artifacts unless explicitly asked: `build/`, `secrets/`, `.env*`, or generated protobuf output.
+
+Canonical examples:
+
+- `@src/main/java/com/aratiri/payments/PaymentsAPI.java`
+- `@src/main/java/com/aratiri/auth/application/AuthAdapter.java`
+- `@src/main/java/com/aratiri/infrastructure/scheduling/job/OutboxEventJob.java`

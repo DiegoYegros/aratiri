@@ -1,16 +1,18 @@
 # Stage 1: Build
-FROM maven:3.9.12-eclipse-temurin-25 AS builder
+FROM eclipse-temurin:25-jdk-jammy AS builder
 WORKDIR /app
 
-COPY pom.xml ./
-RUN mvn dependency:go-offline
+COPY gradlew gradlew.bat settings.gradle build.gradle gradle.properties ./
+COPY gradle ./gradle
+RUN chmod +x ./gradlew
+RUN ./gradlew --no-daemon dependencies
 
 COPY src ./src
-RUN mvn clean package -DskipTests
+RUN ./gradlew --no-daemon clean bootJar -x test
 
 # Stage 2: Runtime
-FROM eclipse-temurin:25-jdk-jammy
+FROM eclipse-temurin:25-jre-jammy
 WORKDIR /app
-COPY --from=builder /app/target/*.jar app.jar
+COPY --from=builder /app/build/libs/*.jar app.jar
 EXPOSE 2100
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

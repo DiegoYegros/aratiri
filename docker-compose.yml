@@ -49,7 +49,7 @@ services:
   aratiri-app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
     image: diegoyegros/aratiri-app:latest
     container_name: aratiri-backend
     ports:

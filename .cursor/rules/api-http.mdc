@@ -1,0 +1,24 @@
+---
+description: "HTTP API conventions for Aratiri controllers and DTOs."
+globs:
+  - "src/main/java/com/aratiri/**/*API.java"
+  - "src/main/java/com/aratiri/**/application/dto/**/*.java"
+alwaysApply: false
+---
+
+# Aratiri HTTP APIs
+
+- Preserve the existing HTTP shape used by this repo.
+- Authenticated and internal endpoints generally live under `/v1/...`.
+- Public LNURL and discovery endpoints are intentional exceptions; do not force `/v1` onto routes that are already meant to be public.
+- For authenticated endpoints, prefer the existing `@AratiriCtx AratiriContext` pattern when the surrounding controller uses it instead of switching to raw Spring Security principal types.
+- Keep request and response payloads in the domain DTO packages under `application/dto`.
+- Use Jakarta validation annotations on request DTOs and controller inputs where the API already validates input.
+- Preserve Swagger/OpenAPI annotations when changing or adding API surface.
+- Match the existing response style for the endpoint family (`ResponseEntity`, `200 OK` vs `202 Accepted`, etc.) instead of introducing a one-off API pattern.
+
+Canonical examples:
+
+- `@src/main/java/com/aratiri/payments/PaymentsAPI.java`
+- `@src/main/java/com/aratiri/invoices/InvoicesAPI.java`
+- `@src/main/java/com/aratiri/accounts/AccountsAPI.java`

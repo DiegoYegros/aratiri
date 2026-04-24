@@ -1,0 +1,105 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.0'
+    id 'com.google.protobuf' version '0.9.5'
+}
+
+group = 'com.aratiri'
+version = '0.0.1-SNAPSHOT'
+description = 'A multi-user Bitcoin Lightning and on-chain middleware platform'
+
+ext {
+    grpcVersion = '1.72.0'
+    protobufVersion = '4.30.2'
+    springGrpcVersion = '0.8.0'
+    springdocOpenapiStarterWebmvcUiVersion = '2.8.0'
+    zxingVersion = '3.5.3'
+    jsonWebTokenVersion = '0.11.5'
+    jakartaAnnotationApiVersion = '2.1.1'
+    googleApiClientVersion = '2.2.0'
+    javaWebSocketVersion = '1.5.3'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+dependencies {
+    implementation platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
+    implementation platform("org.springframework.grpc:spring-grpc-dependencies:${springGrpcVersion}")
+    annotationProcessor platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
+    testImplementation platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
+    testAnnotationProcessor platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
+
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+    implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocOpenapiStarterWebmvcUiVersion}"
+    runtimeOnly 'com.h2database:h2'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    implementation "com.google.api-client:google-api-client:${googleApiClientVersion}"
+    implementation 'org.springframework.kafka:spring-kafka'
+    implementation "com.google.zxing:core:${zxingVersion}"
+    implementation "com.google.zxing:javase:${zxingVersion}"
+    implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+    implementation "io.grpc:grpc-stub:${grpcVersion}"
+    implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+    implementation "io.jsonwebtoken:jjwt-api:${jsonWebTokenVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-impl:${jsonWebTokenVersion}"
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jsonWebTokenVersion}"
+    implementation "jakarta.annotation:jakarta.annotation-api:${jakartaAnnotationApiVersion}"
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+    implementation "org.java-websocket:Java-WebSocket:${javaWebSocketVersion}"
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${protobufVersion}"
+    }
+    plugins {
+        grpc {
+            artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
+        }
+    }
+    generateProtoTasks {
+        all().configureEach { task ->
+            task.plugins {
+                grpc {
+                    option '@generated=omit'
+                }
+            }
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += '-parameters'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.named('jar') {
+    enabled = false
+}
