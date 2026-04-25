@@ -148,8 +148,8 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Confirm transaction rejects non-pending transaction")
-    void confirmTransaction_rejects_non_pending() {
+    @DisplayName("Confirm transaction is idempotent for already completed transaction")
+    void confirmTransaction_idempotent_for_completed() {
         CreateTransactionRequest request = CreateTransactionRequest.builder()
                 .userId(userId)
                 .amountSat(1000)
@@ -161,14 +161,12 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
                 .build();
 
         TransactionDTOResponse created = transactionsPort.createTransaction(request);
-        transactionsPort.confirmTransaction(created.getId(), userId);
-        String transactionId = created.getId();
+        TransactionDTOResponse firstConfirm = transactionsPort.confirmTransaction(created.getId(), userId);
+        assertEquals(TransactionStatus.COMPLETED, firstConfirm.getStatus());
 
-        AratiriException exception = assertThrows(AratiriException.class, () ->
-                transactionsPort.confirmTransaction(transactionId, userId)
-        );
-
-        assertTrue(exception.getMessage().contains("not valid for confirmation"));
+        TransactionDTOResponse secondConfirm = transactionsPort.confirmTransaction(created.getId(), userId);
+        assertEquals(TransactionStatus.COMPLETED, secondConfirm.getStatus());
+        assertEquals(firstConfirm.getBalanceAfterSat(), secondConfirm.getBalanceAfterSat());
     }
 
     @Test

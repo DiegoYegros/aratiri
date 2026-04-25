@@ -2,6 +2,8 @@ package com.aratiri.admin;
 
 import com.aratiri.admin.application.dto.*;
 import com.aratiri.admin.application.port.in.AdminPort;
+import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
+import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
 import com.aratiri.shared.exception.AratiriException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -188,5 +190,20 @@ public class AdminAPI {
             throw new AratiriException("Request body must contain 'enabled' field (true/false)", HttpStatus.BAD_REQUEST.value());
         }
         return ResponseEntity.ok(adminPort.updateAutoManagePeers(enabled));
+    }
+
+    @GetMapping("/node-operations")
+    @Operation(
+            summary = "List node operations",
+            description = "Read-only endpoint to list durable node operations. Defaults to UNKNOWN_OUTCOME status."
+    )
+    public ResponseEntity<List<NodeOperationResponseDTO>> listNodeOperations(
+            @RequestParam(required = false, defaultValue = "UNKNOWN_OUTCOME") NodeOperationStatus status,
+            @RequestParam(required = false) NodeOperationType type,
+            @RequestParam(required = false) String transactionId,
+            @RequestParam(defaultValue = "100") int limit
+    ) {
+        int effectiveLimit = Math.min(limit, 500);
+        return ResponseEntity.ok(adminPort.listNodeOperations(status, type, transactionId, effectiveLimit));
     }
 }

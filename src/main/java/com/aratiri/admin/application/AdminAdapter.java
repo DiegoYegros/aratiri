@@ -6,13 +6,19 @@ import com.aratiri.admin.application.port.out.LightningNodeAdminPort;
 import com.aratiri.admin.application.port.out.NodeSettingsPort;
 import com.aratiri.admin.application.port.out.TransactionStatsPort;
 import com.aratiri.admin.domain.NodeSettings;
+import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
+import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
+import com.aratiri.infrastructure.persistence.jpa.repository.NodeOperationsRepository;
 import com.aratiri.shared.exception.AratiriException;
 import io.grpc.StatusRuntimeException;
 import lnrpc.*;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -25,15 +31,18 @@ public class AdminAdapter implements AdminPort {
     private final LightningNodeAdminPort lightningNodeAdminPort;
     private final TransactionStatsPort transactionStatsPort;
     private final NodeSettingsPort nodeSettingsPort;
+    private final NodeOperationsRepository nodeOperationsRepository;
 
     public AdminAdapter(
             LightningNodeAdminPort lightningNodeAdminPort,
             TransactionStatsPort transactionStatsPort,
-            NodeSettingsPort nodeSettingsPort
+            NodeSettingsPort nodeSettingsPort,
+            NodeOperationsRepository nodeOperationsRepository
     ) {
         this.lightningNodeAdminPort = lightningNodeAdminPort;
         this.transactionStatsPort = transactionStatsPort;
         this.nodeSettingsPort = nodeSettingsPort;
+        this.nodeOperationsRepository = nodeOperationsRepository;
     }
 
     @Override
@@ -217,5 +226,31 @@ public class AdminAdapter implements AdminPort {
         dto.setCreatedAt(settings.createdAt());
         dto.setUpdatedAt(settings.updatedAt());
         return dto;
+    }
+
+    @Override
+    public List<NodeOperationResponseDTO> listNodeOperations(NodeOperationStatus status, NodeOperationType type, String transactionId, int limit) {
+        PageRequest page = PageRequest.ofSize(Math.min(limit, 500));
+        List<NodeOperationEntity> operations = nodeOperationsRepository.findByFilters(status, type, transactionId, page);
+        return operations.stream()
+                .map(this::toOperationDto)
+                .toList();
+    }
+
+    private NodeOperationResponseDTO toOperationDto(NodeOperationEntity entity) {
+        return NodeOperationResponseDTO.builder()
+                .id(entity.getId().toString())
+                .transactionId(entity.getTransactionId())
+                .userId(entity.getUserId())
+                .operationType(entity.getOperationType().name())
+                .status(entity.getStatus().name())
+                .referenceId(entity.getReferenceId())
+                .externalId(entity.getExternalId())
+                .attemptCount(entity.getAttemptCount())
+                .lastError(entity.getLastError())
+                .createdAt(entity.getCreatedAt().atZone(ZoneId.systemDefault()).toOffsetDateTime())
+                .updatedAt(entity.getUpdatedAt().atZone(ZoneId.systemDefault()).toOffsetDateTime())
+                .completedAt(entity.getCompletedAt() != null ? entity.getCompletedAt().atZone(ZoneId.systemDefault()).toOffsetDateTime() : null)
+                .build();
     }
 }

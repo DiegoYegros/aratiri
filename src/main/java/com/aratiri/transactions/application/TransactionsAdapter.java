@@ -70,6 +70,10 @@ public class TransactionsAdapter implements TransactionsPort {
             throw new AratiriException(String.format("Transaction [%s] does not correspond to current user.", id));
         }
         TransactionAggregate aggregate = aggregateTransaction(transaction);
+        if (aggregate.status() == TransactionStatus.COMPLETED) {
+            logger.info("Transaction [{}] already COMPLETED, returning current state", id);
+            return mapToDto(aggregate);
+        }
         if (!aggregate.isPending()) {
             throw new AratiriException(String.format("Transaction status [%s] is not valid for confirmation.", aggregate.status()));
         }
@@ -147,6 +151,10 @@ public class TransactionsAdapter implements TransactionsPort {
         TransactionEntity transaction = transactionsRepository.findById(transactionId)
                 .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found for failure.", transactionId)));
         TransactionAggregate aggregate = aggregateTransaction(transaction);
+        if (aggregate.status() == TransactionStatus.FAILED) {
+            logger.info("Transaction [{}] already FAILED, skipping", transactionId);
+            return;
+        }
         if (!aggregate.isPending()) {
             logger.error("Attempted to fail a transaction that was not PENDING. ID: {}, Current Status: {}",
                     transactionId, aggregate.status());
@@ -174,6 +182,13 @@ public class TransactionsAdapter implements TransactionsPort {
             logger.error("Attempted to add a routing fee to a transaction of type [{}]. Only LIGHTNING_DEBIT is supported.",
                     transaction.getType());
             throw new AratiriException("Routing fees can only be applied to Lightning debit transactions.");
+        }
+        List<TransactionEventEntity> existingEvents = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(transactionId);
+        boolean hasFeeEvent = existingEvents.stream()
+                .anyMatch(e -> e.getEventType() == TransactionEventType.FEE_ADDED);
+        if (hasFeeEvent) {
+            logger.info("Fee event already exists for transaction [{}], skipping", transactionId);
+            return;
         }
         TransactionEventEntity event = TransactionEventEntity.builder()
                 .transaction(transaction)
