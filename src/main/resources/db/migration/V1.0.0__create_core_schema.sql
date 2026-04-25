@@ -2,6 +2,15 @@ CREATE SCHEMA IF NOT EXISTS aratiri;
 
 SET search_path TO aratiri;
 
+-- Baseline schema for the first Aratiri domain model.
+--
+-- Important historical context:
+-- * Accounts originally stored a mutable balance column. V4.0.0 and V4.0.1 replace that with
+--   append-only account_entries because money movement must be auditable and replay-safe.
+-- * Transactions originally stored mutable status/failure/balance columns. V4.0.0 moves lifecycle
+--   changes into transaction_events, and V4.0.8 later adds current_* columns back as a read model.
+-- * Outbox rows exist from the beginning because API writes should commit intent locally before
+--   Kafka/LND side effects are attempted.
 CREATE TABLE users (
                        id VARCHAR(36) PRIMARY KEY,
                        name VARCHAR(100) NOT NULL,
@@ -12,6 +21,8 @@ CREATE TABLE users (
                        role VARCHAR(50) NOT NULL DEFAULT 'USER'
 );
 
+-- Each user has exactly one account. bitcoin_address is the node-owned deposit address used to
+-- match incoming on-chain outputs back to an Aratiri user; alias is used for LNURL/lightning address flows.
 CREATE TABLE accounts (
                           id VARCHAR(36) PRIMARY KEY,
                           bitcoin_address VARCHAR(255) NOT NULL,
@@ -21,6 +32,9 @@ CREATE TABLE accounts (
                           CONSTRAINT fk_accounts_users FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+-- User-visible money movement intent. In this initial model, amount/balance_after are BTC decimals
+-- and status is stored directly on the row. Later migrations convert amounts to satoshis and separate
+-- lifecycle/accounting facts into append-only tables.
 CREATE TABLE transactions (
                               id VARCHAR(36) PRIMARY KEY,
                               user_id VARCHAR(36) NOT NULL,
@@ -38,6 +52,8 @@ CREATE TABLE transactions (
 
 CREATE INDEX idx_transactions_user_id ON transactions(user_id);
 
+-- Local copy of invoices created through LND. LND remains the source for invoice settlement events,
+-- while this table links payment hashes/payment requests to Aratiri users and memo metadata.
 CREATE TABLE lightning_invoices (
                                     id VARCHAR(36) PRIMARY KEY,
                                     user_id VARCHAR(36) NOT NULL,
@@ -57,6 +73,9 @@ CREATE TABLE lightning_invoices (
 CREATE INDEX idx_lightning_invoices_user_id ON lightning_invoices(user_id);
 CREATE INDEX idx_lightning_invoices_payment_hash ON lightning_invoices(payment_hash);
 
+-- Transactional outbox: domain events are written in the same DB transaction as local state changes
+-- and later published to Kafka by OutboxEventJob. This table is for event delivery, not long-running
+-- external execution retries; V4.0.7 introduces node_operations for LND side effects.
 CREATE TABLE outbox_events (
                                id UUID PRIMARY KEY,
                                aggregate_type VARCHAR(255) NOT NULL,
@@ -69,6 +88,8 @@ CREATE TABLE outbox_events (
 
 CREATE INDEX idx_outbox_events_processed_at ON outbox_events(processed_at);
 
+-- Singleton application/node settings. The initial setting controls automatic peer management;
+-- V4.0.6 adds reconciliation timing for pending Lightning payments.
 CREATE TABLE node_settings (
                                id VARCHAR(50) PRIMARY KEY,
                                auto_manage_peers BOOLEAN NOT NULL DEFAULT FALSE,
@@ -76,6 +97,7 @@ CREATE TABLE node_settings (
                                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Refresh tokens back the LOCAL/GOOGLE/EXTERNAL auth flows exposed by AuthAPI.
 CREATE TABLE refresh_tokens (
                                 id VARCHAR(36) PRIMARY KEY,
                                 user_id VARCHAR(36),
@@ -86,6 +108,7 @@ CREATE TABLE refresh_tokens (
 
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 
+-- One-time password reset data for the forgot/reset password endpoints.
 CREATE TABLE password_reset_data (
                                      id VARCHAR(36) PRIMARY KEY,
                                      code VARCHAR(255) NOT NULL,
@@ -96,6 +119,8 @@ CREATE TABLE password_reset_data (
 
 CREATE INDEX idx_password_reset_user_id ON password_reset_data(user_id);
 
+-- Registration draft data. A user is only created after the verification code is accepted, so this
+-- table temporarily holds the registration payload and code.
 CREATE TABLE verification_data (
                                    email VARCHAR(255) PRIMARY KEY,
                                    name VARCHAR(255),
@@ -105,6 +130,8 @@ CREATE TABLE verification_data (
                                    expires_at TIMESTAMP WITHOUT TIME ZONE
 );
 
+-- Resume cursor for LND invoice subscriptions. The singleton row stores the last add/settle index
+-- processed so reconnects do not replay the whole stream.
 CREATE TABLE invoice_subscription_state (
                                             id VARCHAR(50) PRIMARY KEY,
                                             add_index BIGINT NOT NULL DEFAULT 0,

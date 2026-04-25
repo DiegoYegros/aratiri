@@ -1,5 +1,10 @@
 SET search_path TO aratiri;
 
+-- Major accounting model change: account balance becomes an append-only ledger.
+--
+-- AccountLedgerService appends one row per balance-affecting transaction and reads the latest
+-- balance_after as the current balance. This gives an auditable trail, lets debit processors reject
+-- overdrafts from the locked latest balance, and prevents retries from mutating a balance twice.
 CREATE TABLE IF NOT EXISTS account_entries (
     id VARCHAR(36) PRIMARY KEY,
     account_id VARCHAR(36) NOT NULL,
@@ -14,6 +19,9 @@ CREATE TABLE IF NOT EXISTS account_entries (
 
 CREATE INDEX IF NOT EXISTS idx_account_entries_account_created_at ON account_entries(account_id, created_at DESC);
 
+-- Transaction lifecycle becomes evented. Transactions keep the original intent amount/type/reference,
+-- while transaction_events records PENDING/COMPLETED/FAILED transitions and later fee deltas.
+-- V4.0.8 adds denormalized current_* columns for fast API reads without abandoning this history.
 CREATE TABLE IF NOT EXISTS transaction_events (
     id VARCHAR(36) PRIMARY KEY,
     transaction_id VARCHAR(36) NOT NULL,
@@ -28,6 +36,9 @@ CREATE TABLE IF NOT EXISTS transaction_events (
 
 CREATE INDEX IF NOT EXISTS idx_transaction_events_tx_created_at ON transaction_events(transaction_id, created_at DESC);
 
+-- Remove mutable transaction state from the source table. The canonical lifecycle is now the ordered
+-- transaction_events stream. These fields are intentionally reintroduced in V4.0.8 as a read model,
+-- not as the primary accounting history.
 ALTER TABLE transactions DROP COLUMN IF EXISTS balance_after;
 ALTER TABLE transactions DROP COLUMN IF EXISTS status;
 ALTER TABLE transactions DROP COLUMN IF EXISTS failure_reason;
