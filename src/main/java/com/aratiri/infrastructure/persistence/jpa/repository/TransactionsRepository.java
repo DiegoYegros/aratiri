@@ -19,6 +19,23 @@ public interface TransactionsRepository extends JpaRepository<TransactionEntity,
             @Param("to") Instant to
     );
 
+    @Query("SELECT t FROM TransactionEntity t WHERE t.userId = :userId " +
+            "AND (t.createdAt < :cursorCreatedAt OR (t.createdAt = :cursorCreatedAt AND t.id < :cursorId)) " +
+            "ORDER BY t.createdAt DESC, t.id DESC")
+    List<TransactionEntity> findByUserIdWithCursor(
+            @Param("userId") String userId,
+            @Param("cursorCreatedAt") Instant cursorCreatedAt,
+            @Param("cursorId") String cursorId,
+            org.springframework.data.domain.Pageable pageable
+    );
+
+    @Query("SELECT t FROM TransactionEntity t WHERE t.userId = :userId " +
+            "ORDER BY t.createdAt DESC, t.id DESC")
+    List<TransactionEntity> findByUserIdOrderByCreatedAtDescIdDesc(
+            @Param("userId") String userId,
+            org.springframework.data.domain.Pageable pageable
+    );
+
     boolean existsByReferenceId(String referenceId);
 
     @Query("SELECT t FROM TransactionEntity t WHERE t.type = com.aratiri.transactions.application.dto.TransactionType.LIGHTNING_DEBIT " +

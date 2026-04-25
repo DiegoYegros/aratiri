@@ -42,6 +42,7 @@ public class PaymentsAdapter implements PaymentsPort {
     private final LightningNodePort lightningNodePort;
     private final OutboxEventPort outboxEventPort;
     private final LightningInvoicePort lightningInvoicePort;
+    private final PaymentCommandService paymentCommandService;
 
     @Value("${aratiri.payment.default.fee.limit.sat:200}")
     private int defaultFeeLimitSat;
@@ -63,7 +64,31 @@ public class PaymentsAdapter implements PaymentsPort {
 
     @Override
     @Transactional
-    public PaymentResponseDTO payLightningInvoice(PayInvoiceRequestDTO request, String userId) {
+    public PaymentResponseDTO payLightningInvoice(PayInvoiceRequestDTO request, String userId, String idempotencyKey) {
+        String canonicalPayload = JsonUtils.toJson(request);
+        PaymentCommandService.PaymentCommandResult result = paymentCommandService.resolveIdempotency(
+                userId, idempotencyKey, "LIGHTNING_INVOICE_PAY", canonicalPayload
+        );
+
+        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.REPLAY) {
+            return JsonUtils.fromJson(result.responsePayload(), PaymentResponseDTO.class);
+        }
+        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.IN_PROGRESS) {
+            throw new AratiriException("Payment with this idempotency key is still in progress", HttpStatus.CONFLICT.value());
+        }
+
+        PaymentResponseDTO response = executeLightningPayment(request, userId);
+        paymentCommandService.completeCommand(result.commandId(), response.getTransactionId(), JsonUtils.toJson(response));
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public PaymentResponseDTO payLightningInvoiceInternal(PayInvoiceRequestDTO request, String userId) {
+        return executeLightningPayment(request, userId);
+    }
+
+    private PaymentResponseDTO executeLightningPayment(PayInvoiceRequestDTO request, String userId) {
         DecodedInvoice decodedInvoice = invoicesPort.decodeInvoice(request.getInvoice());
         String paymentHash = decodedInvoice.paymentHash();
 
@@ -83,7 +108,6 @@ public class PaymentsAdapter implements PaymentsPort {
         if (internalInvoiceOpt.isPresent()) {
             return processInternalTransfer(userId, decodedInvoice, internalInvoiceOpt.get());
         }
-
         return processExternalPayment(request, userId, paymentHash, decodedInvoice);
     }
 
@@ -233,7 +257,20 @@ public class PaymentsAdapter implements PaymentsPort {
     }
 
     @Override
-    public OnChainPaymentDTOs.SendOnChainResponseDTO sendOnChain(OnChainPaymentDTOs.SendOnChainRequestDTO request, String userId) {
+    @Transactional
+    public OnChainPaymentDTOs.SendOnChainResponseDTO sendOnChain(OnChainPaymentDTOs.SendOnChainRequestDTO request, String userId, String idempotencyKey) {
+        String canonicalPayload = JsonUtils.toJson(request);
+        PaymentCommandService.PaymentCommandResult result = paymentCommandService.resolveIdempotency(
+                userId, idempotencyKey, "ONCHAIN_SEND", canonicalPayload
+        );
+
+        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.REPLAY) {
+            return JsonUtils.fromJson(result.responsePayload(), OnChainPaymentDTOs.SendOnChainResponseDTO.class);
+        }
+        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.IN_PROGRESS) {
+            throw new AratiriException("Payment with this idempotency key is still in progress", HttpStatus.CONFLICT.value());
+        }
+
         OnChainPaymentDTOs.SendOnChainRequestDTO normalizedRequest = normalizeOnChainRequest(request);
         PaymentAccount account = accountsPort.getAccount(userId);
 
@@ -273,6 +310,8 @@ public class PaymentsAdapter implements PaymentsPort {
         OnChainPaymentDTOs.SendOnChainResponseDTO response = new OnChainPaymentDTOs.SendOnChainResponseDTO();
         response.setTransactionId(txDto.getId());
         response.setTransactionStatus(txDto.getStatus());
+
+        paymentCommandService.completeCommand(result.commandId(), response.getTransactionId(), JsonUtils.toJson(response));
         return response;
     }
 

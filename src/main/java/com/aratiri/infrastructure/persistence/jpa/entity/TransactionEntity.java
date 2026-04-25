@@ -5,6 +5,7 @@ import com.aratiri.transactions.application.dto.TransactionType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -44,6 +45,21 @@ public class TransactionEntity {
     @Column(name = "reference_id", length = 64)
     private String referenceId;
 
+    @Column(name = "current_status", nullable = false, length = 20)
+    private String currentStatus;
+
+    @Column(name = "current_amount", nullable = false)
+    private long currentAmount;
+
+    @Column(name = "balance_after")
+    private Long balanceAfter;
+
+    @Column(name = "failure_reason", columnDefinition = "TEXT")
+    private String failureReason;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -55,6 +71,12 @@ public class TransactionEntity {
         }
         if (this.createdAt == null) {
             this.createdAt = Instant.now();
+        }
+        if (this.currentStatus == null) {
+            this.currentStatus = "PENDING";
+        }
+        if (this.currentAmount == 0) {
+            this.currentAmount = this.amount;
         }
     }
 }

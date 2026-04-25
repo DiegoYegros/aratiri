@@ -12,5 +12,5 @@ public interface LnurlApplicationPort {
 
     Object lnurlCallback(String alias, long amount, String comment);
 
-    PaymentResponseDTO handlePayRequest(LnurlPayRequestDTO request, String userId);
+    PaymentResponseDTO handlePayRequest(LnurlPayRequestDTO request, String userId, String idempotencyKey);
 }

@@ -56,7 +56,9 @@ public abstract class AbstractIntegrationTest {
                     aratiri.password_reset_data,
                     aratiri.verification_data,
                     aratiri.accounts,
-                    aratiri.users
+                    aratiri.users,
+                    aratiri.payment_commands,
+                    aratiri.node_operations
                 CASCADE
                 """);
     }

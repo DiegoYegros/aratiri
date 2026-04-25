@@ -9,13 +9,16 @@ import com.aratiri.lnurl.application.dto.LnurlPayRequestDTO;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.lnurl.application.port.in.LnurlApplicationPort;
 import com.aratiri.lnurl.application.port.out.LnurlRemotePort;
+import com.aratiri.payments.application.PaymentCommandService;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.payments.application.port.in.PaymentsPort;
+import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.List;
@@ -29,19 +32,22 @@ public class LnurlAdapter implements LnurlApplicationPort {
     private final PaymentsPort paymentsPort;
     private final AratiriProperties properties;
     private final LnurlRemotePort lnurlRemotePort;
+    private final PaymentCommandService paymentCommandService;
 
     public LnurlAdapter(
             AccountsPort accountsPort,
             InvoicesPort invoicesPort,
             PaymentsPort paymentsPort,
             AratiriProperties properties,
-            LnurlRemotePort lnurlRemotePort
+            LnurlRemotePort lnurlRemotePort,
+            PaymentCommandService paymentCommandService
     ) {
         this.accountsPort = accountsPort;
         this.invoicesPort = invoicesPort;
         this.paymentsPort = paymentsPort;
         this.properties = properties;
         this.lnurlRemotePort = lnurlRemotePort;
+        this.paymentCommandService = paymentCommandService;
     }
 
     @Override
@@ -87,7 +93,20 @@ public class LnurlAdapter implements LnurlApplicationPort {
     }
 
     @Override
-    public PaymentResponseDTO handlePayRequest(LnurlPayRequestDTO request, String userId) {
+    @Transactional
+    public PaymentResponseDTO handlePayRequest(LnurlPayRequestDTO request, String userId, String idempotencyKey) {
+        String canonicalPayload = JsonUtils.toJson(request);
+        PaymentCommandService.PaymentCommandResult result = paymentCommandService.resolveIdempotency(
+                userId, idempotencyKey, "LNURL_PAY", canonicalPayload
+        );
+
+        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.REPLAY) {
+            return JsonUtils.fromJson(result.responsePayload(), PaymentResponseDTO.class);
+        }
+        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.IN_PROGRESS) {
+            throw new AratiriException("LNURL payment with this idempotency key is still in progress", HttpStatus.CONFLICT.value());
+        }
+
         UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromUriString(request.getCallback())
                 .queryParam("amount", request.getAmountMsat());
         if (request.getComment() != null && !request.getComment().isEmpty()) {
@@ -105,6 +124,9 @@ public class LnurlAdapter implements LnurlApplicationPort {
         }
         PayInvoiceRequestDTO payRequest = new PayInvoiceRequestDTO();
         payRequest.setInvoice(callbackResponse.getPaymentRequest());
-        return paymentsPort.payLightningInvoice(payRequest, userId);
+        PaymentResponseDTO response = paymentsPort.payLightningInvoiceInternal(payRequest, userId);
+
+        paymentCommandService.completeCommand(result.commandId(), response.getTransactionId(), JsonUtils.toJson(response));
+        return response;
     }
 }

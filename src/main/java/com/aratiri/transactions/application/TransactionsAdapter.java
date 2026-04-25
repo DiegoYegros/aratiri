@@ -69,6 +69,20 @@ public class TransactionsAdapter implements TransactionsPort {
         if (!Objects.equals(transaction.getUserId(), userId)) {
             throw new AratiriException(String.format("Transaction [%s] does not correspond to current user.", id));
         }
+        return confirmTransactionInternal(transaction);
+    }
+
+    @Override
+    @Transactional
+    public TransactionDTOResponse confirmTransactionAsAdmin(String id) {
+        logger.info("In confirmTransactionAsAdmin, received id [{}]", id);
+        TransactionEntity transaction = transactionsRepository.findById(id)
+                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found.", id)));
+        return confirmTransactionInternal(transaction);
+    }
+
+    private TransactionDTOResponse confirmTransactionInternal(TransactionEntity transaction) {
+        String id = transaction.getId();
         TransactionAggregate aggregate = aggregateTransaction(transaction);
         if (aggregate.status() == TransactionStatus.COMPLETED) {
             logger.info("Transaction [{}] already COMPLETED, returning current state", id);
@@ -83,6 +97,10 @@ public class TransactionsAdapter implements TransactionsPort {
         }
         long newBalanceSat = processor.process(transaction);
         appendStatusEvent(transaction, TransactionStatus.COMPLETED, newBalanceSat, null);
+        transaction.setCurrentStatus("COMPLETED");
+        transaction.setBalanceAfter(newBalanceSat);
+        transaction.setCompletedAt(Instant.now());
+        transactionsRepository.save(transaction);
         logger.info("Recorded COMPLETED event for transaction [{}]", id);
         return mapToDto(aggregateTransaction(transaction));
     }
@@ -111,10 +129,16 @@ public class TransactionsAdapter implements TransactionsPort {
         if (processor == null) {
             throw new AratiriException("No processor configured for type: " + transaction.getType());
         }
+        transaction.setCurrentStatus("PENDING");
+        transaction.setCurrentAmount(request.getAmountSat());
         TransactionEntity savedTransaction = transactionsRepository.save(transaction);
         appendStatusEvent(savedTransaction, TransactionStatus.PENDING, null, null);
         long newBalanceSat = processor.process(savedTransaction);
         appendStatusEvent(savedTransaction, TransactionStatus.COMPLETED, newBalanceSat, null);
+        savedTransaction.setCurrentStatus("COMPLETED");
+        savedTransaction.setBalanceAfter(newBalanceSat);
+        savedTransaction.setCompletedAt(Instant.now());
+        transactionsRepository.save(savedTransaction);
         logger.info("Created transaction [{}] and appended COMPLETED event", savedTransaction.getId());
         return mapToDto(aggregateTransaction(savedTransaction));
     }
@@ -125,8 +149,10 @@ public class TransactionsAdapter implements TransactionsPort {
     public TransactionDTOResponse createTransaction(CreateTransactionRequest request) {
         logger.info("In createTransaction. Received request to create transaction: [{}]", request);
         TransactionEntity transaction = buildTransactionEntity(request);
-        TransactionEntity savedTransaction = transactionsRepository.save(transaction);
         TransactionStatus initialStatus = Optional.ofNullable(request.getStatus()).orElse(TransactionStatus.PENDING);
+        transaction.setCurrentStatus(initialStatus.name());
+        transaction.setCurrentAmount(request.getAmountSat());
+        TransactionEntity savedTransaction = transactionsRepository.save(transaction);
         appendStatusEvent(savedTransaction, initialStatus, null, null);
         logger.info("Successfully created new transaction record with status [{}]. Transaction: [{}]",
                 initialStatus, savedTransaction);
@@ -142,6 +168,55 @@ public class TransactionsAdapter implements TransactionsPort {
         return transactions.stream()
                 .map(tx -> mapToDto(TransactionAggregate.from(tx, eventsByTransaction.getOrDefault(tx.getId(), List.of()))))
                 .toList();
+    }
+
+    @Override
+    public Optional<TransactionDTOResponse> getTransactionById(String id, String userId) {
+        return transactionsRepository.findById(id)
+                .filter(tx -> Objects.equals(tx.getUserId(), userId))
+                .map(this::mapToDtoFast);
+    }
+
+    @Override
+    public TransactionPageResponse getTransactionsWithCursor(String userId, String cursor, int limit) {
+        int cappedLimit = Math.min(Math.max(limit, 1), 200);
+        List<TransactionEntity> transactions;
+
+        if (cursor != null && !cursor.isEmpty()) {
+            String[] parts = cursor.split("_");
+            Instant cursorCreatedAt = Instant.ofEpochMilli(Long.parseLong(parts[0]));
+            String cursorId = parts[1];
+            transactions = transactionsRepository.findByUserIdWithCursor(
+                    userId, cursorCreatedAt, cursorId,
+                    org.springframework.data.domain.PageRequest.of(0, cappedLimit + 1)
+            );
+        } else {
+            transactions = transactionsRepository.findByUserIdOrderByCreatedAtDescIdDesc(
+                    userId,
+                    org.springframework.data.domain.PageRequest.of(0, cappedLimit + 1)
+            );
+        }
+
+        boolean hasMore = transactions.size() > cappedLimit;
+        if (hasMore) {
+            transactions = transactions.subList(0, cappedLimit);
+        }
+
+        List<TransactionDTOResponse> dtos = transactions.stream()
+                .map(this::mapToDtoFast)
+                .toList();
+
+        String nextCursor = null;
+        if (hasMore && !transactions.isEmpty()) {
+            TransactionEntity last = transactions.get(transactions.size() - 1);
+            nextCursor = last.getCreatedAt().toEpochMilli() + "_" + last.getId();
+        }
+
+        return TransactionPageResponse.builder()
+                .transactions(dtos)
+                .nextCursor(nextCursor)
+                .hasMore(hasMore)
+                .build();
     }
 
     @Override
@@ -161,6 +236,9 @@ public class TransactionsAdapter implements TransactionsPort {
             throw new AratiriException(String.format("Transaction status [%s] is not valid for failure.", aggregate.status()));
         }
         appendStatusEvent(transaction, TransactionStatus.FAILED, null, failureReason);
+        transaction.setCurrentStatus("FAILED");
+        transaction.setFailureReason(failureReason);
+        transactionsRepository.save(transaction);
         logger.info("Transaction [{}] has been marked as FAILED.", transactionId);
     }
 
@@ -196,6 +274,8 @@ public class TransactionsAdapter implements TransactionsPort {
                 .amountDelta(feeSat)
                 .build();
         transactionEventRepository.save(event);
+        transaction.setCurrentAmount(transaction.getCurrentAmount() + feeSat);
+        transactionsRepository.save(transaction);
         logger.info("Added [{}] sats in routing fees to transaction [{}].", feeSat, transactionId);
     }
 
@@ -211,6 +291,21 @@ public class TransactionsAdapter implements TransactionsPort {
                 .failureReason(aggregate.failureReason())
                 .referenceId(transaction.getReferenceId())
                 .status(aggregate.status())
+                .currency(transaction.getCurrency())
+                .build();
+    }
+
+    private TransactionDTOResponse mapToDtoFast(TransactionEntity transaction) {
+        return TransactionDTOResponse.builder()
+                .id(transaction.getId())
+                .createdAt(OffsetDateTime.from(transaction.getCreatedAt().atZone(ZoneId.systemDefault())))
+                .amountSat(transaction.getCurrentAmount())
+                .type(transaction.getType())
+                .balanceAfterSat(transaction.getBalanceAfter())
+                .description(transaction.getDescription())
+                .failureReason(transaction.getFailureReason())
+                .referenceId(transaction.getReferenceId())
+                .status(TransactionStatus.valueOf(transaction.getCurrentStatus()))
                 .currency(transaction.getCurrency())
                 .build();
     }
@@ -277,6 +372,10 @@ public class TransactionsAdapter implements TransactionsPort {
         }
         long senderBalance = debitProcessor.process(senderTx);
         appendStatusEvent(senderTx, TransactionStatus.COMPLETED, senderBalance, null);
+        senderTx.setCurrentStatus("COMPLETED");
+        senderTx.setBalanceAfter(senderBalance);
+        senderTx.setCompletedAt(Instant.now());
+        transactionsRepository.save(senderTx);
 
         CreateTransactionRequest creditRequest = new CreateTransactionRequest(
                 event.getReceiverId(),

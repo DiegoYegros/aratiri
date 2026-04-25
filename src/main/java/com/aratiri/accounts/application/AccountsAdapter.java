@@ -128,12 +128,12 @@ public class AccountsAdapter implements AccountsPort {
         Instant fromInstant = from.atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant toInstant = to.atTime(LocalTime.MAX).atZone(ZoneOffset.UTC).toInstant();
         List<TransactionDTOResponse> transactions = transactionsPort.getTransactions(fromInstant, toInstant, userId);
+        Map<String, BigDecimal> btcPrices = currencyConversionPort.getCurrentBtcPrice();
         return transactions.stream()
                 .filter(e -> e.getStatus() != TransactionStatus.FAILED)
                 .map(t -> {
                     long satoshis = t.getAmountSat();
                     BigDecimal amountInBtc = BitcoinConstants.satoshisToBtc(satoshis);
-                    Map<String, BigDecimal> btcPrices = currencyConversionPort.getCurrentBtcPrice();
                     Map<String, BigDecimal> fiatEquivalents = btcPrices.entrySet().stream()
                             .collect(Collectors.toMap(
                                     Map.Entry::getKey,

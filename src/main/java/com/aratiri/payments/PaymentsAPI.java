@@ -6,15 +6,13 @@ import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.payments.application.port.in.PaymentsPort;
+import com.aratiri.shared.exception.AratiriException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/v1/payments")
@@ -34,9 +32,11 @@ public class PaymentsAPI {
                     "The payment is processed asynchronously. You can query the transaction status later."
     )
     public ResponseEntity<PaymentResponseDTO> payInvoice(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody PayInvoiceRequestDTO request,
             @AratiriCtx AratiriContext ctx) {
-        PaymentResponseDTO response = paymentsPort.payLightningInvoice(request, ctx.user().getId());
+        validateIdempotencyKey(idempotencyKey);
+        PaymentResponseDTO response = paymentsPort.payLightningInvoice(request, ctx.user().getId(), idempotencyKey);
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
@@ -47,9 +47,11 @@ public class PaymentsAPI {
                     "This endpoint handles the user's internal balance deduction and interaction with the LND node."
     )
     public ResponseEntity<OnChainPaymentDTOs.SendOnChainResponseDTO> sendOnChain(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody OnChainPaymentDTOs.SendOnChainRequestDTO request,
             @AratiriCtx AratiriContext ctx) {
-        OnChainPaymentDTOs.SendOnChainResponseDTO response = paymentsPort.sendOnChain(request, ctx.user().getId());
+        validateIdempotencyKey(idempotencyKey);
+        OnChainPaymentDTOs.SendOnChainResponseDTO response = paymentsPort.sendOnChain(request, ctx.user().getId(), idempotencyKey);
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
@@ -63,5 +65,11 @@ public class PaymentsAPI {
             @AratiriCtx AratiriContext ctx) {
         OnChainPaymentDTOs.EstimateFeeResponseDTO response = paymentsPort.estimateOnChainFee(request, ctx.user().getId());
         return ResponseEntity.ok(response);
+    }
+
+    private void validateIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new AratiriException("Idempotency-Key header is required", HttpStatus.BAD_REQUEST.value());
+        }
     }
 }

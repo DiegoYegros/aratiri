@@ -6,6 +6,7 @@ import com.aratiri.lnurl.application.dto.LnurlPayRequestDTO;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.lnurl.application.port.in.LnurlApplicationPort;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
+import com.aratiri.shared.exception.AratiriException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -53,9 +54,17 @@ public class LnurlAPI {
             description = "Handles the final step of an LNURL-pay flow. The backend fetches the invoice from the provided callback URL and then pays it."
     )
     public ResponseEntity<PaymentResponseDTO> pay(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody LnurlPayRequestDTO request,
             @AratiriCtx AratiriContext ctx) {
-        PaymentResponseDTO response = lnurlPort.handlePayRequest(request, ctx.user().getId());
+        validateIdempotencyKey(idempotencyKey);
+        PaymentResponseDTO response = lnurlPort.handlePayRequest(request, ctx.user().getId(), idempotencyKey);
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
+    }
+
+    private void validateIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new AratiriException("Idempotency-Key header is required", HttpStatus.BAD_REQUEST.value());
+        }
     }
 }
