@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "491e93b2-7394-4b47-a164-b414706eef46",
     "name": "Aratiri Local",
-    "description": "Curated local Postman collection for Aratiri. Uses the seeded Alice and Bob users from Flyway and groups requests by domain, with a top-level demo flow that can be run in order.",
+    "description": "Curated local Postman collection for Aratiri. Uses the seeded Alice and Bob users from Flyway and groups requests by domain, including idempotent payment commands and the projected cursor-based transaction API.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -28,12 +28,19 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"{{aliceEmail}}\",\n  \"password\": \"{{alicePassword}}\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/v1/auth/login",
             "description": "Seeded local user. Verified to work with password123."
@@ -58,12 +65,19 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"{{bobEmail}}\",\n  \"password\": \"{{bobPassword}}\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/v1/auth/login"
           },
@@ -86,7 +100,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/auth/me"
           },
@@ -113,7 +130,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/accounts/account",
             "description": "This response already contains the account QR data as base64 fields."
@@ -129,7 +149,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "const json = pm.response.json();",
-                  "pm.environment.set('aliceLnurlCallback', json.callback);"
+                  "pm.environment.set('aliceLnurlCallback', json.callback);",
+                  "pm.environment.set('lnurlPaymentIdempotencyKey', 'lnurl-pay-' + Date.now());"
                 ]
               }
             }
@@ -149,7 +170,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "const json = pm.response.json();",
-                  "pm.environment.set('generatedInvoice', json.payment_request);"
+                  "pm.environment.set('generatedInvoice', json.payment_request);",
+                  "pm.environment.set('invoicePaymentIdempotencyKey', 'invoice-pay-' + Date.now());"
                 ]
               }
             }
@@ -157,13 +179,23 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"sats_amount\": {{invoiceSats}},\n  \"memo\": \"{{invoiceMemo}}\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/v1/invoices"
           },
@@ -174,7 +206,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/invoices/invoice/decode/{{generatedInvoice}}"
           },
@@ -197,38 +232,70 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{invoicePaymentIdempotencyKey}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"invoice\": \"{{generatedInvoice}}\",\n  \"feeLimitSat\": {{feeLimitSat}},\n  \"timeoutSeconds\": {{timeoutSeconds}}\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/v1/payments/invoice"
           },
           "response": []
         },
         {
-          "name": "09 Bob Transactions",
+          "name": "09 Bob List Transactions",
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
             ],
-            "url": "{{baseUrl}}/v1/accounts/account/transactions?from={{dateFrom}}&to={{dateTo}}"
+            "url": "{{baseUrl}}/v1/transactions?limit={{transactionLimit}}"
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.nextCursor) pm.environment.set('transactionCursor', json.nextCursor);",
+                  "if (json.transactions && json.transactions[0]) pm.environment.set('latestTransactionId', json.transactions[0].id);"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "10 Confirm Latest Transaction (requires funded balance)",
+          "name": "10 Bob Get Latest Transaction",
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
             ],
-            "url": "{{baseUrl}}/v1/transactions/{{latestTransactionId}}/confirm",
-            "description": "Included for completeness. On the default seed this is expected to fail until the paying account has funds."
+            "url": "{{baseUrl}}/v1/transactions/{{latestTransactionId}}"
           },
           "response": []
         }
@@ -255,12 +322,19 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"{{aliceEmail}}\",\n  \"password\": \"{{alicePassword}}\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/v1/auth/login"
           },
@@ -284,12 +358,19 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"{{bobEmail}}\",\n  \"password\": \"{{bobPassword}}\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/v1/auth/login"
           },
@@ -313,12 +394,19 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refreshToken\": \"{{aliceRefreshToken}}\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/v1/auth/refresh"
           },
@@ -341,7 +429,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/auth/me"
           },
@@ -352,13 +443,23 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refreshToken\": \"{{aliceRefreshToken}}\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/v1/auth/logout",
             "description": "The local app currently requires both a bearer token and the refresh token body for logout to succeed."
@@ -391,7 +492,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/accounts/account"
           },
@@ -415,7 +519,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/accounts/account"
           },
@@ -426,7 +533,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/accounts/account/{{aliceAccountId}}"
           },
@@ -437,20 +547,27 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/accounts/account/user/{{aliceUserId}}"
           },
           "response": []
         },
         {
-          "name": "Alice Transactions",
+          "name": "Alice Legacy Account Transactions",
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
-            "url": "{{baseUrl}}/v1/accounts/account/transactions?from={{dateFrom}}&to={{dateTo}}"
+            "url": "{{baseUrl}}/v1/accounts/account/transactions?from={{dateFrom}}&to={{dateTo}}",
+            "description": "Legacy date-range account transaction list. Prefer the Transactions folder for the projected cursor API."
           },
           "response": []
         },
@@ -459,7 +576,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/general-data/currencies"
           },
@@ -470,7 +590,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/general-data/btc-price/current?currency={{btcPriceCurrency}}",
             "description": "Returns the latest cached BTC spot price for the selected fiat currency. Default cache TTL is 10 seconds."
@@ -482,7 +605,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/general-data/btc-price/history?currency={{btcPriceCurrency}}&range={{btcPriceRange}}",
             "description": "Returns BTC price history points for the selected fiat currency and range. Supported ranges: 1h, 24h, 7d."
@@ -503,7 +629,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "const json = pm.response.json();",
-                  "pm.environment.set('aliceLnurlCallback', json.callback);"
+                  "pm.environment.set('aliceLnurlCallback', json.callback);",
+                  "pm.environment.set('lnurlPaymentIdempotencyKey', 'lnurl-pay-' + Date.now());"
                 ]
               }
             }
@@ -539,7 +666,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/decoder?input={{aliceAlias}}",
             "description": "Authenticated decode call. The current local app requires JWT here."
@@ -551,7 +681,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/decoder?input={{aliceLnurl}}"
           },
@@ -571,7 +704,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "const json = pm.response.json();",
-                  "pm.environment.set('generatedInvoice', json.payment_request);"
+                  "pm.environment.set('generatedInvoice', json.payment_request);",
+                  "pm.environment.set('invoicePaymentIdempotencyKey', 'invoice-pay-' + Date.now());"
                 ]
               }
             }
@@ -579,13 +713,23 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "Authorization", "value": "Bearer {{aliceAccessToken}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"sats_amount\": {{invoiceSats}},\n  \"memo\": \"{{invoiceMemo}}\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/v1/invoices"
           },
@@ -596,7 +740,10 @@
           "request": {
             "method": "GET",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/v1/invoices/invoice/decode/{{generatedInvoice}}"
           },
@@ -619,15 +766,174 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{invoicePaymentIdempotencyKey}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"invoice\": \"{{generatedInvoice}}\",\n  \"feeLimitSat\": {{feeLimitSat}},\n  \"timeoutSeconds\": {{timeoutSeconds}}\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/v1/payments/invoice"
+          },
+          "response": []
+        },
+        {
+          "name": "Replay Latest Invoice Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{invoicePaymentIdempotencyKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/v1/payments/invoice",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice\": \"{{generatedInvoice}}\",\n  \"feeLimitSat\": {{feeLimitSat}},\n  \"timeoutSeconds\": {{timeoutSeconds}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Replays the stored response when the body and Idempotency-Key match the original payment request."
+          },
+          "response": []
+        },
+        {
+          "name": "Estimate On-Chain Fee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/v1/payments/onchain/estimate-fee",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"{{onchainDestinationAddress}}\",\n  \"sats_amount\": {{onchainSatsAmount}},\n  \"target_conf\": {{onchainTargetConf}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send On-Chain Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{onchainPaymentIdempotencyKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/v1/payments/onchain",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"{{onchainDestinationAddress}}\",\n  \"sats_amount\": {{onchainSatsAmount}},\n  \"target_conf\": {{onchainTargetConf}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('onchainPaymentIdempotencyKey')) {",
+                  "  pm.environment.set('onchainPaymentIdempotencyKey', 'onchain-pay-' + Date.now());",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.transactionId) pm.environment.set('latestOnchainTransactionId', json.transactionId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Replay Latest On-Chain Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{onchainPaymentIdempotencyKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/v1/payments/onchain",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"{{onchainDestinationAddress}}\",\n  \"sats_amount\": {{onchainSatsAmount}},\n  \"target_conf\": {{onchainTargetConf}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Replays the stored on-chain payment command response when the request body and Idempotency-Key match."
           },
           "response": []
         },
@@ -648,37 +954,168 @@
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Content-Type", "value": "application/json"},
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{lnurlPaymentIdempotencyKey}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"callback\": \"{{aliceLnurlCallback}}\",\n  \"amount_msat\": {{lnurlAmountMsat}},\n  \"comment\": \"{{lnurlComment}}\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/v1/lnurl/pay"
           },
           "response": []
         },
         {
-          "name": "Bob Transactions",
+          "name": "Replay Latest LNURL Payment",
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{lnurlPaymentIdempotencyKey}}"
+              }
             ],
-            "url": "{{baseUrl}}/v1/accounts/account/transactions?from={{dateFrom}}&to={{dateTo}}"
+            "url": "{{baseUrl}}/v1/lnurl/pay",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callback\": \"{{aliceLnurlCallback}}\",\n  \"amount_msat\": {{lnurlAmountMsat}},\n  \"comment\": \"{{lnurlComment}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Replays the LNURL payment command without refetching the remote callback invoice."
           },
           "response": []
         },
         {
-          "name": "Confirm Latest LNURL Transaction (requires funded balance)",
+          "name": "Bob List Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/v1/transactions?limit={{transactionLimit}}&cursor={{transactionCursor}}"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.nextCursor) pm.environment.set('transactionCursor', json.nextCursor);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Bob List Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/v1/transactions?limit={{transactionLimit}}",
+            "description": "Fast projected transaction list with cursor pagination."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.nextCursor) pm.environment.set('transactionCursor', json.nextCursor);",
+                  "if (json.transactions && json.transactions[0]) pm.environment.set('latestTransactionId', json.transactions[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bob List Transactions Next Page",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/v1/transactions?limit={{transactionLimit}}&cursor={{transactionCursor}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Bob Get Transaction By ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/v1/transactions/{{latestTransactionId}}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin / Internal",
+      "item": [
+        {
+          "name": "Confirm Transaction As Admin",
           "request": {
             "method": "POST",
             "header": [
-              {"key": "Authorization", "value": "Bearer {{bobAccessToken}}"}
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminAccessToken}}"
+              }
             ],
-            "url": "{{baseUrl}}/v1/transactions/{{latestLnurlTransactionId}}/confirm"
+            "url": "{{baseUrl}}/v1/transactions/{{latestTransactionId}}/confirm",
+            "description": "Admin-only compatibility endpoint. Clients should not use this to complete payments; settlement should come from backend/node processing."
           },
           "response": []
         }
