@@ -1,0 +1,137 @@
+server:
+  port: 0
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/test
+    username: test
+    password: test
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      idle-timeout: 30000
+      max-lifetime: 60000
+      connection-timeout: 10000
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-google-client-id
+            client-secret: test-google-client-secret
+  jpa:
+    properties:
+      hibernate:
+        default_schema: aratiri
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  mail:
+    host: localhost
+    port: 3025
+    username: test
+    password: test
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: test-invoice-listener-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    listener:
+      ack-mode: manual_immediate
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    schemas: aratiri
+    default-schema: aratiri
+    locations: classpath:db/migration
+
+grpc:
+  client:
+    lnd:
+      name: localhost
+      port: 10009
+  tls:
+    active: false
+
+lnd:
+  path:
+    tls:
+      cert: /tmp/test-tls.cert
+    macaroon:
+      admin: /tmp/test-macaroon.macaroon
+
+aratiri:
+  base:
+    url: http://localhost:0
+  cors:
+    allowed:
+      origins: http://localhost:3000
+  currency:
+    conversion:
+      api:
+        url: https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=%s
+      history:
+        api:
+          url: https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=%s&days=%s
+      fallback:
+        api:
+          url: https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/%s.json
+      cache:
+        current:
+          ttl-seconds: 10
+        history:
+          ttl-seconds: 300
+  accounts:
+    fiat:
+      currencies: usd,pyg,ars,eur
+  security:
+    default-principal-claim: email
+    token-exchange:
+      enabled: false
+      client-id: test-client
+      client-secret: test-secret
+    trusted-issuers: []
+
+nostr:
+  active: false
+  relay:
+    url: wss://relay.primal.net
+  retry:
+    max-retries: 1
+    initial-delay: 100
+    max-delay: 1000
+  payment:
+    default:
+      fee:
+        limit:
+          sat: 50
+      timeout:
+        seconds: 200
+    lightning:
+      fee:
+        fixed:
+          sat: 0
+        percent: 0
+    onchain:
+      fee:
+        fixed:
+          sat: 0
+        percent: 0
+
+jwt:
+  secret: test-integration-jwt-secret-key-must-be-at-least-256-bits-long
+  expiration: 8400
+  refresh-expiration: 2592000

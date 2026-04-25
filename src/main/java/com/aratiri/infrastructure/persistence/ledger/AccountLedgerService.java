@@ -50,7 +50,7 @@ public class AccountLedgerService {
         if (account == null) {
             throw new AratiriException("Account not found for user: " + userId);
         }
-        return accountEntryRepository.findFirstByAccountOrderByCreatedAtDescIdDesc(account)
+        return accountEntryRepository.findFirstByAccount_IdOrderByCreatedAtDescIdDesc(account.getId())
                 .map(AccountEntryEntity::getBalanceAfter)
                 .orElse(0L);
     }

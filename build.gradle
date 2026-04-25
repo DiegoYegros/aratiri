@@ -36,6 +36,7 @@ ext {
     jakartaAnnotationApiVersion = '2.1.1'
     googleApiClientVersion = '2.2.0'
     javaWebSocketVersion = '1.5.3'
+    testcontainersVersion = '1.20.4'
 }
 
 java {
@@ -101,6 +102,10 @@ dependencies {
     testCompileOnly 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webflux'
+    testImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
+    testImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
+    testImplementation "org.testcontainers:kafka:${testcontainersVersion}"
 }
 
 protobuf {
