@@ -74,6 +74,7 @@ class TransactionsAdapterTest {
         transactionsAdapter = new TransactionsAdapter(
                 transactionsRepository,
                 transactionSettlementService,
+                transactionSettlementService,
                 lightningInvoiceRepository,
                 jsonMapper,
                 outboxEventRepository

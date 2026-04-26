@@ -9,6 +9,7 @@ import com.aratiri.accounts.application.port.out.LightningAddressPort;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryType;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountEntryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
@@ -16,6 +17,9 @@ import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsReposit
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.InvoiceCreditSettlement;
+import com.aratiri.transactions.application.ExternalDebitCompletionSettlement;
+import com.aratiri.transactions.application.ExternalDebitFailureSettlement;
+import com.aratiri.transactions.application.LightningRoutingFeeSettlement;
 import com.aratiri.transactions.application.OnChainCreditSettlement;
 import com.aratiri.transactions.application.TransactionSettlementModule;
 import com.aratiri.transactions.application.TransactionSettlementResult;
@@ -327,6 +331,132 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
         List<TransactionEventEntity> events = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(first.transactionId());
         assertEquals(2, events.size());
         assertEquals(1, accountEntryRepository.findAll().size());
+    }
+
+    @Test
+    @DisplayName("External lightning debit settlement applies routing fee once and records lifecycle, read model, and ledger")
+    void settleExternalLightningDebit_applies_fee_once_and_records_settlement() {
+        transactionSettlementModule.settleOnChainCredit(new OnChainCreditSettlement(
+                userId,
+                5000L,
+                "funding-tx-hash",
+                0L
+        ));
+        CreateTransactionRequest debitRequest = CreateTransactionRequest.builder()
+                .userId(userId)
+                .amountSat(1000)
+                .currency(TransactionCurrency.BTC)
+                .type(TransactionType.LIGHTNING_DEBIT)
+                .status(TransactionStatus.PENDING)
+                .description("Lightning payment")
+                .referenceId("external-payment-hash")
+                .build();
+
+        TransactionDTOResponse created = transactionsPort.createTransaction(debitRequest);
+        transactionSettlementModule.applyLightningRoutingFee(new LightningRoutingFeeSettlement(created.getId(), 25L));
+        transactionSettlementModule.applyLightningRoutingFee(new LightningRoutingFeeSettlement(created.getId(), 25L));
+
+        TransactionSettlementResult result = transactionSettlementModule.settleExternalDebit(
+                new ExternalDebitCompletionSettlement(created.getId(), userId)
+        );
+
+        assertEquals(TransactionStatus.COMPLETED, result.status());
+        assertEquals(1025L, result.amountSat());
+        assertEquals(3975L, result.balanceAfterSat());
+
+        var savedTransaction = transactionsRepository.findById(created.getId()).orElseThrow();
+        assertEquals(TransactionStatus.COMPLETED.name(), savedTransaction.getCurrentStatus());
+        assertEquals(1025L, savedTransaction.getCurrentAmount());
+        assertEquals(3975L, savedTransaction.getBalanceAfter());
+        assertNotNull(savedTransaction.getCompletedAt());
+
+        List<TransactionEventEntity> events = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(created.getId());
+        assertEquals(3, events.size());
+        assertEquals(TransactionStatus.PENDING, events.get(0).getStatus());
+        assertEquals(1, events.stream().filter(event -> event.getEventType() == TransactionEventType.FEE_ADDED).count());
+        assertTrue(events.stream().anyMatch(event -> event.getStatus() == TransactionStatus.COMPLETED));
+
+        AccountEntryEntity debitEntry = accountEntryRepository.findAll().stream()
+                .filter(entry -> created.getId().equals(entry.getTransactionId()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(AccountEntryType.LIGHTNING_DEBIT, debitEntry.getEntryType());
+        assertEquals(-1025L, debitEntry.getDeltaSats());
+    }
+
+    @Test
+    @DisplayName("External on-chain debit settlement records lifecycle, read model, and ledger")
+    void settleExternalOnChainDebit_records_lifecycle_read_model_and_ledger() {
+        transactionSettlementModule.settleOnChainCredit(new OnChainCreditSettlement(
+                userId,
+                5000L,
+                "onchain-debit-funding-tx-hash",
+                0L
+        ));
+        CreateTransactionRequest debitRequest = CreateTransactionRequest.builder()
+                .userId(userId)
+                .amountSat(1500)
+                .currency(TransactionCurrency.BTC)
+                .type(TransactionType.ONCHAIN_DEBIT)
+                .status(TransactionStatus.PENDING)
+                .description("On-chain payment")
+                .referenceId("onchain-debit-ref")
+                .build();
+
+        TransactionDTOResponse created = transactionsPort.createTransaction(debitRequest);
+        TransactionSettlementResult result = transactionSettlementModule.settleExternalDebit(
+                new ExternalDebitCompletionSettlement(created.getId(), userId)
+        );
+
+        assertEquals(TransactionStatus.COMPLETED, result.status());
+        assertEquals(1500L, result.amountSat());
+        assertEquals(3500L, result.balanceAfterSat());
+
+        var savedTransaction = transactionsRepository.findById(created.getId()).orElseThrow();
+        assertEquals(TransactionStatus.COMPLETED.name(), savedTransaction.getCurrentStatus());
+        assertEquals(1500L, savedTransaction.getCurrentAmount());
+        assertEquals(3500L, savedTransaction.getBalanceAfter());
+
+        List<AccountEntryEntity> entries = accountEntryRepository.findAll();
+        AccountEntryEntity debitEntry = entries.stream()
+                .filter(entry -> created.getId().equals(entry.getTransactionId()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(AccountEntryType.ONCHAIN_DEBIT, debitEntry.getEntryType());
+        assertEquals(-1500L, debitEntry.getDeltaSats());
+    }
+
+    @Test
+    @DisplayName("External debit failure records failure lifecycle and no ledger entry")
+    void failExternalDebit_records_failure_without_ledger_entry() {
+        CreateTransactionRequest debitRequest = CreateTransactionRequest.builder()
+                .userId(userId)
+                .amountSat(1000)
+                .currency(TransactionCurrency.BTC)
+                .type(TransactionType.ONCHAIN_DEBIT)
+                .status(TransactionStatus.PENDING)
+                .description("On-chain payment")
+                .referenceId("failed-onchain-debit-ref")
+                .build();
+
+        TransactionDTOResponse created = transactionsPort.createTransaction(debitRequest);
+        TransactionSettlementResult result = transactionSettlementModule.failExternalDebit(
+                new ExternalDebitFailureSettlement(created.getId(), "node failure")
+        );
+
+        assertEquals(TransactionStatus.FAILED, result.status());
+        assertEquals(1000L, result.amountSat());
+        assertNull(result.balanceAfterSat());
+
+        var savedTransaction = transactionsRepository.findById(created.getId()).orElseThrow();
+        assertEquals(TransactionStatus.FAILED.name(), savedTransaction.getCurrentStatus());
+        assertEquals("node failure", savedTransaction.getFailureReason());
+
+        List<TransactionEventEntity> events = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(created.getId());
+        assertEquals(2, events.size());
+        assertEquals(TransactionStatus.FAILED, events.get(1).getStatus());
+        assertEquals("node failure", events.get(1).getDetails());
+        assertEquals(0, accountEntryRepository.count());
     }
 
     private void assertInvoiceCreditSettlementResult(TransactionSettlementResult result) {

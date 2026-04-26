@@ -38,6 +38,7 @@ class OnChainDebitProcessorTest {
         tx.setId("tx-1");
         tx.setUserId("user-1");
         tx.setAmount(2000L);
+        tx.setCurrentAmount(2000L);
 
         when(accountLedgerService.appendEntryForUser(tx, -2000L,
                 AccountEntryType.ONCHAIN_DEBIT, "On-chain withdrawal"))

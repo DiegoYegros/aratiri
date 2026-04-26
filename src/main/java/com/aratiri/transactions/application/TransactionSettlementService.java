@@ -45,7 +45,12 @@ public class TransactionSettlementService implements TransactionSettlementModule
             TransactionType.INVOICE_DEBIT,
             TransactionType.ONCHAIN_DEBIT
     );
+    private static final Set<TransactionType> EXTERNAL_DEBIT_TYPES = Set.of(
+            TransactionType.LIGHTNING_DEBIT,
+            TransactionType.ONCHAIN_DEBIT
+    );
     private static final String INTERNAL_TRANSFER_PREFIX = "Internal transfer";
+    private static final String FAILURE_ACTION = "failure";
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final TransactionsRepository transactionsRepository;
@@ -150,6 +155,30 @@ public class TransactionSettlementService implements TransactionSettlementModule
         return TransactionSettlementResult.from(settled);
     }
 
+    @Override
+    @Transactional
+    public TransactionSettlementResult settleExternalDebit(ExternalDebitCompletionSettlement settlement) {
+        TransactionEntity transaction = loadTransaction(settlement.transactionId(), "confirmation");
+        requireExternalDebit(transaction, "confirmation");
+        requireUserIfPresent(transaction, settlement.userId());
+        return TransactionSettlementResult.from(settlePending(transaction));
+    }
+
+    @Override
+    @Transactional
+    public TransactionSettlementResult failExternalDebit(ExternalDebitFailureSettlement settlement) {
+        TransactionEntity transaction = loadTransaction(settlement.transactionId(), FAILURE_ACTION);
+        requireExternalDebit(transaction, FAILURE_ACTION);
+        failPending(transaction, settlement.failureReason());
+        return TransactionSettlementResult.from(currentState(transaction));
+    }
+
+    @Override
+    @Transactional
+    public void applyLightningRoutingFee(LightningRoutingFeeSettlement settlement) {
+        addFeeToTransaction(settlement.transactionId(), settlement.feeSat());
+    }
+
     public TransactionState settlePending(TransactionEntity transaction) {
         return settlePending(transaction, true);
     }
@@ -187,8 +216,12 @@ public class TransactionSettlementService implements TransactionSettlementModule
 
     public void failTransaction(String transactionId, String failureReason) {
         logger.warn("Failing transaction [{}]. Reason: {}", transactionId, failureReason);
-        TransactionEntity transaction = transactionsRepository.findById(transactionId)
-                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found for failure.", transactionId)));
+        TransactionEntity transaction = loadTransaction(transactionId, FAILURE_ACTION);
+        failPending(transaction, failureReason);
+    }
+
+    private void failPending(TransactionEntity transaction, String failureReason) {
+        String transactionId = transaction.getId();
         TransactionState state = currentState(transaction);
         if (state.status() == TransactionStatus.FAILED) {
             logger.info("Transaction [{}] already FAILED, skipping", transactionId);
@@ -266,6 +299,27 @@ public class TransactionSettlementService implements TransactionSettlementModule
         transaction.setExternalReference(request.getExternalReference());
         transaction.setMetadata(request.getMetadata());
         return transaction;
+    }
+
+    private TransactionEntity loadTransaction(String transactionId, String action) {
+        return transactionsRepository.findById(transactionId)
+                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found for %s.", transactionId, action)));
+    }
+
+    private void requireExternalDebit(TransactionEntity transaction, String action) {
+        if (!EXTERNAL_DEBIT_TYPES.contains(transaction.getType())) {
+            throw new AratiriException(String.format(
+                    "Transaction type [%s] is not valid for external debit %s.",
+                    transaction.getType(),
+                    action
+            ));
+        }
+    }
+
+    private void requireUserIfPresent(TransactionEntity transaction, String userId) {
+        if (userId != null && !userId.equals(transaction.getUserId())) {
+            throw new AratiriException(String.format("Transaction [%s] does not correspond to current user.", transaction.getId()));
+        }
     }
 
     private TransactionState currentStateForReference(String referenceId) {

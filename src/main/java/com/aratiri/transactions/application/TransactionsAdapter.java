@@ -25,16 +25,19 @@ import java.util.*;
 
 @Service
 public class TransactionsAdapter implements TransactionsPort {
+    private static final String TRANSACTION_NOT_FOUND_FORMAT = "Transaction with id [%s] not found.";
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final TransactionsRepository transactionsRepository;
     private final TransactionSettlementService transactionSettlementService;
+    private final TransactionSettlementModule transactionSettlementModule;
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final JsonMapper jsonMapper;
     private final OutboxEventRepository outboxEventRepository;
 
-    public TransactionsAdapter(TransactionsRepository transactionsRepository, TransactionSettlementService transactionSettlementService, LightningInvoiceRepository lightningInvoiceRepository, JsonMapper jsonMapper, OutboxEventRepository outboxEventRepository) {
+    public TransactionsAdapter(TransactionsRepository transactionsRepository, TransactionSettlementService transactionSettlementService, TransactionSettlementModule transactionSettlementModule, LightningInvoiceRepository lightningInvoiceRepository, JsonMapper jsonMapper, OutboxEventRepository outboxEventRepository) {
         this.transactionsRepository = transactionsRepository;
         this.transactionSettlementService = transactionSettlementService;
+        this.transactionSettlementModule = transactionSettlementModule;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.jsonMapper = jsonMapper;
         this.outboxEventRepository = outboxEventRepository;
@@ -45,10 +48,16 @@ public class TransactionsAdapter implements TransactionsPort {
     public TransactionDTOResponse confirmTransaction(String id, String userId) {
         logger.info("In confirmTransaction, received id [{}]", id);
         TransactionEntity transaction = transactionsRepository.findById(id)
-                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found.", id)));
+                .orElseThrow(() -> new AratiriException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
 
         if (!Objects.equals(transaction.getUserId(), userId)) {
             throw new AratiriException(String.format("Transaction [%s] does not correspond to current user.", id));
+        }
+        if (isExternalDebit(transaction)) {
+            transactionSettlementModule.settleExternalDebit(new ExternalDebitCompletionSettlement(id, userId));
+            return transactionsRepository.findById(id)
+                    .map(this::mapToDtoFast)
+                    .orElseThrow(() -> new AratiriException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
         }
         return mapToDto(transactionSettlementService.settlePending(transaction));
     }
@@ -58,7 +67,13 @@ public class TransactionsAdapter implements TransactionsPort {
     public TransactionDTOResponse confirmTransactionAsAdmin(String id) {
         logger.info("In confirmTransactionAsAdmin, received id [{}]", id);
         TransactionEntity transaction = transactionsRepository.findById(id)
-                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found.", id)));
+                .orElseThrow(() -> new AratiriException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
+        if (isExternalDebit(transaction)) {
+            transactionSettlementModule.settleExternalDebit(new ExternalDebitCompletionSettlement(id, null));
+            return transactionsRepository.findById(id)
+                    .map(this::mapToDtoFast)
+                    .orElseThrow(() -> new AratiriException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
+        }
         return mapToDto(transactionSettlementService.settlePending(transaction));
     }
 
@@ -145,13 +160,23 @@ public class TransactionsAdapter implements TransactionsPort {
     @Override
     @Transactional
     public void failTransaction(String transactionId, String failureReason) {
+        TransactionEntity transaction = transactionsRepository.findById(transactionId)
+                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found for failure.", transactionId)));
+        if (isExternalDebit(transaction)) {
+            transactionSettlementModule.failExternalDebit(new ExternalDebitFailureSettlement(transactionId, failureReason));
+            return;
+        }
         transactionSettlementService.failTransaction(transactionId, failureReason);
     }
 
     @Override
     @Transactional
     public void addFeeToTransaction(String transactionId, long feeSat) {
-        transactionSettlementService.addFeeToTransaction(transactionId, feeSat);
+        transactionSettlementModule.applyLightningRoutingFee(new LightningRoutingFeeSettlement(transactionId, feeSat));
+    }
+
+    private boolean isExternalDebit(TransactionEntity transaction) {
+        return transaction.getType() == TransactionType.LIGHTNING_DEBIT || transaction.getType() == TransactionType.ONCHAIN_DEBIT;
     }
 
     private TransactionDTOResponse mapToDto(TransactionState state) {

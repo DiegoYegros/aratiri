@@ -18,7 +18,7 @@ public class OnChainDebitProcessor implements TransactionProcessor {
 
     @Override
     public long process(TransactionEntity transaction) {
-        long amountInSats = transaction.getAmount();
+        long amountInSats = transaction.getCurrentAmount();
         logger.info("Debiting {} sats from account for on-chain transaction.", amountInSats);
         long delta = amountInSats * -1L;
         long newBalance = accountLedgerService.appendEntryForUser(
