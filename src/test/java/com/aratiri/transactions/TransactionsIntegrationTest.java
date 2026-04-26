@@ -16,6 +16,7 @@ import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsReposit
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.InvoiceCreditSettlement;
+import com.aratiri.transactions.application.OnChainCreditSettlement;
 import com.aratiri.transactions.application.TransactionSettlementModule;
 import com.aratiri.transactions.application.TransactionSettlementResult;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
@@ -259,6 +260,73 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
 
         List<AccountEntryEntity> entries = accountEntryRepository.findAll();
         assertInvoiceCreditLedgerEntry(entries, savedTransaction.getId());
+    }
+
+    @Test
+    @DisplayName("On-chain credit settlement records lifecycle, read model, and ledger entry")
+    void settleOnChainCredit_records_lifecycle_read_model_and_ledger_entry() {
+        OnChainCreditSettlement settlement = new OnChainCreditSettlement(
+                userId,
+                3500L,
+                "onchain-tx-hash",
+                1L
+        );
+
+        TransactionSettlementResult result = transactionSettlementModule.settleOnChainCredit(settlement);
+
+        assertEquals(TransactionStatus.COMPLETED, result.status());
+        assertEquals(3500L, result.amountSat());
+        assertEquals(3500L, result.balanceAfterSat());
+
+        var savedTransaction = transactionsRepository.findById(result.transactionId()).orElseThrow();
+        assertEquals(TransactionType.ONCHAIN_CREDIT, savedTransaction.getType());
+        assertEquals(TransactionStatus.COMPLETED.name(), savedTransaction.getCurrentStatus());
+        assertEquals(3500L, savedTransaction.getCurrentAmount());
+        assertEquals(3500L, savedTransaction.getBalanceAfter());
+        assertEquals("onchain-tx-hash:1", savedTransaction.getReferenceId());
+        assertNotNull(savedTransaction.getCompletedAt());
+
+        TransactionDTOResponse response = transactionsPort.getTransactionById(savedTransaction.getId(), userId).orElseThrow();
+        assertEquals(TransactionStatus.COMPLETED, response.getStatus());
+        assertEquals(3500L, response.getAmountSat());
+        assertEquals(3500L, response.getBalanceAfterSat());
+        assertEquals("onchain-tx-hash:1", response.getReferenceId());
+
+        List<TransactionEventEntity> events = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(savedTransaction.getId());
+        assertEquals(2, events.size());
+        assertEquals(TransactionStatus.PENDING, events.get(0).getStatus());
+        assertNull(events.get(0).getBalanceAfter());
+        assertEquals(TransactionStatus.COMPLETED, events.get(1).getStatus());
+        assertEquals(3500L, events.get(1).getBalanceAfter());
+
+        List<AccountEntryEntity> entries = accountEntryRepository.findAll();
+        assertEquals(1, entries.size());
+        assertEquals(savedTransaction.getId(), entries.get(0).getTransactionId());
+        assertEquals(3500L, entries.get(0).getDeltaSats());
+        assertEquals(3500L, entries.get(0).getBalanceAfter());
+        assertEquals(AccountEntryType.ONCHAIN_CREDIT, entries.get(0).getEntryType());
+        assertEquals("On-chain deposit", entries.get(0).getDescription());
+    }
+
+    @Test
+    @DisplayName("On-chain credit settlement is idempotent for already-settled deposits")
+    void settleOnChainCredit_idempotent_for_already_settled_deposits() {
+        OnChainCreditSettlement settlement = new OnChainCreditSettlement(
+                userId,
+                3500L,
+                "duplicate-onchain-tx-hash",
+                0L
+        );
+
+        TransactionSettlementResult first = transactionSettlementModule.settleOnChainCredit(settlement);
+        TransactionSettlementResult second = transactionSettlementModule.settleOnChainCredit(settlement);
+
+        assertEquals(first.transactionId(), second.transactionId());
+        assertEquals(first.balanceAfterSat(), second.balanceAfterSat());
+
+        List<TransactionEventEntity> events = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(first.transactionId());
+        assertEquals(2, events.size());
+        assertEquals(1, accountEntryRepository.findAll().size());
     }
 
     private void assertInvoiceCreditSettlementResult(TransactionSettlementResult result) {

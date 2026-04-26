@@ -124,6 +124,32 @@ public class TransactionSettlementService implements TransactionSettlementModule
         return TransactionSettlementResult.from(settled);
     }
 
+    @Override
+    @Transactional
+    public TransactionSettlementResult settleOnChainCredit(OnChainCreditSettlement settlement) {
+        String referenceId = settlement.referenceId();
+        TransactionState existingSettlement = currentStateForReference(referenceId);
+        if (existingSettlement != null) {
+            createOnChainDepositConfirmedWebhook(existingSettlement);
+            return TransactionSettlementResult.from(existingSettlement);
+        }
+
+        CreateTransactionRequest request = new CreateTransactionRequest(
+                settlement.userId(),
+                settlement.amountSat(),
+                TransactionCurrency.BTC,
+                TransactionType.ONCHAIN_CREDIT,
+                TransactionStatus.COMPLETED,
+                "On-chain payment received",
+                referenceId,
+                null,
+                null
+        );
+        TransactionState settled = createAndSettleTransaction(request);
+        createOnChainDepositConfirmedWebhook(settled);
+        return TransactionSettlementResult.from(settled);
+    }
+
     public TransactionState settlePending(TransactionEntity transaction) {
         return settlePending(transaction, true);
     }
@@ -251,6 +277,12 @@ public class TransactionSettlementService implements TransactionSettlementModule
     private void createInvoiceSettledWebhook(TransactionState settlement, String paymentHash) {
         if (settlement.status() == TransactionStatus.COMPLETED) {
             webhookEventService.createInvoiceSettledEvent(settlement.transaction(), paymentHash);
+        }
+    }
+
+    private void createOnChainDepositConfirmedWebhook(TransactionState settlement) {
+        if (settlement.status() == TransactionStatus.COMPLETED) {
+            webhookEventService.createOnchainDepositConfirmedEvent(settlement.transaction());
         }
     }
 
