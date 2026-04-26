@@ -2,16 +2,20 @@ package com.aratiri.infrastructure.messaging.consumer;
 
 import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
 import com.aratiri.transactions.application.dto.TransactionCurrency;
+import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
+import com.aratiri.webhooks.application.WebhookEventService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.annotation.BackOff;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -32,6 +36,7 @@ public class InvoiceSettledConsumer {
     private final TransactionsPort transactionsService;
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final JsonMapper jsonMapper;
+    private final WebhookEventService webhookEventService;
 
     @KafkaListener(topics = KafkaTopicNames.INVOICE_SETTLED, groupId = "invoice-listener-group")
     @RetryableTopic(
@@ -53,9 +58,13 @@ public class InvoiceSettledConsumer {
             long amountInSats = event.getAmount();
             log.info("Processing invoice settlement for user: {}, amount: {} sats, paymentRequest: {}",
                     event.getUserId(), amountInSats, event.getPaymentHash());
-            String description = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash())
-                    .map(LightningInvoiceEntity::getMemo)
-                    .orElse(String.format("Payment received for invoice (hash: %s...)", event.getPaymentHash().substring(0, 10)));
+            LightningInvoiceEntity invoice = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash())
+                    .orElse(null);
+            String description = invoice != null && invoice.getMemo() != null
+                    ? invoice.getMemo()
+                    : String.format("Payment received for invoice (hash: %s...)", event.getPaymentHash().substring(0, 10));
+            String externalReference = invoice != null ? invoice.getExternalReference() : null;
+            String metadata = invoice != null ? invoice.getMetadata() : null;
 
             boolean transactionExists = transactionsService.existsByReferenceId(event.getPaymentHash());
             if (transactionExists) {
@@ -70,9 +79,22 @@ public class InvoiceSettledConsumer {
                     TransactionType.LIGHTNING_CREDIT,
                     TransactionStatus.COMPLETED,
                     description,
-                    event.getPaymentHash()
+                    event.getPaymentHash(),
+                    externalReference,
+                    metadata
             );
-            transactionsService.createAndSettleTransaction(request);
+            TransactionDTOResponse tx = transactionsService.createAndSettleTransaction(request);
+            TransactionEntity txEntity = new TransactionEntity();
+            txEntity.setId(tx.getId());
+            txEntity.setUserId(tx.getUserId());
+            txEntity.setType(TransactionType.LIGHTNING_CREDIT);
+            txEntity.setCurrentStatus("COMPLETED");
+            txEntity.setCurrentAmount(tx.getAmountSat());
+            txEntity.setReferenceId(event.getPaymentHash());
+            txEntity.setExternalReference(tx.getExternalReference());
+            txEntity.setMetadata(tx.getMetadata());
+            txEntity.setBalanceAfter(tx.getBalanceAfterSat());
+            webhookEventService.createInvoiceSettledEvent(txEntity, event.getPaymentHash());
             log.info("Successfully processed invoice settlement for user: {}", event.getUserId());
             acknowledgment.acknowledge();
         } catch (Exception e) {

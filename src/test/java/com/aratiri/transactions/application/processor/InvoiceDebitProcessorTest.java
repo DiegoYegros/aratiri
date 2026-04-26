@@ -39,14 +39,14 @@ class InvoiceDebitProcessorTest {
         tx.setUserId("user-1");
         tx.setAmount(1000L);
 
-        when(accountLedgerService.appendEntryForUser("user-1", "tx-1", -1000L,
+        when(accountLedgerService.appendEntryForUser(tx, -1000L,
                 AccountEntryType.LIGHTNING_DEBIT, "Lightning payment sent"))
                 .thenReturn(9000L);
 
         long newBalance = processor.process(tx);
 
         assertEquals(9000L, newBalance);
-        verify(accountLedgerService).appendEntryForUser("user-1", "tx-1", -1000L,
+        verify(accountLedgerService).appendEntryForUser(tx, -1000L,
                 AccountEntryType.LIGHTNING_DEBIT, "Lightning payment sent");
     }
 }

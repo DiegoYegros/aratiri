@@ -14,7 +14,9 @@ public record LightningInvoice(
         long expiry,
         long amountPaidSats,
         LocalDateTime settledAt,
-        String memo
+        String memo,
+        String externalReference,
+        String metadata
 ) {
 
     public LightningInvoice withId(String newId) {
@@ -30,7 +32,9 @@ public record LightningInvoice(
                 expiry,
                 amountPaidSats,
                 settledAt,
-                memo
+                memo,
+                externalReference,
+                metadata
         );
     }
 
@@ -47,7 +51,9 @@ public record LightningInvoice(
                 expiry,
                 amountPaidSats,
                 settledAt,
-                memo
+                memo,
+                externalReference,
+                metadata
         );
     }
 

@@ -1,6 +1,7 @@
 package com.aratiri.payments.application;
 
 import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
@@ -13,6 +14,7 @@ import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
+import com.aratiri.webhooks.application.WebhookEventService;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lnrpc.Payment;
@@ -43,6 +45,7 @@ public class PaymentsAdapter implements PaymentsPort {
     private final OutboxEventPort outboxEventPort;
     private final LightningInvoicePort lightningInvoicePort;
     private final PaymentCommandService paymentCommandService;
+    private final WebhookEventService webhookEventService;
 
     @Value("${aratiri.payment.default.fee.limit.sat:200}")
     private int defaultFeeLimitSat;
@@ -106,7 +109,7 @@ public class PaymentsAdapter implements PaymentsPort {
 
         Optional<InternalLightningInvoice> internalInvoiceOpt = lightningInvoicePort.findByPaymentHash(paymentHash);
         if (internalInvoiceOpt.isPresent()) {
-            return processInternalTransfer(userId, decodedInvoice, internalInvoiceOpt.get());
+            return processInternalTransfer(request, userId, decodedInvoice, internalInvoiceOpt.get());
         }
         return processExternalPayment(request, userId, paymentHash, decodedInvoice);
     }
@@ -140,6 +143,8 @@ public class PaymentsAdapter implements PaymentsPort {
                 .status(TransactionStatus.PENDING)
                 .referenceId(paymentHash)
                 .description("Lightning Payment: " + decodedInvoice.description())
+                .externalReference(request.getExternalReference())
+                .metadata(request.getMetadata())
                 .build();
         TransactionDTOResponse txDto = transactionsPort.createTransaction(txRequest);
         PaymentInitiatedEvent eventPayload = new PaymentInitiatedEvent(userId, txDto.getId(), request);
@@ -150,6 +155,17 @@ public class PaymentsAdapter implements PaymentsPort {
                 JsonUtils.toJson(eventPayload)
         ));
 
+        TransactionEntity txEntity = new TransactionEntity();
+        txEntity.setId(txDto.getId());
+        txEntity.setUserId(userId);
+        txEntity.setType(TransactionType.LIGHTNING_DEBIT);
+        txEntity.setCurrentStatus("PENDING");
+        txEntity.setCurrentAmount(totalDebitSat);
+        txEntity.setReferenceId(paymentHash);
+        txEntity.setExternalReference(request.getExternalReference());
+        txEntity.setMetadata(request.getMetadata());
+        webhookEventService.createPaymentAcceptedEvent(txEntity);
+
         return PaymentResponseDTO.builder()
                 .transactionId(txDto.getId())
                 .status(txDto.getStatus())
@@ -158,6 +174,7 @@ public class PaymentsAdapter implements PaymentsPort {
     }
 
     private PaymentResponseDTO processInternalTransfer(
+            PayInvoiceRequestDTO request,
             String senderId,
             DecodedInvoice decodedInvoice,
             InternalLightningInvoice internalInvoice
@@ -179,6 +196,8 @@ public class PaymentsAdapter implements PaymentsPort {
                 .status(TransactionStatus.PENDING)
                 .referenceId(decodedInvoice.paymentHash())
                 .description("Internal transfer to: " + internalInvoice.userId())
+                .externalReference(request.getExternalReference())
+                .metadata(request.getMetadata())
                 .build();
 
         TransactionDTOResponse txDto = transactionsPort.createTransaction(txRequest);
@@ -195,6 +214,17 @@ public class PaymentsAdapter implements PaymentsPort {
                 KafkaTopics.INTERNAL_TRANSFER_INITIATED.getCode(),
                 JsonUtils.toJson(eventPayload)
         ));
+
+        TransactionEntity txEntity = new TransactionEntity();
+        txEntity.setId(txDto.getId());
+        txEntity.setUserId(senderId);
+        txEntity.setType(TransactionType.LIGHTNING_DEBIT);
+        txEntity.setCurrentStatus("PENDING");
+        txEntity.setCurrentAmount(amountSat);
+        txEntity.setReferenceId(decodedInvoice.paymentHash());
+        txEntity.setExternalReference(request.getExternalReference());
+        txEntity.setMetadata(request.getMetadata());
+        webhookEventService.createPaymentAcceptedEvent(txEntity);
 
         return PaymentResponseDTO.builder()
                 .transactionId(txDto.getId())
@@ -296,6 +326,8 @@ public class PaymentsAdapter implements PaymentsPort {
                 .type(TransactionType.ONCHAIN_DEBIT)
                 .status(TransactionStatus.PENDING)
                 .description("On-chain payment to " + normalizedRequest.getAddress())
+                .externalReference(request.getExternalReference())
+                .metadata(request.getMetadata())
                 .build();
 
         TransactionDTOResponse txDto = transactionsPort.createTransaction(txRequest);
@@ -306,6 +338,16 @@ public class PaymentsAdapter implements PaymentsPort {
                 KafkaTopics.ONCHAIN_PAYMENT_INITIATED.getCode(),
                 JsonUtils.toJson(eventPayload)
         ));
+
+        TransactionEntity txEntity = new TransactionEntity();
+        txEntity.setId(txDto.getId());
+        txEntity.setUserId(userId);
+        txEntity.setType(TransactionType.ONCHAIN_DEBIT);
+        txEntity.setCurrentStatus("PENDING");
+        txEntity.setCurrentAmount(totalAmount);
+        txEntity.setExternalReference(request.getExternalReference());
+        txEntity.setMetadata(request.getMetadata());
+        webhookEventService.createPaymentAcceptedEvent(txEntity);
 
         OnChainPaymentDTOs.SendOnChainResponseDTO response = new OnChainPaymentDTOs.SendOnChainResponseDTO();
         response.setTransactionId(txDto.getId());

@@ -39,14 +39,14 @@ class OnChainCreditProcessorTest {
         tx.setUserId("user-1");
         tx.setAmount(2500L);
 
-        when(accountLedgerService.appendEntryForUser("user-1", "tx-1", 2500L,
+        when(accountLedgerService.appendEntryForUser(tx, 2500L,
                 AccountEntryType.ONCHAIN_CREDIT, "On-chain deposit"))
                 .thenReturn(12500L);
 
         long newBalance = processor.process(tx);
 
         assertEquals(12500L, newBalance);
-        verify(accountLedgerService).appendEntryForUser("user-1", "tx-1", 2500L,
+        verify(accountLedgerService).appendEntryForUser(tx, 2500L,
                 AccountEntryType.ONCHAIN_CREDIT, "On-chain deposit");
     }
 }

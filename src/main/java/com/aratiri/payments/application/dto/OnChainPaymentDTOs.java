@@ -25,6 +25,12 @@ public class OnChainPaymentDTOs {
 
         @JsonProperty("target_conf")
         private Integer targetConf;
+
+        @JsonProperty("external_reference")
+        private String externalReference;
+
+        @JsonProperty("metadata")
+        private String metadata;
     }
 
     @Data

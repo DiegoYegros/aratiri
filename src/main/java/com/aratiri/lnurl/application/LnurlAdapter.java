@@ -84,7 +84,7 @@ public class LnurlAdapter implements LnurlApplicationPort {
         }
         long satoshis = amount / 1000;
         String memo = comment != null ? comment : "No description";
-        GenerateInvoiceDTO generateInvoiceDTO = invoicesPort.generateInvoice(alias, satoshis, memo);
+        GenerateInvoiceDTO generateInvoiceDTO = invoicesPort.generateInvoice(alias, satoshis, memo, null, null);
         String bolt11 = generateInvoiceDTO.getPaymentRequest();
         return Map.of(
                 "pr", bolt11,

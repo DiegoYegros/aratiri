@@ -58,7 +58,11 @@ public abstract class AbstractIntegrationTest {
                     aratiri.accounts,
                     aratiri.users,
                     aratiri.payment_commands,
-                    aratiri.node_operations
+                    aratiri.node_operations,
+                    aratiri.webhook_deliveries,
+                    aratiri.webhook_events,
+                    aratiri.webhook_endpoint_subscriptions,
+                    aratiri.webhook_endpoints
                 CASCADE
                 """);
     }

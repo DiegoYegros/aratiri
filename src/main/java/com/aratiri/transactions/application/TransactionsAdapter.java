@@ -14,6 +14,7 @@ import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import com.aratiri.transactions.application.processor.TransactionProcessor;
 import com.aratiri.payments.application.event.PaymentSentEvent;
+import com.aratiri.webhooks.application.WebhookEventService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -48,8 +49,9 @@ public class TransactionsAdapter implements TransactionsPort {
     private final JsonMapper jsonMapper;
     private final OutboxEventRepository outboxEventRepository;
     private final TransactionEventRepository transactionEventRepository;
+    private final WebhookEventService webhookEventService;
 
-    public TransactionsAdapter(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, JsonMapper jsonMapper, OutboxEventRepository outboxEventRepository, TransactionEventRepository transactionEventRepository) {
+    public TransactionsAdapter(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, JsonMapper jsonMapper, OutboxEventRepository outboxEventRepository, TransactionEventRepository transactionEventRepository, WebhookEventService webhookEventService) {
         this.transactionsRepository = transactionsRepository;
         this.processors = processorList.stream()
                 .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
@@ -57,6 +59,7 @@ public class TransactionsAdapter implements TransactionsPort {
         this.jsonMapper = jsonMapper;
         this.outboxEventRepository = outboxEventRepository;
         this.transactionEventRepository = transactionEventRepository;
+        this.webhookEventService = webhookEventService;
     }
 
     @Override
@@ -102,6 +105,7 @@ public class TransactionsAdapter implements TransactionsPort {
         transaction.setCompletedAt(Instant.now());
         transactionsRepository.save(transaction);
         logger.info("Recorded COMPLETED event for transaction [{}]", id);
+        webhookEventService.createPaymentSucceededEvent(transaction);
         return mapToDto(aggregateTransaction(transaction));
     }
 
@@ -240,6 +244,7 @@ public class TransactionsAdapter implements TransactionsPort {
         transaction.setFailureReason(failureReason);
         transactionsRepository.save(transaction);
         logger.info("Transaction [{}] has been marked as FAILED.", transactionId);
+        webhookEventService.createPaymentFailedEvent(transaction, failureReason);
     }
 
     @Override
@@ -283,6 +288,7 @@ public class TransactionsAdapter implements TransactionsPort {
         TransactionEntity transaction = aggregate.transaction();
         return TransactionDTOResponse.builder()
                 .id(transaction.getId())
+                .userId(transaction.getUserId())
                 .createdAt(OffsetDateTime.from(transaction.getCreatedAt().atZone(ZoneId.systemDefault())))
                 .amountSat(aggregate.amountSat())
                 .type(transaction.getType())
@@ -290,6 +296,8 @@ public class TransactionsAdapter implements TransactionsPort {
                 .description(transaction.getDescription())
                 .failureReason(aggregate.failureReason())
                 .referenceId(transaction.getReferenceId())
+                .externalReference(transaction.getExternalReference())
+                .metadata(transaction.getMetadata())
                 .status(aggregate.status())
                 .currency(transaction.getCurrency())
                 .build();
@@ -298,6 +306,7 @@ public class TransactionsAdapter implements TransactionsPort {
     private TransactionDTOResponse mapToDtoFast(TransactionEntity transaction) {
         return TransactionDTOResponse.builder()
                 .id(transaction.getId())
+                .userId(transaction.getUserId())
                 .createdAt(OffsetDateTime.from(transaction.getCreatedAt().atZone(ZoneId.systemDefault())))
                 .amountSat(transaction.getCurrentAmount())
                 .type(transaction.getType())
@@ -305,6 +314,8 @@ public class TransactionsAdapter implements TransactionsPort {
                 .description(transaction.getDescription())
                 .failureReason(transaction.getFailureReason())
                 .referenceId(transaction.getReferenceId())
+                .externalReference(transaction.getExternalReference())
+                .metadata(transaction.getMetadata())
                 .status(TransactionStatus.valueOf(transaction.getCurrentStatus()))
                 .currency(transaction.getCurrency())
                 .build();
@@ -384,7 +395,9 @@ public class TransactionsAdapter implements TransactionsPort {
                 TransactionType.LIGHTNING_CREDIT,
                 TransactionStatus.COMPLETED,
                 "Internal transfer from: " + event.getSenderId(),
-                event.getPaymentHash()
+                event.getPaymentHash(),
+                null,
+                null
         );
         createAndSettleTransactionInternal(creditRequest);
         LightningInvoiceEntity invoice = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash()).orElseThrow();
@@ -438,6 +451,8 @@ public class TransactionsAdapter implements TransactionsPort {
         transaction.setType(request.getType());
         transaction.setDescription(request.getDescription());
         transaction.setReferenceId(request.getReferenceId());
+        transaction.setExternalReference(request.getExternalReference());
+        transaction.setMetadata(request.getMetadata());
         return transaction;
     }
 

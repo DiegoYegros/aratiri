@@ -22,8 +22,7 @@ public class OnChainDebitProcessor implements TransactionProcessor {
         logger.info("Debiting {} sats from account for on-chain transaction.", amountInSats);
         long delta = amountInSats * -1L;
         long newBalance = accountLedgerService.appendEntryForUser(
-                transaction.getUserId(),
-                transaction.getId(),
+                transaction,
                 delta,
                 AccountEntryType.ONCHAIN_DEBIT,
                 "On-chain withdrawal"

@@ -11,6 +11,7 @@ import java.time.OffsetDateTime;
 @Builder
 public class TransactionDTOResponse {
     private String id;
+    private String userId;
     private long amountSat;
     private Long balanceAfterSat;
     private TransactionCurrency currency;
@@ -19,5 +20,7 @@ public class TransactionDTOResponse {
     private String description;
     private String failureReason;
     private String referenceId;
+    private String externalReference;
+    private String metadata;
     private OffsetDateTime createdAt;
 }

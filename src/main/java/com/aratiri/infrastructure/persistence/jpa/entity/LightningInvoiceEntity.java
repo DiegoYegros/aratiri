@@ -60,6 +60,12 @@ public class LightningInvoiceEntity {
     @Column(name = "memo", length = 500)
     private String memo;
 
+    @Column(name = "external_reference", length = 128)
+    private String externalReference;
+
+    @Column(name = "metadata", columnDefinition = "TEXT")
+    private String metadata;
+
     public enum InvoiceState {
         OPEN,
         ACCEPTED,

@@ -57,6 +57,12 @@ public class TransactionEntity {
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 
+    @Column(name = "external_reference", length = 128)
+    private String externalReference;
+
+    @Column(name = "metadata", columnDefinition = "TEXT")
+    private String metadata;
+
     @Column(name = "completed_at")
     private Instant completedAt;
 

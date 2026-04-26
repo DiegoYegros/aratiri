@@ -15,4 +15,6 @@ public class CreateTransactionRequest {
     private TransactionStatus status;
     private String description;
     private String referenceId;
+    private String externalReference;
+    private String metadata;
 }

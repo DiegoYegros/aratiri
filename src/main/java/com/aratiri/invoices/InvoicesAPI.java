@@ -32,7 +32,9 @@ public class InvoicesAPI {
     )
     public ResponseEntity<GenerateInvoiceDTO> generateInvoice(@Valid @RequestBody GenerateInvoiceRequestDTO request, @AratiriCtx AratiriContext aratiriContext) {
         String userId = aratiriContext.user().getId();
-        return new ResponseEntity<>(invoicesPort.generateInvoice(request.getSatsAmount(), request.getMemo(), userId), HttpStatus.CREATED);
+        return new ResponseEntity<>(invoicesPort.generateInvoice(
+                request.getSatsAmount(), request.getMemo(), userId,
+                request.getExternalReference(), request.getMetadata()), HttpStatus.CREATED);
     }
 
     @GetMapping("/invoice/decode/{paymentRequest}")

@@ -10,6 +10,7 @@ import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsReposit
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.processor.TransactionProcessor;
+import com.aratiri.webhooks.application.WebhookEventService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +50,9 @@ class TransactionsAdapterTest {
     @Mock
     private TransactionProcessor creditProcessor;
 
+    @Mock
+    private WebhookEventService webhookEventService;
+
     private TransactionsAdapter transactionsAdapter;
 
     private static final String USER_ID = "user-123";
@@ -64,7 +68,8 @@ class TransactionsAdapterTest {
                 lightningInvoiceRepository,
                 jsonMapper,
                 outboxEventRepository,
-                transactionEventRepository
+                transactionEventRepository,
+                webhookEventService
         );
     }
 

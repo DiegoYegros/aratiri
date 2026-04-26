@@ -7,9 +7,9 @@ import com.aratiri.invoices.domain.LightningNodeInvoice;
 import java.util.Optional;
 
 public interface InvoicesPort {
-    GenerateInvoiceDTO generateInvoice(long satsAmount, String memo, String userId);
+    GenerateInvoiceDTO generateInvoice(long satsAmount, String memo, String userId, String externalReference, String metadata);
 
-    GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo);
+    GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo, String externalReference, String metadata);
 
     DecodedInvoicetDTO decodeAratiriPaymentRequest(String paymentRequest, String userId);
 

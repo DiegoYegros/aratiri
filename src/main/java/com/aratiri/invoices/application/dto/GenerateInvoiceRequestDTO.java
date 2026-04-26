@@ -11,4 +11,8 @@ public class GenerateInvoiceRequestDTO {
     @JsonProperty("memo")
     @NotNull(message = "memo no puede ser nulo.")
     private String memo;
+    @JsonProperty("external_reference")
+    private String externalReference;
+    @JsonProperty("metadata")
+    private String metadata;
 }

@@ -221,8 +221,9 @@ class LedgerIntegrationTest extends AbstractIntegrationTest {
     @DisplayName("Append entry for user uses userId lookup")
     void appendEntry_for_user_uses_userId_lookup() {
         createTransaction("tx-user-001", 2000);
+        TransactionEntity tx = transactionsRepository.findById("tx-user-001").orElseThrow();
 
-        long newBalance = accountLedgerService.appendEntryForUser(userId, "tx-user-001", 2000, AccountEntryType.MANUAL_ADJUSTMENT, "User credit");
+        long newBalance = accountLedgerService.appendEntryForUser(tx, 2000, AccountEntryType.MANUAL_ADJUSTMENT, "User credit");
 
         assertEquals(2000L, newBalance);
         assertEquals(2000L, accountLedgerService.getCurrentBalanceForUser(userId));
@@ -231,8 +232,11 @@ class LedgerIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Append entry for non-existent user throws exception")
     void appendEntry_for_non_existent_user_throws() {
+        TransactionEntity tx = new TransactionEntity();
+        tx.setUserId("non-existent-user");
+        tx.setId("tx-001");
         AratiriException exception = assertThrows(AratiriException.class, () ->
-                accountLedgerService.appendEntryForUser("non-existent-user", "tx-001", 1000, AccountEntryType.MANUAL_ADJUSTMENT, "Test")
+                accountLedgerService.appendEntryForUser(tx, 1000, AccountEntryType.MANUAL_ADJUSTMENT, "Test")
         );
 
         assertTrue(exception.getMessage().contains("Account not found"));

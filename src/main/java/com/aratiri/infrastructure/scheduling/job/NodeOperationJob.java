@@ -10,6 +10,7 @@ import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.port.out.LightningNodePort;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
+import com.aratiri.webhooks.application.WebhookEventService;
 import io.grpc.StatusRuntimeException;
 import lnrpc.Payment;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class NodeOperationJob {
     private final TransactionsPort transactionsPort;
     private final NodeOperationState stateManager;
     private final NodeOperationClaimer claimer;
+    private final WebhookEventService webhookEventService;
 
     @Value("${aratiri.payment.default.fee.limit.sat:200}")
     private int defaultFeeLimitSat;
@@ -190,6 +192,7 @@ public class NodeOperationJob {
             op.setStatus(NodeOperationStatus.UNKNOWN_OUTCOME);
             op.setLastError(e.getMessage());
             nodeOperationsRepository.save(op);
+            webhookEventService.createNodeOperationUnknownOutcomeEvent(op);
             return;
         }
 

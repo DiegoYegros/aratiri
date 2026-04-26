@@ -39,14 +39,14 @@ class InvoiceCreditProcessorTest {
         tx.setUserId("user-1");
         tx.setAmount(1500L);
 
-        when(accountLedgerService.appendEntryForUser("user-1", "tx-1", 1500L,
+        when(accountLedgerService.appendEntryForUser(tx, 1500L,
                 AccountEntryType.LIGHTNING_CREDIT, "Lightning invoice settled"))
                 .thenReturn(11500L);
 
         long newBalance = processor.process(tx);
 
         assertEquals(11500L, newBalance);
-        verify(accountLedgerService).appendEntryForUser("user-1", "tx-1", 1500L,
+        verify(accountLedgerService).appendEntryForUser(tx, 1500L,
                 AccountEntryType.LIGHTNING_CREDIT, "Lightning invoice settled");
     }
 }

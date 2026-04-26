@@ -8,6 +8,7 @@ import com.aratiri.infrastructure.persistence.jpa.repository.NodeOperationsRepos
 import com.aratiri.payments.application.port.out.LightningNodePort;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
+import com.aratiri.webhooks.application.WebhookEventService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +41,9 @@ class NodeOperationJobTest {
     @Mock
     private NodeOperationClaimer claimer;
 
+    @Mock
+    private WebhookEventService webhookEventService;
+
     private NodeOperationJob job;
     private NodeOperationState stateManager;
 
@@ -50,7 +54,7 @@ class NodeOperationJobTest {
     void setUp() {
         when(nodeOperationProperties.getOnchainMaxAttempts()).thenReturn(5);
         stateManager = new NodeOperationState(nodeOperationsRepository, transactionsPort);
-        job = new NodeOperationJob(nodeOperationsRepository, nodeOperationProperties, lightningNodePort, transactionsPort, stateManager, claimer);
+        job = new NodeOperationJob(nodeOperationsRepository, nodeOperationProperties, lightningNodePort, transactionsPort, stateManager, claimer, webhookEventService);
     }
 
     @Test

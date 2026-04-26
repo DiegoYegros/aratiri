@@ -45,6 +45,8 @@ public class LightningInvoiceRepositoryAdapter implements LightningInvoicePersis
                 .amountPaidSats(invoice.amountPaidSats())
                 .settledAt(invoice.settledAt())
                 .memo(invoice.memo())
+                .externalReference(invoice.externalReference())
+                .metadata(invoice.metadata())
                 .build();
     }
 
@@ -61,7 +63,9 @@ public class LightningInvoiceRepositoryAdapter implements LightningInvoicePersis
                 entity.getExpiry(),
                 entity.getAmountPaidSats(),
                 entity.getSettledAt(),
-                entity.getMemo()
+                entity.getMemo(),
+                entity.getExternalReference(),
+                entity.getMetadata()
         );
     }
 

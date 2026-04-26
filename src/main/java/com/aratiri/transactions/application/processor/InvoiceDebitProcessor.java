@@ -22,8 +22,7 @@ public class InvoiceDebitProcessor implements TransactionProcessor {
         logger.info("Debiting {} sats from account.", amountInSats);
         long delta = amountInSats * -1L;
         long newBalance = accountLedgerService.appendEntryForUser(
-                transaction.getUserId(),
-                transaction.getId(),
+                transaction,
                 delta,
                 AccountEntryType.LIGHTNING_DEBIT,
                 "Lightning payment sent"

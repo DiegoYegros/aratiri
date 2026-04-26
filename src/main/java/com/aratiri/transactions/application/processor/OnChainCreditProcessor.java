@@ -22,8 +22,7 @@ public class OnChainCreditProcessor implements TransactionProcessor {
         logger.info("Crediting {} sats to account from on-chain transaction.", amountInSats);
         long delta = amountInSats;
         return accountLedgerService.appendEntryForUser(
-                transaction.getUserId(),
-                transaction.getId(),
+                transaction,
                 delta,
                 AccountEntryType.ONCHAIN_CREDIT,
                 "On-chain deposit"

@@ -12,6 +12,7 @@ import com.aratiri.invoices.domain.LightningInvoiceCreation;
 import com.aratiri.invoices.domain.LightningNodeInvoice;
 import com.aratiri.invoices.infrastructure.InvoiceUtils;
 import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.webhooks.application.WebhookEventService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -29,28 +30,31 @@ public class InvoicesAdapter implements InvoicesPort {
     private final LightningNodePort lightningNodePort;
     private final LightningInvoicePersistencePort lightningInvoicePersistencePort;
     private final AccountLookupPort accountLookupPort;
+    private final WebhookEventService webhookEventService;
 
     public InvoicesAdapter(
             LightningNodePort lightningNodePort,
             LightningInvoicePersistencePort lightningInvoicePersistencePort,
-            AccountLookupPort accountLookupPort
+            AccountLookupPort accountLookupPort,
+            WebhookEventService webhookEventService
     ) {
         this.lightningNodePort = lightningNodePort;
         this.lightningInvoicePersistencePort = lightningInvoicePersistencePort;
         this.accountLookupPort = accountLookupPort;
+        this.webhookEventService = webhookEventService;
     }
 
     @Override
-    public GenerateInvoiceDTO generateInvoice(long satsAmount, String memo, String userId) {
+    public GenerateInvoiceDTO generateInvoice(long satsAmount, String memo, String userId, String externalReference, String metadata) {
         logger.info("Generating invoice for sats amount [{}] and with memo [{}] for userId [{}]", satsAmount, memo, userId);
-        return createAndSaveInvoice(userId, satsAmount, memo);
+        return createAndSaveInvoice(userId, satsAmount, memo, externalReference, metadata);
     }
 
     @Override
-    public GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo) {
+    public GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo, String externalReference, String metadata) {
         logger.info("Generating invoice for sats amount [{}] and with memo [{}] for alias [{}]", satsAmount, memo, alias);
         String userId = accountLookupPort.getUserIdByAlias(alias);
-        return createAndSaveInvoice(userId, satsAmount, memo);
+        return createAndSaveInvoice(userId, satsAmount, memo, externalReference, metadata);
     }
 
     @Override
@@ -73,7 +77,7 @@ public class InvoicesAdapter implements InvoicesPort {
         return lightningInvoicePersistencePort.findSettledByPaymentHash(paymentHash).isPresent();
     }
 
-    private GenerateInvoiceDTO createAndSaveInvoice(String userId, long satsAmount, String memo) {
+    private GenerateInvoiceDTO createAndSaveInvoice(String userId, long satsAmount, String memo, String externalReference, String metadata) {
         try {
             byte[] preImage = InvoiceUtils.generatePreimage();
             byte[] hash = InvoiceUtils.sha256(preImage);
@@ -92,9 +96,12 @@ public class InvoicesAdapter implements InvoicesPort {
                     creation.expiry(),
                     0,
                     null,
-                    memo
+                    memo,
+                    externalReference,
+                    metadata
             );
-            lightningInvoicePersistencePort.save(invoice);
+            LightningInvoice savedInvoice = lightningInvoicePersistencePort.save(invoice);
+            webhookEventService.createInvoiceCreatedEvent(savedInvoice);
             return new GenerateInvoiceDTO(creation.paymentRequest());
         } catch (AratiriException e) {
             throw e;
