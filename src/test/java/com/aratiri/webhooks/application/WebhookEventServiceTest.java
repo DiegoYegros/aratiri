@@ -221,6 +221,90 @@ class WebhookEventServiceTest {
         assertEquals("account.balance_changed:entry-1", captor.getValue().getEventKey());
     }
 
+    @Test
+    void createInvoiceSettledEvent_usesDomainFactsAndKeepsPayloadShape() throws Exception {
+        WebhookEndpointEntity endpoint = enabledEndpoint("invoice.settled");
+        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
+        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
+        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
+
+        InvoiceSettledWebhookFacts invoice = new InvoiceSettledWebhookFacts(
+                "tx-1",
+                "user-1",
+                "payment-hash-1",
+                1500L,
+                TransactionStatus.COMPLETED,
+                "ref-1",
+                "external-1",
+                "{\"order\":\"123\"}",
+                6500L
+        );
+        webhookEventService.createInvoiceSettledEvent(invoice);
+
+        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
+        verify(webhookEventRepository).save(eventCaptor.capture());
+        assertEquals("invoice.settled:payment-hash-1", eventCaptor.getValue().getEventKey());
+        assertEquals("invoice.settled", eventCaptor.getValue().getEventType());
+        assertEquals("INVOICE", eventCaptor.getValue().getAggregateType());
+        assertEquals("payment-hash-1", eventCaptor.getValue().getAggregateId());
+        assertEquals("user-1", eventCaptor.getValue().getUserId());
+        assertEquals("external-1", eventCaptor.getValue().getExternalReference());
+
+        WebhookPayloadData data = capturedPayloadData();
+        assertEquals("tx-1", data.getTransactionId());
+        assertEquals("user-1", data.getUserId());
+        assertEquals("external-1", data.getExternalReference());
+        assertEquals("{\"order\":\"123\"}", data.getMetadata());
+        assertEquals(1500L, data.getAmountSat());
+        assertEquals("COMPLETED", data.getStatus());
+        assertEquals("ref-1", data.getReferenceId());
+        assertEquals(6500L, data.getBalanceAfterSat());
+        assertEquals("payment-hash-1", data.getPaymentHash());
+
+        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
+    }
+
+    @Test
+    void createOnchainDepositConfirmedEvent_usesDomainFactsAndKeepsPayloadShape() throws Exception {
+        WebhookEndpointEntity endpoint = enabledEndpoint("onchain.deposit.confirmed");
+        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
+        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
+        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
+
+        OnChainDepositWebhookFacts deposit = new OnChainDepositWebhookFacts(
+                "tx-1",
+                "user-1",
+                2500L,
+                TransactionStatus.COMPLETED,
+                "tx-hash:1",
+                "external-1",
+                "{\"order\":\"123\"}",
+                8500L
+        );
+        webhookEventService.createOnchainDepositConfirmedEvent(deposit);
+
+        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
+        verify(webhookEventRepository).save(eventCaptor.capture());
+        assertEquals("onchain.deposit.confirmed:tx-hash:1", eventCaptor.getValue().getEventKey());
+        assertEquals("onchain.deposit.confirmed", eventCaptor.getValue().getEventType());
+        assertEquals("TRANSACTION", eventCaptor.getValue().getAggregateType());
+        assertEquals("tx-1", eventCaptor.getValue().getAggregateId());
+        assertEquals("user-1", eventCaptor.getValue().getUserId());
+        assertEquals("external-1", eventCaptor.getValue().getExternalReference());
+
+        WebhookPayloadData data = capturedPayloadData();
+        assertEquals("tx-1", data.getTransactionId());
+        assertEquals("user-1", data.getUserId());
+        assertEquals("external-1", data.getExternalReference());
+        assertEquals("{\"order\":\"123\"}", data.getMetadata());
+        assertEquals(2500L, data.getAmountSat());
+        assertEquals("COMPLETED", data.getStatus());
+        assertEquals("tx-hash:1", data.getReferenceId());
+        assertEquals(8500L, data.getBalanceAfterSat());
+
+        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
+    }
+
     private PaymentWebhookFacts acceptedPayment() {
         return PaymentWebhookFacts.accepted(
                 "tx-1",

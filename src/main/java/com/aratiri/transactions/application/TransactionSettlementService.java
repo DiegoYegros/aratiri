@@ -19,6 +19,8 @@ import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
 import com.aratiri.transactions.application.processor.TransactionProcessor;
+import com.aratiri.webhooks.application.InvoiceSettledWebhookFacts;
+import com.aratiri.webhooks.application.OnChainDepositWebhookFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
 import com.aratiri.webhooks.application.PaymentWebhookFacts;
 import org.slf4j.Logger;
@@ -393,14 +395,43 @@ public class TransactionSettlementService implements TransactionSettlementModule
 
     private void createInvoiceSettledWebhook(TransactionState settlement, String paymentHash) {
         if (settlement.status() == TransactionStatus.COMPLETED) {
-            webhookEventService.createInvoiceSettledEvent(settlement.transaction(), paymentHash);
+            webhookEventService.createInvoiceSettledEvent(invoiceSettledWebhookFacts(settlement, paymentHash));
         }
     }
 
     private void createOnChainDepositConfirmedWebhook(TransactionState settlement) {
         if (settlement.status() == TransactionStatus.COMPLETED) {
-            webhookEventService.createOnchainDepositConfirmedEvent(settlement.transaction());
+            webhookEventService.createOnchainDepositConfirmedEvent(onChainDepositWebhookFacts(settlement));
         }
+    }
+
+    private InvoiceSettledWebhookFacts invoiceSettledWebhookFacts(TransactionState settlement, String paymentHash) {
+        TransactionEntity transaction = settlement.transaction();
+        return new InvoiceSettledWebhookFacts(
+                transaction.getId(),
+                transaction.getUserId(),
+                paymentHash,
+                settlement.amountSat(),
+                settlement.status(),
+                transaction.getReferenceId(),
+                transaction.getExternalReference(),
+                transaction.getMetadata(),
+                settlement.balanceAfterSat()
+        );
+    }
+
+    private OnChainDepositWebhookFacts onChainDepositWebhookFacts(TransactionState settlement) {
+        TransactionEntity transaction = settlement.transaction();
+        return new OnChainDepositWebhookFacts(
+                transaction.getId(),
+                transaction.getUserId(),
+                settlement.amountSat(),
+                settlement.status(),
+                transaction.getReferenceId(),
+                transaction.getExternalReference(),
+                transaction.getMetadata(),
+                settlement.balanceAfterSat()
+        );
     }
 
     private void appendStatusEvent(TransactionEntity transaction, TransactionStatus status, Long balanceAfter, String details) {

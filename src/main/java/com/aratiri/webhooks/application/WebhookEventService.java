@@ -105,37 +105,37 @@ public class WebhookEventService {
         createEventAndDeliveries(eventKey, eventType, "INVOICE", invoice.id(), invoice.userId(), invoice.externalReference(), data);
     }
 
-    public void createInvoiceSettledEvent(TransactionEntity transaction, String paymentHash) {
+    public void createInvoiceSettledEvent(InvoiceSettledWebhookFacts invoice) {
         String eventType = "invoice.settled";
-        String eventKey = eventType + ":" + paymentHash;
+        String eventKey = eventType + ":" + invoice.paymentHash();
         WebhookPayloadData data = WebhookPayloadData.builder()
-                .transactionId(transaction.getId())
-                .userId(transaction.getUserId())
-                .externalReference(transaction.getExternalReference())
-                .metadata(transaction.getMetadata())
-                .amountSat(transaction.getCurrentAmount())
-                .status(STATUS_COMPLETED)
-                .referenceId(transaction.getReferenceId())
-                .balanceAfterSat(transaction.getBalanceAfter())
-                .paymentHash(paymentHash)
+                .transactionId(invoice.transactionId())
+                .userId(invoice.userId())
+                .externalReference(invoice.externalReference())
+                .metadata(invoice.metadata())
+                .amountSat(invoice.amountSat())
+                .status(invoice.status().name())
+                .referenceId(invoice.referenceId())
+                .balanceAfterSat(invoice.balanceAfterSat())
+                .paymentHash(invoice.paymentHash())
                 .build();
-        createEventAndDeliveries(eventKey, eventType, "INVOICE", paymentHash, transaction.getUserId(), transaction.getExternalReference(), data);
+        createEventAndDeliveries(eventKey, eventType, "INVOICE", invoice.paymentHash(), invoice.userId(), invoice.externalReference(), data);
     }
 
-    public void createOnchainDepositConfirmedEvent(TransactionEntity transaction) {
+    public void createOnchainDepositConfirmedEvent(OnChainDepositWebhookFacts deposit) {
         String eventType = "onchain.deposit.confirmed";
-        String eventKey = eventType + ":" + transaction.getReferenceId();
+        String eventKey = eventType + ":" + deposit.referenceId();
         WebhookPayloadData data = WebhookPayloadData.builder()
-                .transactionId(transaction.getId())
-                .userId(transaction.getUserId())
-                .externalReference(transaction.getExternalReference())
-                .metadata(transaction.getMetadata())
-                .amountSat(transaction.getCurrentAmount())
-                .status(STATUS_COMPLETED)
-                .referenceId(transaction.getReferenceId())
-                .balanceAfterSat(transaction.getBalanceAfter())
+                .transactionId(deposit.transactionId())
+                .userId(deposit.userId())
+                .externalReference(deposit.externalReference())
+                .metadata(deposit.metadata())
+                .amountSat(deposit.amountSat())
+                .status(deposit.status().name())
+                .referenceId(deposit.referenceId())
+                .balanceAfterSat(deposit.balanceAfterSat())
                 .build();
-        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
+        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, deposit.transactionId(), deposit.userId(), deposit.externalReference(), data);
     }
 
     public void createAccountBalanceChangedEvent(TransactionEntity transaction, AccountEntryEntity entry) {
