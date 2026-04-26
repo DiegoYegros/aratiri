@@ -2,20 +2,13 @@ package com.aratiri.infrastructure.messaging.consumer;
 
 import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.transactions.application.dto.CreateTransactionRequest;
-import com.aratiri.transactions.application.dto.TransactionCurrency;
-import com.aratiri.transactions.application.dto.TransactionDTOResponse;
-import com.aratiri.transactions.application.dto.TransactionStatus;
-import com.aratiri.transactions.application.dto.TransactionType;
-import com.aratiri.transactions.application.port.in.TransactionsPort;
-import com.aratiri.webhooks.application.WebhookEventService;
+import com.aratiri.transactions.application.InvoiceCreditSettlement;
+import com.aratiri.transactions.application.TransactionSettlementModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.annotation.BackOff;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -33,10 +26,9 @@ import tools.jackson.databind.json.JsonMapper;
 @Slf4j
 public class InvoiceSettledConsumer {
 
-    private final TransactionsPort transactionsService;
+    private final TransactionSettlementModule transactionSettlementModule;
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final JsonMapper jsonMapper;
-    private final WebhookEventService webhookEventService;
 
     @KafkaListener(topics = KafkaTopicNames.INVOICE_SETTLED, groupId = "invoice-listener-group")
     @RetryableTopic(
@@ -66,35 +58,15 @@ public class InvoiceSettledConsumer {
             String externalReference = invoice != null ? invoice.getExternalReference() : null;
             String metadata = invoice != null ? invoice.getMetadata() : null;
 
-            boolean transactionExists = transactionsService.existsByReferenceId(event.getPaymentHash());
-            if (transactionExists) {
-                log.warn("Transaction with paymentRequest {} already processed. Skipping.", event.getPaymentHash());
-                acknowledgment.acknowledge();
-                return;
-            }
-            CreateTransactionRequest request = new CreateTransactionRequest(
+            InvoiceCreditSettlement settlement = new InvoiceCreditSettlement(
                     event.getUserId(),
                     amountInSats,
-                    TransactionCurrency.BTC,
-                    TransactionType.LIGHTNING_CREDIT,
-                    TransactionStatus.COMPLETED,
-                    description,
                     event.getPaymentHash(),
+                    description,
                     externalReference,
                     metadata
             );
-            TransactionDTOResponse tx = transactionsService.createAndSettleTransaction(request);
-            TransactionEntity txEntity = new TransactionEntity();
-            txEntity.setId(tx.getId());
-            txEntity.setUserId(tx.getUserId());
-            txEntity.setType(TransactionType.LIGHTNING_CREDIT);
-            txEntity.setCurrentStatus("COMPLETED");
-            txEntity.setCurrentAmount(tx.getAmountSat());
-            txEntity.setReferenceId(event.getPaymentHash());
-            txEntity.setExternalReference(tx.getExternalReference());
-            txEntity.setMetadata(tx.getMetadata());
-            txEntity.setBalanceAfter(tx.getBalanceAfterSat());
-            webhookEventService.createInvoiceSettledEvent(txEntity, event.getPaymentHash());
+            transactionSettlementModule.settleInvoiceCredit(settlement);
             log.info("Successfully processed invoice settlement for user: {}", event.getUserId());
             acknowledgment.acknowledge();
         } catch (Exception e) {

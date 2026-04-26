@@ -11,6 +11,7 @@ import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsReposit
 import com.aratiri.payments.application.event.PaymentSentEvent;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
+import com.aratiri.transactions.application.dto.TransactionCurrency;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.transactions.application.processor.TransactionProcessor;
@@ -19,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
@@ -32,7 +34,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
-public class TransactionSettlementService {
+public class TransactionSettlementService implements TransactionSettlementModule {
     private static final String STATUS_COMPLETED = "COMPLETED";
     private static final Set<TransactionType> SETTLEABLE_TYPES = Set.of(
             TransactionType.LIGHTNING_CREDIT,
@@ -95,6 +97,31 @@ public class TransactionSettlementService {
         TransactionEntity savedTransaction = transactionsRepository.save(transaction);
         appendStatusEvent(savedTransaction, TransactionStatus.PENDING, null, null);
         return settlePending(savedTransaction);
+    }
+
+    @Override
+    @Transactional
+    public TransactionSettlementResult settleInvoiceCredit(InvoiceCreditSettlement settlement) {
+        TransactionState existingSettlement = currentStateForReference(settlement.paymentHash());
+        if (existingSettlement != null) {
+            createInvoiceSettledWebhook(existingSettlement, settlement.paymentHash());
+            return TransactionSettlementResult.from(existingSettlement);
+        }
+
+        CreateTransactionRequest request = new CreateTransactionRequest(
+                settlement.userId(),
+                settlement.amountSat(),
+                TransactionCurrency.BTC,
+                TransactionType.LIGHTNING_CREDIT,
+                TransactionStatus.COMPLETED,
+                settlement.description(),
+                settlement.paymentHash(),
+                settlement.externalReference(),
+                settlement.metadata()
+        );
+        TransactionState settled = createAndSettleTransaction(request);
+        createInvoiceSettledWebhook(settled, settlement.paymentHash());
+        return TransactionSettlementResult.from(settled);
     }
 
     public TransactionState settlePending(TransactionEntity transaction) {
@@ -213,6 +240,18 @@ public class TransactionSettlementService {
         transaction.setExternalReference(request.getExternalReference());
         transaction.setMetadata(request.getMetadata());
         return transaction;
+    }
+
+    private TransactionState currentStateForReference(String referenceId) {
+        return transactionsRepository.findFirstByReferenceIdOrderByCreatedAtDesc(referenceId)
+                .map(this::currentState)
+                .orElse(null);
+    }
+
+    private void createInvoiceSettledWebhook(TransactionState settlement, String paymentHash) {
+        if (settlement.status() == TransactionStatus.COMPLETED) {
+            webhookEventService.createInvoiceSettledEvent(settlement.transaction(), paymentHash);
+        }
     }
 
     private void appendStatusEvent(TransactionEntity transaction, TransactionStatus status, Long balanceAfter, String details) {

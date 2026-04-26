@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 public interface TransactionsRepository extends JpaRepository<TransactionEntity, String> {
     @Query("SELECT t FROM TransactionEntity t WHERE t.userId = :userId " +
@@ -37,6 +38,8 @@ public interface TransactionsRepository extends JpaRepository<TransactionEntity,
     );
 
     boolean existsByReferenceId(String referenceId);
+
+    Optional<TransactionEntity> findFirstByReferenceIdOrderByCreatedAtDesc(String referenceId);
 
     @Query("SELECT t FROM TransactionEntity t WHERE t.type = com.aratiri.transactions.application.dto.TransactionType.LIGHTNING_DEBIT " +
             "AND t.referenceId IS NOT NULL " +

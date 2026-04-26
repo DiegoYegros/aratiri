@@ -6,13 +6,18 @@ import com.aratiri.auth.application.dto.VerificationRequestDTO;
 import com.aratiri.auth.application.port.out.EmailNotificationPort;
 import com.aratiri.accounts.application.port.out.CurrencyConversionPort;
 import com.aratiri.accounts.application.port.out.LightningAddressPort;
+import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryType;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountEntryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
 import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.transactions.application.InvoiceCreditSettlement;
+import com.aratiri.transactions.application.TransactionSettlementModule;
+import com.aratiri.transactions.application.TransactionSettlementResult;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
 import com.aratiri.transactions.application.dto.TransactionCurrency;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
@@ -60,6 +65,12 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private AccountRepository accountRepository;
+
+    @Autowired
+    private TransactionsRepository transactionsRepository;
+
+    @Autowired
+    private TransactionSettlementModule transactionSettlementModule;
 
     private String userId;
 
@@ -220,6 +231,77 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
         List<AccountEntryEntity> entries = accountEntryRepository.findAll();
         assertEquals(1, entries.size());
         assertEquals(3000L, entries.get(0).getDeltaSats());
+    }
+
+    @Test
+    @DisplayName("Invoice credit settlement records lifecycle, read model, and ledger entry")
+    void settleInvoiceCredit_records_lifecycle_read_model_and_ledger_entry() {
+        InvoiceCreditSettlement settlement = new InvoiceCreditSettlement(
+                userId,
+                2500L,
+                "invoice-credit-payment-hash",
+                "Invoice credit settlement",
+                "external-invoice-ref",
+                "{\"order_id\":\"1001\"}"
+        );
+
+        TransactionSettlementResult result = transactionSettlementModule.settleInvoiceCredit(settlement);
+
+        assertInvoiceCreditSettlementResult(result);
+        var savedTransaction = transactionsRepository.findById(result.transactionId()).orElseThrow();
+        assertInvoiceCreditReadModel(savedTransaction);
+
+        TransactionDTOResponse response = transactionsPort.getTransactionById(savedTransaction.getId(), userId).orElseThrow();
+        assertInvoiceCreditResponse(response);
+
+        List<TransactionEventEntity> events = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(savedTransaction.getId());
+        assertInvoiceCreditLifecycleEvents(events);
+
+        List<AccountEntryEntity> entries = accountEntryRepository.findAll();
+        assertInvoiceCreditLedgerEntry(entries, savedTransaction.getId());
+    }
+
+    private void assertInvoiceCreditSettlementResult(TransactionSettlementResult result) {
+        assertEquals(TransactionStatus.COMPLETED, result.status());
+        assertEquals(2500L, result.amountSat());
+        assertEquals(2500L, result.balanceAfterSat());
+    }
+
+    private void assertInvoiceCreditReadModel(com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity transaction) {
+        assertEquals(TransactionType.LIGHTNING_CREDIT, transaction.getType());
+        assertEquals(TransactionStatus.COMPLETED.name(), transaction.getCurrentStatus());
+        assertEquals(2500L, transaction.getCurrentAmount());
+        assertEquals(2500L, transaction.getBalanceAfter());
+        assertEquals("invoice-credit-payment-hash", transaction.getReferenceId());
+        assertEquals("external-invoice-ref", transaction.getExternalReference());
+        assertEquals("{\"order_id\":\"1001\"}", transaction.getMetadata());
+        assertNotNull(transaction.getCompletedAt());
+    }
+
+    private void assertInvoiceCreditResponse(TransactionDTOResponse response) {
+        assertEquals(TransactionStatus.COMPLETED, response.getStatus());
+        assertEquals(2500L, response.getAmountSat());
+        assertEquals(2500L, response.getBalanceAfterSat());
+        assertEquals("invoice-credit-payment-hash", response.getReferenceId());
+        assertEquals("external-invoice-ref", response.getExternalReference());
+        assertEquals("{\"order_id\":\"1001\"}", response.getMetadata());
+    }
+
+    private void assertInvoiceCreditLifecycleEvents(List<TransactionEventEntity> events) {
+        assertEquals(2, events.size());
+        assertEquals(TransactionStatus.PENDING, events.get(0).getStatus());
+        assertNull(events.get(0).getBalanceAfter());
+        assertEquals(TransactionStatus.COMPLETED, events.get(1).getStatus());
+        assertEquals(2500L, events.get(1).getBalanceAfter());
+    }
+
+    private void assertInvoiceCreditLedgerEntry(List<AccountEntryEntity> entries, String transactionId) {
+        assertEquals(1, entries.size());
+        assertEquals(transactionId, entries.get(0).getTransactionId());
+        assertEquals(2500L, entries.get(0).getDeltaSats());
+        assertEquals(2500L, entries.get(0).getBalanceAfter());
+        assertEquals(AccountEntryType.LIGHTNING_CREDIT, entries.get(0).getEntryType());
+        assertEquals("Lightning invoice settled", entries.get(0).getDescription());
     }
 
     @Test
