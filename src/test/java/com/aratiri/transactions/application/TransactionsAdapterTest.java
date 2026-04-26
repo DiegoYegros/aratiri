@@ -54,6 +54,7 @@ class TransactionsAdapterTest {
     private WebhookEventService webhookEventService;
 
     private TransactionsAdapter transactionsAdapter;
+    private TransactionSettlementService transactionSettlementService;
 
     private static final String USER_ID = "user-123";
     private static final String TRANSACTION_ID = "tx-456";
@@ -62,14 +63,20 @@ class TransactionsAdapterTest {
     void setUp() {
         when(debitProcessor.supportedType()).thenReturn(TransactionType.LIGHTNING_DEBIT);
         when(creditProcessor.supportedType()).thenReturn(TransactionType.LIGHTNING_CREDIT);
-        transactionsAdapter = new TransactionsAdapter(
+        transactionSettlementService = new TransactionSettlementService(
                 transactionsRepository,
+                transactionEventRepository,
                 List.of(creditProcessor, debitProcessor),
-                lightningInvoiceRepository,
                 jsonMapper,
                 outboxEventRepository,
-                transactionEventRepository,
                 webhookEventService
+        );
+        transactionsAdapter = new TransactionsAdapter(
+                transactionsRepository,
+                transactionSettlementService,
+                lightningInvoiceRepository,
+                jsonMapper,
+                outboxEventRepository
         );
     }
 

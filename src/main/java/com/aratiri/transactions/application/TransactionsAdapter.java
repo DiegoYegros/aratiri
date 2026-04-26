@@ -4,7 +4,6 @@ import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.infrastructure.persistence.jpa.entity.*;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
-import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
@@ -12,12 +11,8 @@ import com.aratiri.transactions.application.event.InternalTransferCompletedEvent
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
-import com.aratiri.transactions.application.processor.TransactionProcessor;
-import com.aratiri.payments.application.event.PaymentSentEvent;
-import com.aratiri.webhooks.application.WebhookEventService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
@@ -27,40 +22,22 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 public class TransactionsAdapter implements TransactionsPort {
-    private static final String STATUS_COMPLETED = "COMPLETED";
-    private static final Set<TransactionType> SETTLEABLE_TYPES = Set.of(
-            TransactionType.LIGHTNING_CREDIT,
-            TransactionType.ONCHAIN_CREDIT
-    );
-    private static final Set<TransactionType> PAYMENT_SENT_TYPES = Set.of(
-            TransactionType.LIGHTNING_DEBIT,
-            TransactionType.INVOICE_DEBIT,
-            TransactionType.ONCHAIN_DEBIT
-    );
-    private static final String INTERNAL_TRANSFER_PREFIX = "Internal transfer";
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final TransactionsRepository transactionsRepository;
-    private final Map<TransactionType, TransactionProcessor> processors;
+    private final TransactionSettlementService transactionSettlementService;
     private final LightningInvoiceRepository lightningInvoiceRepository;
     private final JsonMapper jsonMapper;
     private final OutboxEventRepository outboxEventRepository;
-    private final TransactionEventRepository transactionEventRepository;
-    private final WebhookEventService webhookEventService;
 
-    public TransactionsAdapter(TransactionsRepository transactionsRepository, List<TransactionProcessor> processorList, LightningInvoiceRepository lightningInvoiceRepository, JsonMapper jsonMapper, OutboxEventRepository outboxEventRepository, TransactionEventRepository transactionEventRepository, WebhookEventService webhookEventService) {
+    public TransactionsAdapter(TransactionsRepository transactionsRepository, TransactionSettlementService transactionSettlementService, LightningInvoiceRepository lightningInvoiceRepository, JsonMapper jsonMapper, OutboxEventRepository outboxEventRepository) {
         this.transactionsRepository = transactionsRepository;
-        this.processors = processorList.stream()
-                .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
+        this.transactionSettlementService = transactionSettlementService;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
         this.jsonMapper = jsonMapper;
         this.outboxEventRepository = outboxEventRepository;
-        this.transactionEventRepository = transactionEventRepository;
-        this.webhookEventService = webhookEventService;
     }
 
     @Override
@@ -73,7 +50,7 @@ public class TransactionsAdapter implements TransactionsPort {
         if (!Objects.equals(transaction.getUserId(), userId)) {
             throw new AratiriException(String.format("Transaction [%s] does not correspond to current user.", id));
         }
-        return confirmTransactionInternal(transaction);
+        return mapToDto(transactionSettlementService.settlePending(transaction));
     }
 
     @Override
@@ -82,32 +59,7 @@ public class TransactionsAdapter implements TransactionsPort {
         logger.info("In confirmTransactionAsAdmin, received id [{}]", id);
         TransactionEntity transaction = transactionsRepository.findById(id)
                 .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found.", id)));
-        return confirmTransactionInternal(transaction);
-    }
-
-    private TransactionDTOResponse confirmTransactionInternal(TransactionEntity transaction) {
-        String id = transaction.getId();
-        TransactionAggregate aggregate = aggregateTransaction(transaction);
-        if (aggregate.status() == TransactionStatus.COMPLETED) {
-            logger.info("Transaction [{}] already COMPLETED, returning current state", id);
-            return mapToDto(aggregate);
-        }
-        if (!aggregate.isPending()) {
-            throw new AratiriException(String.format("Transaction status [%s] is not valid for confirmation.", aggregate.status()));
-        }
-        TransactionProcessor processor = processors.get(transaction.getType());
-        if (processor == null) {
-            throw new IllegalStateException("No processor configured for type: " + transaction.getType());
-        }
-        long newBalanceSat = processor.process(transaction);
-        appendStatusEvent(transaction, TransactionStatus.COMPLETED, newBalanceSat, null);
-        transaction.setCurrentStatus(STATUS_COMPLETED);
-        transaction.setBalanceAfter(newBalanceSat);
-        transaction.setCompletedAt(Instant.now());
-        transactionsRepository.save(transaction);
-        logger.info("Recorded COMPLETED event for transaction [{}]", id);
-        webhookEventService.createPaymentSucceededEvent(transaction);
-        return mapToDto(aggregateTransaction(transaction));
+        return mapToDto(transactionSettlementService.settlePending(transaction));
     }
 
     @Override
@@ -119,33 +71,7 @@ public class TransactionsAdapter implements TransactionsPort {
     @Transactional
     public TransactionDTOResponse createAndSettleTransaction(CreateTransactionRequest request) {
         logger.info("In createAndSettleTransaction. Received object [{}]", request);
-        return createAndSettleTransactionInternal(request);
-    }
-
-    private TransactionDTOResponse createAndSettleTransactionInternal(CreateTransactionRequest request) {
-        if (!SETTLEABLE_TYPES.contains(request.getType())) {
-            throw new AratiriException(
-                    String.format("Transaction type [%s] is not valid for the create-and-settle flow.", request.getType()),
-                    HttpStatus.BAD_REQUEST.value()
-            );
-        }
-        TransactionEntity transaction = buildTransactionEntity(request);
-        TransactionProcessor processor = processors.get(transaction.getType());
-        if (processor == null) {
-            throw new AratiriException("No processor configured for type: " + transaction.getType());
-        }
-        transaction.setCurrentStatus("PENDING");
-        transaction.setCurrentAmount(request.getAmountSat());
-        TransactionEntity savedTransaction = transactionsRepository.save(transaction);
-        appendStatusEvent(savedTransaction, TransactionStatus.PENDING, null, null);
-        long newBalanceSat = processor.process(savedTransaction);
-        appendStatusEvent(savedTransaction, TransactionStatus.COMPLETED, newBalanceSat, null);
-        savedTransaction.setCurrentStatus(STATUS_COMPLETED);
-        savedTransaction.setBalanceAfter(newBalanceSat);
-        savedTransaction.setCompletedAt(Instant.now());
-        transactionsRepository.save(savedTransaction);
-        logger.info("Created transaction [{}] and appended COMPLETED event", savedTransaction.getId());
-        return mapToDto(aggregateTransaction(savedTransaction));
+        return mapToDto(transactionSettlementService.createAndSettleTransaction(request));
     }
 
 
@@ -153,15 +79,7 @@ public class TransactionsAdapter implements TransactionsPort {
     @Transactional
     public TransactionDTOResponse createTransaction(CreateTransactionRequest request) {
         logger.info("In createTransaction. Received request to create transaction: [{}]", request);
-        TransactionEntity transaction = buildTransactionEntity(request);
-        TransactionStatus initialStatus = Optional.ofNullable(request.getStatus()).orElse(TransactionStatus.PENDING);
-        transaction.setCurrentStatus(initialStatus.name());
-        transaction.setCurrentAmount(request.getAmountSat());
-        TransactionEntity savedTransaction = transactionsRepository.save(transaction);
-        appendStatusEvent(savedTransaction, initialStatus, null, null);
-        logger.info("Successfully created new transaction record with status [{}]. Transaction: [{}]",
-                initialStatus, savedTransaction);
-        return mapToDto(aggregateTransaction(savedTransaction));
+        return mapToDto(transactionSettlementService.createTransaction(request));
     }
 
     @Override
@@ -169,9 +87,9 @@ public class TransactionsAdapter implements TransactionsPort {
         List<TransactionEntity> transactions = transactionsRepository
                 .findByUserIdAndCreatedAtBetween(userId, from, to);
         logger.info("Got a list of [{}] transactions from db", transactions.size());
-        Map<String, List<TransactionEventEntity>> eventsByTransaction = groupEventsByTransaction(transactions);
+        Map<String, List<TransactionEventEntity>> eventsByTransaction = transactionSettlementService.eventsByTransaction(transactions);
         return transactions.stream()
-                .map(tx -> mapToDto(TransactionAggregate.from(tx, eventsByTransaction.getOrDefault(tx.getId(), List.of()))))
+                .map(tx -> mapToDto(TransactionState.from(tx, eventsByTransaction.getOrDefault(tx.getId(), List.of()))))
                 .toList();
     }
 
@@ -227,79 +145,30 @@ public class TransactionsAdapter implements TransactionsPort {
     @Override
     @Transactional
     public void failTransaction(String transactionId, String failureReason) {
-        logger.warn("Failing transaction [{}]. Reason: {}", transactionId, failureReason);
-        TransactionEntity transaction = transactionsRepository.findById(transactionId)
-                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found for failure.", transactionId)));
-        TransactionAggregate aggregate = aggregateTransaction(transaction);
-        if (aggregate.status() == TransactionStatus.FAILED) {
-            logger.info("Transaction [{}] already FAILED, skipping", transactionId);
-            return;
-        }
-        if (!aggregate.isPending()) {
-            logger.error("Attempted to fail a transaction that was not PENDING. ID: {}, Current Status: {}",
-                    transactionId, aggregate.status());
-            throw new AratiriException(String.format("Transaction status [%s] is not valid for failure.", aggregate.status()));
-        }
-        appendStatusEvent(transaction, TransactionStatus.FAILED, null, failureReason);
-        transaction.setCurrentStatus("FAILED");
-        transaction.setFailureReason(failureReason);
-        transactionsRepository.save(transaction);
-        logger.info("Transaction [{}] has been marked as FAILED.", transactionId);
-        webhookEventService.createPaymentFailedEvent(transaction, failureReason);
+        transactionSettlementService.failTransaction(transactionId, failureReason);
     }
 
     @Override
     @Transactional
     public void addFeeToTransaction(String transactionId, long feeSat) {
-        if (feeSat <= 0) {
-            return;
-        }
-        TransactionEntity transaction = transactionsRepository.findById(transactionId)
-                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found for fee update.", transactionId)));
-        TransactionAggregate aggregate = aggregateTransaction(transaction);
-        if (!aggregate.isPending()) {
-            logger.error("Attempted to add a routing fee to a transaction that was not PENDING. ID: {}, Current Status: {}",
-                    transactionId, aggregate.status());
-            throw new AratiriException(String.format("Transaction status [%s] is not valid for fee update.", aggregate.status()));
-        }
-        if (transaction.getType() != TransactionType.LIGHTNING_DEBIT) {
-            logger.error("Attempted to add a routing fee to a transaction of type [{}]. Only LIGHTNING_DEBIT is supported.",
-                    transaction.getType());
-            throw new AratiriException("Routing fees can only be applied to Lightning debit transactions.");
-        }
-        List<TransactionEventEntity> existingEvents = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(transactionId);
-        boolean hasFeeEvent = existingEvents.stream()
-                .anyMatch(e -> e.getEventType() == TransactionEventType.FEE_ADDED);
-        if (hasFeeEvent) {
-            logger.info("Fee event already exists for transaction [{}], skipping", transactionId);
-            return;
-        }
-        TransactionEventEntity event = TransactionEventEntity.builder()
-                .transaction(transaction)
-                .eventType(TransactionEventType.FEE_ADDED)
-                .amountDelta(feeSat)
-                .build();
-        transactionEventRepository.save(event);
-        transaction.setCurrentAmount(transaction.getCurrentAmount() + feeSat);
-        transactionsRepository.save(transaction);
-        logger.info("Added [{}] sats in routing fees to transaction [{}].", feeSat, transactionId);
+        transactionSettlementService.addFeeToTransaction(transactionId, feeSat);
     }
 
-    private TransactionDTOResponse mapToDto(TransactionAggregate aggregate) {
-        TransactionEntity transaction = aggregate.transaction();
+    private TransactionDTOResponse mapToDto(TransactionState state) {
+        TransactionEntity transaction = state.transaction();
         return TransactionDTOResponse.builder()
                 .id(transaction.getId())
                 .userId(transaction.getUserId())
                 .createdAt(OffsetDateTime.from(transaction.getCreatedAt().atZone(ZoneId.systemDefault())))
-                .amountSat(aggregate.amountSat())
+                .amountSat(state.amountSat())
                 .type(transaction.getType())
-                .balanceAfterSat(aggregate.balanceAfterSat())
+                .balanceAfterSat(state.balanceAfterSat())
                 .description(transaction.getDescription())
-                .failureReason(aggregate.failureReason())
+                .failureReason(state.failureReason())
                 .referenceId(transaction.getReferenceId())
                 .externalReference(transaction.getExternalReference())
                 .metadata(transaction.getMetadata())
-                .status(aggregate.status())
+                .status(state.status())
                 .currency(transaction.getCurrency())
                 .build();
     }
@@ -322,72 +191,12 @@ public class TransactionsAdapter implements TransactionsPort {
                 .build();
     }
 
-    private TransactionAggregate aggregateTransaction(TransactionEntity transaction) {
-        List<TransactionEventEntity> events = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(transaction.getId());
-        return TransactionAggregate.from(transaction, events);
-    }
-
-    private Map<String, List<TransactionEventEntity>> groupEventsByTransaction(List<TransactionEntity> transactions) {
-        if (transactions.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        List<String> ids = transactions.stream().map(TransactionEntity::getId).toList();
-        List<TransactionEventEntity> events = transactionEventRepository.findByTransaction_IdInOrderByCreatedAtAsc(ids);
-        return events.stream().collect(Collectors.groupingBy(event -> event.getTransaction().getId()));
-    }
-
-    private record TransactionAggregate(
-            TransactionEntity transaction,
-            List<TransactionEventEntity> events,
-            TransactionStatus status,
-            long amountSat,
-            Long balanceAfterSat,
-            String failureReason
-    ) {
-
-        static TransactionAggregate from(TransactionEntity transaction, List<TransactionEventEntity> events) {
-            TransactionStatus status = TransactionStatus.PENDING;
-            long amountSat = transaction.getAmount();
-            Long balanceAfterSat = null;
-            String failureReason = null;
-            for (TransactionEventEntity event : events) {
-                if (event.getEventType() == TransactionEventType.STATUS_CHANGED && event.getStatus() != null) {
-                    status = event.getStatus();
-                    if (event.getBalanceAfter() != null) {
-                        balanceAfterSat = event.getBalanceAfter();
-                    }
-                    if (event.getDetails() != null) {
-                        failureReason = event.getDetails();
-                    }
-                } else if (event.getEventType() == TransactionEventType.FEE_ADDED && event.getAmountDelta() != null) {
-                    amountSat += event.getAmountDelta();
-                }
-            }
-            return new TransactionAggregate(transaction, events, status, amountSat, balanceAfterSat, failureReason);
-        }
-
-        boolean isPending() {
-            return status == TransactionStatus.PENDING;
-        }
-    }
-
-
     @Transactional
     public void processInternalTransfer(InternalTransferInitiatedEvent event) {
         TransactionEntity senderTx = transactionsRepository.findById(event.getTransactionId())
                 .orElseThrow(() -> new AratiriException("Sender transaction not found for internal transfer."));
 
-        TransactionProcessor debitProcessor = processors.get(TransactionType.LIGHTNING_DEBIT);
-        TransactionAggregate senderAggregate = aggregateTransaction(senderTx);
-        if (!senderAggregate.isPending()) {
-            throw new AratiriException("Sender transaction is not pending and cannot be processed for internal transfer.");
-        }
-        long senderBalance = debitProcessor.process(senderTx);
-        appendStatusEvent(senderTx, TransactionStatus.COMPLETED, senderBalance, null);
-        senderTx.setCurrentStatus(STATUS_COMPLETED);
-        senderTx.setBalanceAfter(senderBalance);
-        senderTx.setCompletedAt(Instant.now());
-        transactionsRepository.save(senderTx);
+        transactionSettlementService.settleInternalTransferDebit(senderTx);
 
         CreateTransactionRequest creditRequest = new CreateTransactionRequest(
                 event.getReceiverId(),
@@ -400,7 +209,7 @@ public class TransactionsAdapter implements TransactionsPort {
                 null,
                 null
         );
-        createAndSettleTransactionInternal(creditRequest);
+        transactionSettlementService.createAndSettleTransaction(creditRequest);
         LightningInvoiceEntity invoice = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash()).orElseThrow();
 
         invoice.setInvoiceState(LightningInvoiceEntity.InvoiceState.SETTLED);
@@ -423,80 +232,24 @@ public class TransactionsAdapter implements TransactionsPort {
                     .payload(jsonMapper.writeValueAsString(completedEvent))
                     .build();
             outboxEventRepository.save(outboxEvent);
-            } catch (Exception e) {
-                logger.error("Failed to create outbox event for InternalTransferCompletedEvent", e);
-                throw new AratiriException("Failed to publish settlement event for internal transfer.");
-            }
+        } catch (Exception e) {
+            logger.error("Failed to create outbox event for InternalTransferCompletedEvent", e);
+            throw new AratiriException("Failed to publish settlement event for internal transfer.");
+        }
 
-            try {
-                InternalInvoiceCancelEvent cancelEvent = new InternalInvoiceCancelEvent(event.getPaymentHash());
-                OutboxEventEntity cancelOutboxEvent = OutboxEventEntity.builder()
-                        .aggregateType("INTERNAL_INVOICE_CANCEL")
-                        .aggregateId(event.getPaymentHash())
-                        .eventType(KafkaTopics.INTERNAL_INVOICE_CANCEL.getCode())
-                        .payload(jsonMapper.writeValueAsString(cancelEvent))
-                        .build();
-                outboxEventRepository.save(cancelOutboxEvent);
-            } catch (Exception e) {
-                logger.error("Failed to create outbox event for InternalInvoiceCancelEvent", e);
-            }
+        try {
+            InternalInvoiceCancelEvent cancelEvent = new InternalInvoiceCancelEvent(event.getPaymentHash());
+            OutboxEventEntity cancelOutboxEvent = OutboxEventEntity.builder()
+                    .aggregateType("INTERNAL_INVOICE_CANCEL")
+                    .aggregateId(event.getPaymentHash())
+                    .eventType(KafkaTopics.INTERNAL_INVOICE_CANCEL.getCode())
+                    .payload(jsonMapper.writeValueAsString(cancelEvent))
+                    .build();
+            outboxEventRepository.save(cancelOutboxEvent);
+        } catch (Exception e) {
+            logger.error("Failed to create outbox event for InternalInvoiceCancelEvent", e);
+        }
 
         logger.info("Successfully processed internal transfer for transactionId: {}", event.getTransactionId());
-    }
-
-    private TransactionEntity buildTransactionEntity(CreateTransactionRequest request) {
-        TransactionEntity transaction = new TransactionEntity();
-        transaction.setUserId(request.getUserId());
-        transaction.setAmount(request.getAmountSat());
-        transaction.setCurrency(request.getCurrency());
-        transaction.setType(request.getType());
-        transaction.setDescription(request.getDescription());
-        transaction.setReferenceId(request.getReferenceId());
-        transaction.setExternalReference(request.getExternalReference());
-        transaction.setMetadata(request.getMetadata());
-        return transaction;
-    }
-
-    private void appendStatusEvent(TransactionEntity transaction, TransactionStatus status, Long balanceAfter, String details) {
-        TransactionEventEntity event = TransactionEventEntity.builder()
-                .transaction(transaction)
-                .eventType(TransactionEventType.STATUS_CHANGED)
-                .status(status)
-                .balanceAfter(balanceAfter)
-                .details(details)
-                .build();
-        transactionEventRepository.save(event);
-        if (status == TransactionStatus.COMPLETED) {
-            maybePublishPaymentSent(transaction);
-        }
-    }
-
-    private void maybePublishPaymentSent(TransactionEntity transaction) {
-        if (!PAYMENT_SENT_TYPES.contains(transaction.getType())) {
-            return;
-        }
-        String description = transaction.getDescription();
-        if (description != null && description.toLowerCase(Locale.ROOT).startsWith(INTERNAL_TRANSFER_PREFIX.toLowerCase(Locale.ROOT))) {
-            return;
-        }
-        try {
-            PaymentSentEvent eventPayload = new PaymentSentEvent(
-                    transaction.getUserId(),
-                    transaction.getId(),
-                    transaction.getAmount(),
-                    transaction.getReferenceId(),
-                    LocalDateTime.now(),
-                    transaction.getDescription()
-            );
-            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
-                    .aggregateType("PAYMENT_SENT")
-                    .aggregateId(transaction.getId())
-                    .eventType(KafkaTopics.PAYMENT_SENT.getCode())
-                    .payload(jsonMapper.writeValueAsString(eventPayload))
-                    .build();
-            outboxEventRepository.save(outboxEvent);
-        } catch (Exception e) {
-            logger.error("Failed to create outbox event for PaymentSentEvent", e);
-        }
     }
 }
