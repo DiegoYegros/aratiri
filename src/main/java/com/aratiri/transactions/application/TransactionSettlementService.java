@@ -20,6 +20,7 @@ import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
 import com.aratiri.transactions.application.processor.TransactionProcessor;
 import com.aratiri.webhooks.application.WebhookEventService;
+import com.aratiri.webhooks.application.PaymentWebhookFacts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -233,7 +234,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
         transactionsRepository.save(transaction);
         logger.info("Recorded COMPLETED event for transaction [{}]", id);
         if (createPaymentSucceededWebhook) {
-            webhookEventService.createPaymentSucceededEvent(transaction);
+            webhookEventService.createPaymentSucceededEvent(paymentWebhookFacts(transaction, TransactionStatus.COMPLETED, newBalanceSat, null));
         }
         return currentState(transaction);
     }
@@ -261,7 +262,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
         transaction.setFailureReason(failureReason);
         transactionsRepository.save(transaction);
         logger.info("Transaction [{}] has been marked as FAILED.", transactionId);
-        webhookEventService.createPaymentFailedEvent(transaction, failureReason);
+        webhookEventService.createPaymentFailedEvent(paymentWebhookFacts(transaction, TransactionStatus.FAILED, null, failureReason));
     }
 
     public void addFeeToTransaction(String transactionId, long feeSat) {
@@ -323,6 +324,26 @@ public class TransactionSettlementService implements TransactionSettlementModule
         transaction.setExternalReference(request.getExternalReference());
         transaction.setMetadata(request.getMetadata());
         return transaction;
+    }
+
+    private PaymentWebhookFacts paymentWebhookFacts(
+            TransactionEntity transaction,
+            TransactionStatus status,
+            Long balanceAfterSat,
+            String failureReason
+    ) {
+        return new PaymentWebhookFacts(
+                transaction.getId(),
+                transaction.getUserId(),
+                transaction.getType(),
+                transaction.getCurrentAmount(),
+                status,
+                transaction.getReferenceId(),
+                transaction.getExternalReference(),
+                transaction.getMetadata(),
+                balanceAfterSat,
+                failureReason
+        );
     }
 
     private TransactionEntity loadTransaction(String transactionId, String action) {

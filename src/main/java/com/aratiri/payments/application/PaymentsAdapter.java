@@ -1,7 +1,6 @@
 package com.aratiri.payments.application;
 
 import com.aratiri.infrastructure.messaging.KafkaTopics;
-import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
@@ -14,6 +13,7 @@ import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
+import com.aratiri.webhooks.application.PaymentWebhookFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -36,7 +36,6 @@ import java.util.Optional;
 public class PaymentsAdapter implements PaymentsPort {
 
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
-    private static final String STATUS_PENDING = "PENDING";
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountsPort accountsPort;
@@ -156,16 +155,15 @@ public class PaymentsAdapter implements PaymentsPort {
                 JsonUtils.toJson(eventPayload)
         ));
 
-        TransactionEntity txEntity = new TransactionEntity();
-        txEntity.setId(txDto.getId());
-        txEntity.setUserId(userId);
-        txEntity.setType(TransactionType.LIGHTNING_DEBIT);
-        txEntity.setCurrentStatus(STATUS_PENDING);
-        txEntity.setCurrentAmount(totalDebitSat);
-        txEntity.setReferenceId(paymentHash);
-        txEntity.setExternalReference(request.getExternalReference());
-        txEntity.setMetadata(request.getMetadata());
-        webhookEventService.createPaymentAcceptedEvent(txEntity);
+        webhookEventService.createPaymentAcceptedEvent(PaymentWebhookFacts.accepted(
+                txDto.getId(),
+                userId,
+                TransactionType.LIGHTNING_DEBIT,
+                totalDebitSat,
+                paymentHash,
+                request.getExternalReference(),
+                request.getMetadata()
+        ));
 
         return PaymentResponseDTO.builder()
                 .transactionId(txDto.getId())
@@ -216,16 +214,15 @@ public class PaymentsAdapter implements PaymentsPort {
                 JsonUtils.toJson(eventPayload)
         ));
 
-        TransactionEntity txEntity = new TransactionEntity();
-        txEntity.setId(txDto.getId());
-        txEntity.setUserId(senderId);
-        txEntity.setType(TransactionType.LIGHTNING_DEBIT);
-        txEntity.setCurrentStatus(STATUS_PENDING);
-        txEntity.setCurrentAmount(amountSat);
-        txEntity.setReferenceId(decodedInvoice.paymentHash());
-        txEntity.setExternalReference(request.getExternalReference());
-        txEntity.setMetadata(request.getMetadata());
-        webhookEventService.createPaymentAcceptedEvent(txEntity);
+        webhookEventService.createPaymentAcceptedEvent(PaymentWebhookFacts.accepted(
+                txDto.getId(),
+                senderId,
+                TransactionType.LIGHTNING_DEBIT,
+                amountSat,
+                decodedInvoice.paymentHash(),
+                request.getExternalReference(),
+                request.getMetadata()
+        ));
 
         return PaymentResponseDTO.builder()
                 .transactionId(txDto.getId())
@@ -340,15 +337,15 @@ public class PaymentsAdapter implements PaymentsPort {
                 JsonUtils.toJson(eventPayload)
         ));
 
-        TransactionEntity txEntity = new TransactionEntity();
-        txEntity.setId(txDto.getId());
-        txEntity.setUserId(userId);
-        txEntity.setType(TransactionType.ONCHAIN_DEBIT);
-        txEntity.setCurrentStatus(STATUS_PENDING);
-        txEntity.setCurrentAmount(totalAmount);
-        txEntity.setExternalReference(request.getExternalReference());
-        txEntity.setMetadata(request.getMetadata());
-        webhookEventService.createPaymentAcceptedEvent(txEntity);
+        webhookEventService.createPaymentAcceptedEvent(PaymentWebhookFacts.accepted(
+                txDto.getId(),
+                userId,
+                TransactionType.ONCHAIN_DEBIT,
+                totalAmount,
+                null,
+                request.getExternalReference(),
+                request.getMetadata()
+        ));
 
         OnChainPaymentDTOs.SendOnChainResponseDTO response = new OnChainPaymentDTOs.SendOnChainResponseDTO();
         response.setTransactionId(txDto.getId());

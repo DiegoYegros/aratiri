@@ -4,6 +4,10 @@ import com.aratiri.infrastructure.persistence.jpa.entity.*;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookDeliveryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEndpointRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEventRepository;
+import com.aratiri.transactions.application.dto.TransactionStatus;
+import com.aratiri.transactions.application.dto.TransactionType;
+import com.aratiri.webhooks.application.dto.WebhookPayload;
+import com.aratiri.webhooks.application.dto.WebhookPayloadData;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,28 +53,41 @@ class WebhookEventServiceTest {
         when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
         when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
 
-        TransactionEntity tx = debitTransaction();
-        webhookEventService.createPaymentAcceptedEvent(tx);
+        PaymentWebhookFacts payment = acceptedPayment();
+        webhookEventService.createPaymentAcceptedEvent(payment);
 
         ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
         verify(webhookEventRepository).save(eventCaptor.capture());
         assertEquals("payment.accepted:tx-1", eventCaptor.getValue().getEventKey());
+        assertEquals("payment.accepted", eventCaptor.getValue().getEventType());
+        assertEquals("TRANSACTION", eventCaptor.getValue().getAggregateType());
+        assertEquals("tx-1", eventCaptor.getValue().getAggregateId());
+        assertEquals("user-1", eventCaptor.getValue().getUserId());
+        assertEquals("external-1", eventCaptor.getValue().getExternalReference());
+
+        WebhookPayloadData data = capturedPayloadData();
+        assertEquals("tx-1", data.getTransactionId());
+        assertEquals("user-1", data.getUserId());
+        assertEquals("external-1", data.getExternalReference());
+        assertEquals("{\"order\":\"123\"}", data.getMetadata());
+        assertEquals(1000L, data.getAmountSat());
+        assertEquals("PENDING", data.getStatus());
+        assertEquals("ref-1", data.getReferenceId());
 
         ArgumentCaptor<WebhookDeliveryEntity> deliveryCaptor = ArgumentCaptor.forClass(WebhookDeliveryEntity.class);
         verify(webhookDeliveryRepository).save(deliveryCaptor.capture());
         assertEquals(endpoint.getId(), deliveryCaptor.getValue().getEndpointId());
+        assertEquals("payment.accepted", deliveryCaptor.getValue().getEventType());
         assertEquals(WebhookDeliveryStatus.PENDING, deliveryCaptor.getValue().getStatus());
     }
 
     @Test
-    void createPaymentAcceptedEvent_noDeliveryForDisabledEndpoint() {
-        disabledEndpoint("payment.accepted");
+    void createPaymentAcceptedEvent_noDeliveryWhenNoEndpointIsSubscribed() {
         when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of());
         when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
         when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
 
-        TransactionEntity tx = debitTransaction();
-        webhookEventService.createPaymentAcceptedEvent(tx);
+        webhookEventService.createPaymentAcceptedEvent(acceptedPayment());
 
         verify(webhookEventRepository).save(any());
         verify(webhookDeliveryRepository, never()).save(any());
@@ -81,8 +98,7 @@ class WebhookEventServiceTest {
         WebhookEventEntity existing = WebhookEventEntity.builder().eventKey("payment.accepted:tx-1").build();
         when(webhookEventRepository.findByEventKey("payment.accepted:tx-1")).thenReturn(Optional.of(existing));
 
-        TransactionEntity tx = debitTransaction();
-        webhookEventService.createPaymentAcceptedEvent(tx);
+        webhookEventService.createPaymentAcceptedEvent(acceptedPayment());
 
         verify(webhookEventRepository, never()).save(any());
         verify(webhookDeliveryRepository, never()).save(any());
@@ -90,15 +106,99 @@ class WebhookEventServiceTest {
 
     @Test
     void createPaymentSucceededEvent_ignoresCreditTransaction() {
-        TransactionEntity tx = new TransactionEntity();
-        tx.setId("tx-1");
-        tx.setUserId("user-1");
-        tx.setType(com.aratiri.transactions.application.dto.TransactionType.LIGHTNING_CREDIT);
-        tx.setCurrentStatus("COMPLETED");
+        PaymentWebhookFacts creditPayment = new PaymentWebhookFacts(
+                "tx-1",
+                "user-1",
+                TransactionType.LIGHTNING_CREDIT,
+                1000L,
+                TransactionStatus.COMPLETED,
+                "ref-1",
+                null,
+                null,
+                5000L,
+                null
+        );
 
-        webhookEventService.createPaymentSucceededEvent(tx);
+        webhookEventService.createPaymentSucceededEvent(creditPayment);
 
-        verify(webhookEventRepository, never()).save(any());
+        verifyNoInteractions(webhookEventRepository);
+        verifyNoInteractions(webhookDeliveryRepository);
+    }
+
+    @Test
+    void createPaymentSucceededEvent_keepsPayloadShapeAndCreatesDelivery() throws Exception {
+        WebhookEndpointEntity endpoint = enabledEndpoint("payment.succeeded");
+        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
+        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
+        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
+
+        PaymentWebhookFacts payment = new PaymentWebhookFacts(
+                "tx-1",
+                "user-1",
+                TransactionType.LIGHTNING_DEBIT,
+                1200L,
+                TransactionStatus.COMPLETED,
+                "ref-1",
+                "external-1",
+                "{\"order\":\"123\"}",
+                5000L,
+                null
+        );
+        webhookEventService.createPaymentSucceededEvent(payment);
+
+        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
+        verify(webhookEventRepository).save(eventCaptor.capture());
+        assertEquals("payment.succeeded:tx-1", eventCaptor.getValue().getEventKey());
+
+        WebhookPayloadData data = capturedPayloadData();
+        assertEquals("tx-1", data.getTransactionId());
+        assertEquals("user-1", data.getUserId());
+        assertEquals("external-1", data.getExternalReference());
+        assertEquals("{\"order\":\"123\"}", data.getMetadata());
+        assertEquals(1200L, data.getAmountSat());
+        assertEquals("COMPLETED", data.getStatus());
+        assertEquals("ref-1", data.getReferenceId());
+        assertEquals(5000L, data.getBalanceAfterSat());
+
+        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
+    }
+
+    @Test
+    void createPaymentFailedEvent_keepsPayloadShapeAndCreatesDelivery() throws Exception {
+        WebhookEndpointEntity endpoint = enabledEndpoint("payment.failed");
+        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
+        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
+        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
+
+        PaymentWebhookFacts payment = new PaymentWebhookFacts(
+                "tx-1",
+                "user-1",
+                TransactionType.ONCHAIN_DEBIT,
+                1000L,
+                TransactionStatus.FAILED,
+                "ref-1",
+                "external-1",
+                "{\"order\":\"123\"}",
+                null,
+                "node failure"
+        );
+        webhookEventService.createPaymentFailedEvent(payment);
+
+        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
+        verify(webhookEventRepository).save(eventCaptor.capture());
+        assertEquals("payment.failed:tx-1", eventCaptor.getValue().getEventKey());
+
+        WebhookPayloadData data = capturedPayloadData();
+        assertEquals("tx-1", data.getTransactionId());
+        assertEquals("user-1", data.getUserId());
+        assertEquals("external-1", data.getExternalReference());
+        assertEquals("{\"order\":\"123\"}", data.getMetadata());
+        assertEquals(1000L, data.getAmountSat());
+        assertEquals("FAILED", data.getStatus());
+        assertEquals("ref-1", data.getReferenceId());
+        assertEquals("node failure", data.getFailureReason());
+
+        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
     }
 
     @Test
@@ -121,11 +221,29 @@ class WebhookEventServiceTest {
         assertEquals("account.balance_changed:entry-1", captor.getValue().getEventKey());
     }
 
+    private PaymentWebhookFacts acceptedPayment() {
+        return PaymentWebhookFacts.accepted(
+                "tx-1",
+                "user-1",
+                TransactionType.LIGHTNING_DEBIT,
+                1000L,
+                "ref-1",
+                "external-1",
+                "{\"order\":\"123\"}"
+        );
+    }
+
+    private WebhookPayloadData capturedPayloadData() throws Exception {
+        ArgumentCaptor<WebhookPayload> payloadCaptor = ArgumentCaptor.forClass(WebhookPayload.class);
+        verify(jsonMapper).writeValueAsString(payloadCaptor.capture());
+        return payloadCaptor.getValue().getData();
+    }
+
     private TransactionEntity debitTransaction() {
         TransactionEntity tx = new TransactionEntity();
         tx.setId("tx-1");
         tx.setUserId("user-1");
-        tx.setType(com.aratiri.transactions.application.dto.TransactionType.LIGHTNING_DEBIT);
+        tx.setType(TransactionType.LIGHTNING_DEBIT);
         tx.setCurrentStatus("PENDING");
         tx.setCurrentAmount(1000);
         tx.setReferenceId("ref-1");
@@ -148,9 +266,4 @@ class WebhookEventServiceTest {
         return endpoint;
     }
 
-    private WebhookEndpointEntity disabledEndpoint(String eventType) {
-        WebhookEndpointEntity endpoint = enabledEndpoint(eventType);
-        endpoint.setEnabled(false);
-        return endpoint;
-    }
 }

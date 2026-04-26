@@ -5,7 +5,7 @@ import com.aratiri.infrastructure.persistence.jpa.repository.WebhookDeliveryRepo
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEndpointRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEventRepository;
 import com.aratiri.invoices.domain.LightningInvoice;
-import com.aratiri.transactions.application.dto.TransactionType;
+import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.webhooks.application.dto.WebhookPayload;
 import com.aratiri.webhooks.application.dto.WebhookPayloadData;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +17,6 @@ import tools.jackson.databind.json.JsonMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -28,71 +27,66 @@ public class WebhookEventService {
     private static final String API_VERSION = "2026-04-25";
     private static final String AGGREGATE_TYPE_TRANSACTION = "TRANSACTION";
     private static final String STATUS_COMPLETED = "COMPLETED";
-    private static final Set<TransactionType> DEBIT_TYPES = Set.of(
-            TransactionType.LIGHTNING_DEBIT,
-            TransactionType.ONCHAIN_DEBIT,
-            TransactionType.INVOICE_DEBIT
-    );
 
     private final WebhookEndpointRepository webhookEndpointRepository;
     private final WebhookEventRepository webhookEventRepository;
     private final WebhookDeliveryRepository webhookDeliveryRepository;
     private final JsonMapper jsonMapper;
 
-    public void createPaymentAcceptedEvent(TransactionEntity transaction) {
-        if (!DEBIT_TYPES.contains(transaction.getType())) {
+    public void createPaymentAcceptedEvent(PaymentWebhookFacts payment) {
+        if (!payment.isDebitPayment()) {
             return;
         }
         String eventType = "payment.accepted";
-        String eventKey = eventType + ":" + transaction.getId();
+        String eventKey = eventType + ":" + payment.transactionId();
         WebhookPayloadData data = WebhookPayloadData.builder()
-                .transactionId(transaction.getId())
-                .userId(transaction.getUserId())
-                .externalReference(transaction.getExternalReference())
-                .metadata(transaction.getMetadata())
-                .amountSat(transaction.getCurrentAmount())
-                .status(transaction.getCurrentStatus())
-                .referenceId(transaction.getReferenceId())
+                .transactionId(payment.transactionId())
+                .userId(payment.userId())
+                .externalReference(payment.externalReference())
+                .metadata(payment.metadata())
+                .amountSat(payment.amountSat())
+                .status(payment.status().name())
+                .referenceId(payment.referenceId())
                 .build();
-        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
+        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, payment.transactionId(), payment.userId(), payment.externalReference(), data);
     }
 
-    public void createPaymentSucceededEvent(TransactionEntity transaction) {
-        if (!DEBIT_TYPES.contains(transaction.getType())) {
+    public void createPaymentSucceededEvent(PaymentWebhookFacts payment) {
+        if (!payment.isDebitPayment()) {
             return;
         }
         String eventType = "payment.succeeded";
-        String eventKey = eventType + ":" + transaction.getId();
+        String eventKey = eventType + ":" + payment.transactionId();
         WebhookPayloadData data = WebhookPayloadData.builder()
-                .transactionId(transaction.getId())
-                .userId(transaction.getUserId())
-                .externalReference(transaction.getExternalReference())
-                .metadata(transaction.getMetadata())
-                .amountSat(transaction.getCurrentAmount())
-                .status(STATUS_COMPLETED)
-                .referenceId(transaction.getReferenceId())
-                .balanceAfterSat(transaction.getBalanceAfter())
+                .transactionId(payment.transactionId())
+                .userId(payment.userId())
+                .externalReference(payment.externalReference())
+                .metadata(payment.metadata())
+                .amountSat(payment.amountSat())
+                .status(TransactionStatus.COMPLETED.name())
+                .referenceId(payment.referenceId())
+                .balanceAfterSat(payment.balanceAfterSat())
                 .build();
-        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
+        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, payment.transactionId(), payment.userId(), payment.externalReference(), data);
     }
 
-    public void createPaymentFailedEvent(TransactionEntity transaction, String failureReason) {
-        if (!DEBIT_TYPES.contains(transaction.getType())) {
+    public void createPaymentFailedEvent(PaymentWebhookFacts payment) {
+        if (!payment.isDebitPayment()) {
             return;
         }
         String eventType = "payment.failed";
-        String eventKey = eventType + ":" + transaction.getId();
+        String eventKey = eventType + ":" + payment.transactionId();
         WebhookPayloadData data = WebhookPayloadData.builder()
-                .transactionId(transaction.getId())
-                .userId(transaction.getUserId())
-                .externalReference(transaction.getExternalReference())
-                .metadata(transaction.getMetadata())
-                .amountSat(transaction.getCurrentAmount())
-                .status("FAILED")
-                .referenceId(transaction.getReferenceId())
-                .failureReason(failureReason)
+                .transactionId(payment.transactionId())
+                .userId(payment.userId())
+                .externalReference(payment.externalReference())
+                .metadata(payment.metadata())
+                .amountSat(payment.amountSat())
+                .status(TransactionStatus.FAILED.name())
+                .referenceId(payment.referenceId())
+                .failureReason(payment.failureReason())
                 .build();
-        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
+        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, payment.transactionId(), payment.userId(), payment.externalReference(), data);
     }
 
     public void createInvoiceCreatedEvent(LightningInvoice invoice) {
