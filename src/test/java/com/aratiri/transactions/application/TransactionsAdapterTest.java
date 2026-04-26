@@ -1,10 +1,10 @@
 package com.aratiri.transactions.application;
 
+import com.aratiri.infrastructure.messaging.outbox.OutboxWriterService;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
-import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.shared.exception.AratiriException;
@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
 import java.util.List;
@@ -39,10 +38,7 @@ class TransactionsAdapterTest {
     private LightningInvoiceRepository lightningInvoiceRepository;
 
     @Mock
-    private OutboxEventRepository outboxEventRepository;
-
-    @Mock
-    private JsonMapper jsonMapper;
+    private OutboxWriterService outboxWriterService;
 
     @Mock
     private TransactionProcessor debitProcessor;
@@ -67,8 +63,7 @@ class TransactionsAdapterTest {
                 transactionsRepository,
                 transactionEventRepository,
                 List.of(creditProcessor, debitProcessor),
-                jsonMapper,
-                outboxEventRepository,
+                outboxWriterService,
                 webhookEventService,
                 lightningInvoiceRepository
         );
@@ -112,7 +107,7 @@ class TransactionsAdapterTest {
     }
 
     @Test
-    void confirmTransaction_shouldCompleteAndPublishPaymentSent() throws Exception {
+    void confirmTransaction_shouldCompleteAndPublishPaymentSent() {
         TransactionEntity pendingTx = new TransactionEntity();
         pendingTx.setId(TRANSACTION_ID);
         pendingTx.setUserId(USER_ID);
@@ -124,7 +119,6 @@ class TransactionsAdapterTest {
 
         when(transactionsRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(pendingTx));
         when(debitProcessor.process(pendingTx)).thenReturn(8500L);
-        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
 
         List<TransactionEventEntity> pendingEvents = List.of(statusEvent(pendingTx, TransactionStatus.PENDING));
         List<TransactionEventEntity> completedEvents = List.of(
@@ -137,7 +131,7 @@ class TransactionsAdapterTest {
         TransactionDTOResponse response = transactionsAdapter.confirmTransaction(TRANSACTION_ID, USER_ID);
 
         assertEquals(TransactionStatus.COMPLETED, response.getStatus());
-        verify(outboxEventRepository, atLeastOnce()).save(any());
+        verify(outboxWriterService).publishPaymentSent(eq(TRANSACTION_ID), any());
     }
 
     @Test

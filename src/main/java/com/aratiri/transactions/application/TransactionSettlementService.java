@@ -1,13 +1,11 @@
 package com.aratiri.transactions.application;
 
-import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.infrastructure.messaging.outbox.OutboxWriterService;
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
-import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.payments.application.event.PaymentSentEvent;
@@ -28,7 +26,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -58,15 +55,12 @@ public class TransactionSettlementService implements TransactionSettlementModule
     );
     private static final String INTERNAL_TRANSFER_PREFIX = "Internal transfer";
     private static final String FAILURE_ACTION = "failure";
-    private static final String INTERNAL_TRANSFER_AGGREGATE_TYPE = "INTERNAL_TRANSFER";
-    private static final String INTERNAL_INVOICE_CANCEL_AGGREGATE_TYPE = "INTERNAL_INVOICE_CANCEL";
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final TransactionsRepository transactionsRepository;
     private final TransactionEventRepository transactionEventRepository;
     private final Map<TransactionType, TransactionProcessor> processors;
-    private final JsonMapper jsonMapper;
-    private final OutboxEventRepository outboxEventRepository;
+    private final OutboxWriterService outboxWriterService;
     private final WebhookEventService webhookEventService;
     private final LightningInvoiceRepository lightningInvoiceRepository;
 
@@ -74,8 +68,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
             TransactionsRepository transactionsRepository,
             TransactionEventRepository transactionEventRepository,
             List<TransactionProcessor> processorList,
-            JsonMapper jsonMapper,
-            OutboxEventRepository outboxEventRepository,
+            OutboxWriterService outboxWriterService,
             WebhookEventService webhookEventService,
             LightningInvoiceRepository lightningInvoiceRepository
     ) {
@@ -83,8 +76,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
         this.transactionEventRepository = transactionEventRepository;
         this.processors = processorList.stream()
                 .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
-        this.jsonMapper = jsonMapper;
-        this.outboxEventRepository = outboxEventRepository;
+        this.outboxWriterService = outboxWriterService;
         this.webhookEventService = webhookEventService;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
     }
@@ -465,13 +457,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
                     LocalDateTime.now(),
                     transaction.getDescription()
             );
-            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
-                    .aggregateType("PAYMENT_SENT")
-                    .aggregateId(transaction.getId())
-                    .eventType(KafkaTopics.PAYMENT_SENT.getCode())
-                    .payload(jsonMapper.writeValueAsString(eventPayload))
-                    .build();
-            outboxEventRepository.save(outboxEvent);
+            outboxWriterService.publishPaymentSent(transaction.getId(), eventPayload);
         } catch (Exception e) {
             logger.error("Failed to create outbox event for PaymentSentEvent", e);
         }
@@ -521,13 +507,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
                 invoice.getMemo()
         );
         try {
-            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
-                    .aggregateType(INTERNAL_TRANSFER_AGGREGATE_TYPE)
-                    .aggregateId(settlement.transactionId())
-                    .eventType(KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode())
-                    .payload(jsonMapper.writeValueAsString(completedEvent))
-                    .build();
-            outboxEventRepository.save(outboxEvent);
+            outboxWriterService.publishInternalTransferCompleted(settlement.transactionId(), completedEvent);
         } catch (Exception e) {
             logger.error("Failed to create outbox event for InternalTransferCompletedEvent", e);
             throw new AratiriException("Failed to publish settlement event for internal transfer.");
@@ -537,13 +517,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
     private void publishInternalInvoiceCancel(InternalTransferSettlement settlement) {
         try {
             InternalInvoiceCancelEvent cancelEvent = new InternalInvoiceCancelEvent(settlement.paymentHash());
-            OutboxEventEntity cancelOutboxEvent = OutboxEventEntity.builder()
-                    .aggregateType(INTERNAL_INVOICE_CANCEL_AGGREGATE_TYPE)
-                    .aggregateId(settlement.paymentHash())
-                    .eventType(KafkaTopics.INTERNAL_INVOICE_CANCEL.getCode())
-                    .payload(jsonMapper.writeValueAsString(cancelEvent))
-                    .build();
-            outboxEventRepository.save(cancelOutboxEvent);
+            outboxWriterService.publishInternalInvoiceCancel(settlement.paymentHash(), cancelEvent);
         } catch (Exception e) {
             logger.error("Failed to create outbox event for InternalInvoiceCancelEvent", e);
         }
