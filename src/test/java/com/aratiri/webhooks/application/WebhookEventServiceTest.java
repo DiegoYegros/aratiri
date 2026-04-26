@@ -63,8 +63,8 @@ class WebhookEventServiceTest {
     }
 
     @Test
-    void createPaymentAcceptedEvent_noDeliveryForDisabledEndpoint() throws Exception {
-        WebhookEndpointEntity endpoint = disabledEndpoint("payment.accepted");
+    void createPaymentAcceptedEvent_noDeliveryForDisabledEndpoint() {
+        disabledEndpoint("payment.accepted");
         when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of());
         when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
         when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
@@ -77,7 +77,7 @@ class WebhookEventServiceTest {
     }
 
     @Test
-    void createPaymentAcceptedEvent_idempotentByEventKey() throws Exception {
+    void createPaymentAcceptedEvent_idempotentByEventKey() {
         WebhookEventEntity existing = WebhookEventEntity.builder().eventKey("payment.accepted:tx-1").build();
         when(webhookEventRepository.findByEventKey("payment.accepted:tx-1")).thenReturn(Optional.of(existing));
 
@@ -89,7 +89,7 @@ class WebhookEventServiceTest {
     }
 
     @Test
-    void createPaymentSucceededEvent_ignoresCreditTransaction() throws Exception {
+    void createPaymentSucceededEvent_ignoresCreditTransaction() {
         TransactionEntity tx = new TransactionEntity();
         tx.setId("tx-1");
         tx.setUserId("user-1");

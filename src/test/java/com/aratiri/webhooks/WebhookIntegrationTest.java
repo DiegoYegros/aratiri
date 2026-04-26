@@ -56,8 +56,6 @@ class WebhookIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private WebhookDeliveryRepository webhookDeliveryRepository;
 
-    private String adminToken;
-
     @BeforeEach
     void setup() {
         when(currencyConversionPort.getCurrentBtcPrice()).thenReturn(Map.of("usd", BigDecimal.valueOf(50000)));

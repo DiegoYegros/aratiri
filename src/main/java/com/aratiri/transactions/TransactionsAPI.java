@@ -78,7 +78,7 @@ public class TransactionsAPI {
                 throw new AratiriException("Invalid cursor format. Expected 'timestamp_id'", HttpStatus.BAD_REQUEST.value());
             }
             Long.parseLong(parts[0]);
-        } catch (NumberFormatException e) {
+        } catch (NumberFormatException _) {
             throw new AratiriException("Invalid cursor format: timestamp must be a valid number", HttpStatus.BAD_REQUEST.value());
         }
     }

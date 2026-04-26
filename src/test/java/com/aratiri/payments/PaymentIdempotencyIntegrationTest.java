@@ -77,7 +77,7 @@ class PaymentIdempotencyIntegrationTest extends AbstractIntegrationTest {
                 .orElseThrow()
                 .getCode();
 
-        AuthResponseDTO tokens = webTestClient().post().uri("/v1/auth/verify")
+        webTestClient().post().uri("/v1/auth/verify")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createVerificationRequest(email, verificationCode))
                 .exchange()
@@ -145,10 +145,9 @@ class PaymentIdempotencyIntegrationTest extends AbstractIntegrationTest {
                     PaymentCommandService.PaymentCommandResult result = paymentCommandService.resolveIdempotency(
                             userId, idempotencyKey, "LIGHTNING_INVOICE_PAY", payload
                     );
-                    if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.NEW_COMMAND) {
-                        if (firstCommandId.compareAndSet(null, result.commandId())) {
-                            // First thread to set
-                        }
+                    if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.NEW_COMMAND
+                            && firstCommandId.compareAndSet(null, result.commandId())) {
+                        // First thread to set
                     }
                 } catch (Throwable t) {
                     error.compareAndSet(null, t);

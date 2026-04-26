@@ -26,6 +26,8 @@ import java.util.UUID;
 public class WebhookEventService {
 
     private static final String API_VERSION = "2026-04-25";
+    private static final String AGGREGATE_TYPE_TRANSACTION = "TRANSACTION";
+    private static final String STATUS_COMPLETED = "COMPLETED";
     private static final Set<TransactionType> DEBIT_TYPES = Set.of(
             TransactionType.LIGHTNING_DEBIT,
             TransactionType.ONCHAIN_DEBIT,
@@ -52,7 +54,7 @@ public class WebhookEventService {
                 .status(transaction.getCurrentStatus())
                 .referenceId(transaction.getReferenceId())
                 .build();
-        createEventAndDeliveries(eventKey, eventType, "TRANSACTION", transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
+        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
     }
 
     public void createPaymentSucceededEvent(TransactionEntity transaction) {
@@ -67,11 +69,11 @@ public class WebhookEventService {
                 .externalReference(transaction.getExternalReference())
                 .metadata(transaction.getMetadata())
                 .amountSat(transaction.getCurrentAmount())
-                .status("COMPLETED")
+                .status(STATUS_COMPLETED)
                 .referenceId(transaction.getReferenceId())
                 .balanceAfterSat(transaction.getBalanceAfter())
                 .build();
-        createEventAndDeliveries(eventKey, eventType, "TRANSACTION", transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
+        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
     }
 
     public void createPaymentFailedEvent(TransactionEntity transaction, String failureReason) {
@@ -90,7 +92,7 @@ public class WebhookEventService {
                 .referenceId(transaction.getReferenceId())
                 .failureReason(failureReason)
                 .build();
-        createEventAndDeliveries(eventKey, eventType, "TRANSACTION", transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
+        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
     }
 
     public void createInvoiceCreatedEvent(LightningInvoice invoice) {
@@ -118,7 +120,7 @@ public class WebhookEventService {
                 .externalReference(transaction.getExternalReference())
                 .metadata(transaction.getMetadata())
                 .amountSat(transaction.getCurrentAmount())
-                .status("COMPLETED")
+                .status(STATUS_COMPLETED)
                 .referenceId(transaction.getReferenceId())
                 .balanceAfterSat(transaction.getBalanceAfter())
                 .paymentHash(paymentHash)
@@ -135,11 +137,11 @@ public class WebhookEventService {
                 .externalReference(transaction.getExternalReference())
                 .metadata(transaction.getMetadata())
                 .amountSat(transaction.getCurrentAmount())
-                .status("COMPLETED")
+                .status(STATUS_COMPLETED)
                 .referenceId(transaction.getReferenceId())
                 .balanceAfterSat(transaction.getBalanceAfter())
                 .build();
-        createEventAndDeliveries(eventKey, eventType, "TRANSACTION", transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
+        createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, transaction.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
     }
 
     public void createAccountBalanceChangedEvent(TransactionEntity transaction, AccountEntryEntity entry) {
@@ -151,7 +153,7 @@ public class WebhookEventService {
                 .externalReference(transaction.getExternalReference())
                 .metadata(transaction.getMetadata())
                 .amountSat(Math.abs(entry.getDeltaSats()))
-                .status("COMPLETED")
+                .status(STATUS_COMPLETED)
                 .referenceId(transaction.getReferenceId())
                 .balanceAfterSat(entry.getBalanceAfter())
                 .build();
@@ -256,7 +258,7 @@ public class WebhookEventService {
                 .build();
         try {
             webhookEventRepository.save(event);
-        } catch (DataIntegrityViolationException e) {
+        } catch (DataIntegrityViolationException _) {
             log.debug("Webhook event duplicate key prevented by constraint: {}", eventKey);
             return null;
         }

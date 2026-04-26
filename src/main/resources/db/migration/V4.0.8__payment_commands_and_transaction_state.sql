@@ -61,7 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_transactions_reference_id
 -- PaymentsAPI requires Idempotency-Key for POST /v1/payments/invoice and /v1/payments/onchain.
 -- PaymentCommandService stores the canonical request hash so repeated identical calls can replay the
 -- accepted response, while the same key with a different payload returns a conflict. This protects the
--- API boundary before the request becomes a transaction + outbox event + node_operation.
+-- API boundary before the request becomes a transactn + outbox event + node_operation.
 CREATE TABLE payment_commands (
     id UUID PRIMARY KEY,
     user_id VARCHAR(36) NOT NULL,

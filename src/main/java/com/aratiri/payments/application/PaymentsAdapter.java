@@ -36,6 +36,7 @@ import java.util.Optional;
 public class PaymentsAdapter implements PaymentsPort {
 
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+    private static final String STATUS_PENDING = "PENDING";
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountsPort accountsPort;
@@ -159,7 +160,7 @@ public class PaymentsAdapter implements PaymentsPort {
         txEntity.setId(txDto.getId());
         txEntity.setUserId(userId);
         txEntity.setType(TransactionType.LIGHTNING_DEBIT);
-        txEntity.setCurrentStatus("PENDING");
+        txEntity.setCurrentStatus(STATUS_PENDING);
         txEntity.setCurrentAmount(totalDebitSat);
         txEntity.setReferenceId(paymentHash);
         txEntity.setExternalReference(request.getExternalReference());
@@ -219,7 +220,7 @@ public class PaymentsAdapter implements PaymentsPort {
         txEntity.setId(txDto.getId());
         txEntity.setUserId(senderId);
         txEntity.setType(TransactionType.LIGHTNING_DEBIT);
-        txEntity.setCurrentStatus("PENDING");
+        txEntity.setCurrentStatus(STATUS_PENDING);
         txEntity.setCurrentAmount(amountSat);
         txEntity.setReferenceId(decodedInvoice.paymentHash());
         txEntity.setExternalReference(request.getExternalReference());
@@ -343,7 +344,7 @@ public class PaymentsAdapter implements PaymentsPort {
         txEntity.setId(txDto.getId());
         txEntity.setUserId(userId);
         txEntity.setType(TransactionType.ONCHAIN_DEBIT);
-        txEntity.setCurrentStatus("PENDING");
+        txEntity.setCurrentStatus(STATUS_PENDING);
         txEntity.setCurrentAmount(totalAmount);
         txEntity.setExternalReference(request.getExternalReference());
         txEntity.setMetadata(request.getMetadata());

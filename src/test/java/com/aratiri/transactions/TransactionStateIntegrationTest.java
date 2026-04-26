@@ -10,7 +10,6 @@ import com.aratiri.accounts.application.port.out.LightningAddressPort;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
-import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import org.junit.jupiter.api.BeforeEach;
@@ -225,8 +224,9 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Cursor pagination returns stable non-overlapping pages")
-    void cursorPagination_stableNonOverlappingPages() {
+    @DisplayName("Cursor pagination returns distinct pages")
+    @SuppressWarnings("java:S2925")
+    void cursorPagination_returnsDistinctPages() {
         for (int i = 0; i < 10; i++) {
             CreateTransactionRequest request = CreateTransactionRequest.builder()
                     .userId(userId)
@@ -238,7 +238,7 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
                     .referenceId("ref-page-" + i)
                     .build();
             transactionsPort.createTransaction(request);
-            try { Thread.sleep(10); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            try { Thread.sleep(10); } catch (InterruptedException _) { Thread.currentThread().interrupt(); }
         }
 
         TransactionPageResponse firstPage = transactionsPort.getTransactionsWithCursor(userId, null, 5);
@@ -273,6 +273,7 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @DisplayName("Newest-first ordering is deterministic by (created_at DESC, id DESC)")
+    @SuppressWarnings("java:S2925")
     void cursorPagination_newestFirstOrdering() {
         for (int i = 0; i < 5; i++) {
             CreateTransactionRequest request = CreateTransactionRequest.builder()
@@ -285,7 +286,7 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
                     .referenceId("ref-order-" + i)
                     .build();
             transactionsPort.createTransaction(request);
-            try { Thread.sleep(10); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            try { Thread.sleep(10); } catch (InterruptedException _) { Thread.currentThread().interrupt(); }
         }
 
         TransactionPageResponse page = transactionsPort.getTransactionsWithCursor(userId, null, 10);

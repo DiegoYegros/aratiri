@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class TransactionsAdapter implements TransactionsPort {
+    private static final String STATUS_COMPLETED = "COMPLETED";
     private static final Set<TransactionType> SETTLEABLE_TYPES = Set.of(
             TransactionType.LIGHTNING_CREDIT,
             TransactionType.ONCHAIN_CREDIT
@@ -100,7 +101,7 @@ public class TransactionsAdapter implements TransactionsPort {
         }
         long newBalanceSat = processor.process(transaction);
         appendStatusEvent(transaction, TransactionStatus.COMPLETED, newBalanceSat, null);
-        transaction.setCurrentStatus("COMPLETED");
+        transaction.setCurrentStatus(STATUS_COMPLETED);
         transaction.setBalanceAfter(newBalanceSat);
         transaction.setCompletedAt(Instant.now());
         transactionsRepository.save(transaction);
@@ -139,7 +140,7 @@ public class TransactionsAdapter implements TransactionsPort {
         appendStatusEvent(savedTransaction, TransactionStatus.PENDING, null, null);
         long newBalanceSat = processor.process(savedTransaction);
         appendStatusEvent(savedTransaction, TransactionStatus.COMPLETED, newBalanceSat, null);
-        savedTransaction.setCurrentStatus("COMPLETED");
+        savedTransaction.setCurrentStatus(STATUS_COMPLETED);
         savedTransaction.setBalanceAfter(newBalanceSat);
         savedTransaction.setCompletedAt(Instant.now());
         transactionsRepository.save(savedTransaction);
@@ -183,7 +184,7 @@ public class TransactionsAdapter implements TransactionsPort {
 
     @Override
     public TransactionPageResponse getTransactionsWithCursor(String userId, String cursor, int limit) {
-        int cappedLimit = Math.min(Math.max(limit, 1), 200);
+        int cappedLimit = Math.clamp(limit, 1, 200);
         List<TransactionEntity> transactions;
 
         if (cursor != null && !cursor.isEmpty()) {
@@ -383,7 +384,7 @@ public class TransactionsAdapter implements TransactionsPort {
         }
         long senderBalance = debitProcessor.process(senderTx);
         appendStatusEvent(senderTx, TransactionStatus.COMPLETED, senderBalance, null);
-        senderTx.setCurrentStatus("COMPLETED");
+        senderTx.setCurrentStatus(STATUS_COMPLETED);
         senderTx.setBalanceAfter(senderBalance);
         senderTx.setCompletedAt(Instant.now());
         transactionsRepository.save(senderTx);

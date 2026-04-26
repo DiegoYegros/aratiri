@@ -1,11 +1,11 @@
 package com.aratiri.infrastructure.scheduling.job;
 
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookDeliveryEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.WebhookDeliveryStatus;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookDeliveryRepository;
 import com.aratiri.webhooks.application.WebhookDeliveryService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class WebhookDeliveryJob {
 
@@ -26,10 +25,22 @@ public class WebhookDeliveryJob {
 
     private final WebhookDeliveryRepository webhookDeliveryRepository;
     private final WebhookDeliveryService webhookDeliveryService;
+    private WebhookDeliveryJob self;
+
+    public WebhookDeliveryJob(WebhookDeliveryRepository webhookDeliveryRepository,
+                              WebhookDeliveryService webhookDeliveryService) {
+        this.webhookDeliveryRepository = webhookDeliveryRepository;
+        this.webhookDeliveryService = webhookDeliveryService;
+    }
+
+    @Autowired
+    public void setSelf(@Lazy WebhookDeliveryJob self) {
+        this.self = self;
+    }
 
     @Scheduled(fixedDelayString = "${aratiri.webhooks.delivery.fixed-delay-ms:5000}")
     public void processDeliveries() {
-        List<WebhookDeliveryEntity> claimed = claimBatch();
+        List<WebhookDeliveryEntity> claimed = self.claimBatch();
         for (WebhookDeliveryEntity delivery : claimed) {
             try {
                 boolean success = webhookDeliveryService.deliver(delivery);

@@ -11,11 +11,14 @@ import org.springframework.stereotype.Service;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
@@ -101,9 +104,15 @@ public class WebhookDeliveryService {
                         delivery.getId(), endpoint.getId(), response.statusCode());
                 return false;
             }
-        } catch (Exception e) {
-            delivery.setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
-            log.warn("Webhook delivery exception for deliveryId={}, endpoint={}: {}",
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            delivery.setLastError("Interrupted: " + e.getMessage());
+            log.warn("Webhook delivery interrupted for deliveryId={}, endpoint={}",
+                    delivery.getId(), endpoint.getId());
+            return false;
+        } catch (IOException e) {
+            delivery.setLastError("IOException: " + e.getMessage());
+            log.warn("Webhook delivery IO exception for deliveryId={}, endpoint={}: {}",
                     delivery.getId(), endpoint.getId(), e.getMessage());
             return false;
         }
@@ -151,8 +160,8 @@ public class WebhookDeliveryService {
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] hash = mac.doFinal(signedPayload.getBytes(StandardCharsets.UTF_8));
             return SIGNATURE_VERSION + "=" + HexFormat.of().formatHex(hash);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate webhook signature", e);
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            throw new IllegalStateException("Failed to generate webhook signature", e);
         }
     }
 }
