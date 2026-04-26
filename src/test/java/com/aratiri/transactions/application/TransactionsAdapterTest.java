@@ -69,15 +69,13 @@ class TransactionsAdapterTest {
                 List.of(creditProcessor, debitProcessor),
                 jsonMapper,
                 outboxEventRepository,
-                webhookEventService
+                webhookEventService,
+                lightningInvoiceRepository
         );
         transactionsAdapter = new TransactionsAdapter(
                 transactionsRepository,
                 transactionSettlementService,
-                transactionSettlementService,
-                lightningInvoiceRepository,
-                jsonMapper,
-                outboxEventRepository
+                transactionSettlementService
         );
     }
 

@@ -7,10 +7,17 @@ import com.aratiri.auth.application.dto.VerificationRequestDTO;
 import com.aratiri.auth.application.port.out.EmailNotificationPort;
 import com.aratiri.accounts.application.port.out.CurrencyConversionPort;
 import com.aratiri.accounts.application.port.out.LightningAddressPort;
+import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
+import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
 import com.aratiri.transactions.application.dto.*;
+import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +29,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -49,6 +57,15 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private TransactionsRepository transactionsRepository;
+
+    @Autowired
+    private TransactionEventRepository transactionEventRepository;
+
+    @Autowired
+    private LightningInvoiceRepository lightningInvoiceRepository;
+
+    @Autowired
+    private OutboxEventRepository outboxEventRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -297,6 +314,104 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
             Instant next = transactions.get(i + 1).getCreatedAt().toInstant();
             assertTrue(current.isAfter(next) || current.equals(next), "Transactions should be in descending order");
         }
+    }
+
+    @Test
+    @DisplayName("Internal transfer settlement updates both ledgers, invoice state, transaction history, and outbox")
+    void processInternalTransfer_settlesCompleteWorkflow() {
+        String paymentHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        long amountSat = 2_500L;
+
+        transactionsPort.createAndSettleTransaction(CreateTransactionRequest.builder()
+                .userId(userId)
+                .amountSat(10_000L)
+                .currency(TransactionCurrency.BTC)
+                .type(TransactionType.ONCHAIN_CREDIT)
+                .description("Seed balance")
+                .referenceId("internal-transfer-seed")
+                .build());
+
+        TransactionDTOResponse senderDebit = transactionsPort.createTransaction(CreateTransactionRequest.builder()
+                .userId(userId)
+                .amountSat(amountSat)
+                .currency(TransactionCurrency.BTC)
+                .type(TransactionType.LIGHTNING_DEBIT)
+                .status(TransactionStatus.PENDING)
+                .description("Internal transfer to: " + otherUserId)
+                .referenceId(paymentHash)
+                .build());
+
+        lightningInvoiceRepository.save(LightningInvoiceEntity.builder()
+                .userId(otherUserId)
+                .paymentHash(paymentHash)
+                .preimage("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+                .paymentRequest("lnbc2500internal")
+                .invoiceState(LightningInvoiceEntity.InvoiceState.OPEN)
+                .amountSats(amountSat)
+                .createdAt(LocalDateTime.now())
+                .expiry(3600)
+                .amountPaidSats(0)
+                .memo("Internal memo")
+                .build());
+
+        transactionsPort.processInternalTransfer(new InternalTransferInitiatedEvent(
+                senderDebit.getId(),
+                userId,
+                otherUserId,
+                amountSat,
+                paymentHash
+        ));
+
+        TransactionEntity senderTransaction = transactionsRepository.findById(senderDebit.getId()).orElseThrow();
+        assertEquals("COMPLETED", senderTransaction.getCurrentStatus());
+        assertEquals(7_500L, senderTransaction.getBalanceAfter());
+
+        TransactionEntity receiverCredit = transactionsRepository.findAll().stream()
+                .filter(tx -> tx.getUserId().equals(otherUserId))
+                .filter(tx -> tx.getType() == TransactionType.LIGHTNING_CREDIT)
+                .filter(tx -> paymentHash.equals(tx.getReferenceId()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("COMPLETED", receiverCredit.getCurrentStatus());
+        assertEquals(2_500L, receiverCredit.getBalanceAfter());
+
+        assertEquals(7_500L, latestBalanceForUser(userId));
+        assertEquals(2_500L, latestBalanceForUser(otherUserId));
+
+        LightningInvoiceEntity invoice = lightningInvoiceRepository.findByPaymentHash(paymentHash).orElseThrow();
+        assertEquals(LightningInvoiceEntity.InvoiceState.SETTLED, invoice.getInvoiceState());
+        assertEquals(amountSat, invoice.getAmountPaidSats());
+        assertNotNull(invoice.getSettledAt());
+
+        assertEquals(2, transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(senderDebit.getId()).size());
+        assertEquals(2, transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(receiverCredit.getId()).size());
+
+        List<OutboxEventEntity> outboxEvents = outboxEventRepository.findAll();
+        assertTrue(outboxEvents.stream().anyMatch(event ->
+                event.getEventType().equals(KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode())
+                        && event.getAggregateId().equals(senderDebit.getId())
+                        && event.getPayload().contains(paymentHash)
+        ));
+        assertTrue(outboxEvents.stream().anyMatch(event ->
+                event.getEventType().equals(KafkaTopics.INTERNAL_INVOICE_CANCEL.getCode())
+                        && event.getAggregateId().equals(paymentHash)
+                        && event.getPayload().contains(paymentHash)
+        ));
+    }
+
+    private long latestBalanceForUser(String accountUserId) {
+        Long balance = jdbcTemplate.queryForObject("""
+                SELECT COALESCE((
+                    SELECT ae.balance_after
+                    FROM aratiri.account_entries ae
+                    JOIN aratiri.accounts a ON a.id = ae.account_id
+                    WHERE a.user_id = ?
+                    ORDER BY ae.created_at DESC, ae.id DESC
+                    LIMIT 1
+                ), 0)
+                """, Long.class, accountUserId);
+        assertNotNull(balance);
+        return balance;
     }
 
     private RegistrationRequestDTO createRegistrationRequest(String name, String email, String password, String alias) {

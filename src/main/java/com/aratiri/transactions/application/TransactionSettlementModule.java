@@ -11,4 +11,6 @@ public interface TransactionSettlementModule {
     TransactionSettlementResult failExternalDebit(ExternalDebitFailureSettlement settlement);
 
     void applyLightningRoutingFee(LightningRoutingFeeSettlement settlement);
+
+    void settleInternalTransfer(InternalTransferSettlement settlement);
 }
