@@ -1,6 +1,7 @@
 package com.aratiri.payments.application;
 
 import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.payments.application.command.LightningInvoicePaymentCommand;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
@@ -45,6 +46,7 @@ public class PaymentsAdapter implements PaymentsPort {
     private final OutboxEventPort outboxEventPort;
     private final LightningInvoicePort lightningInvoicePort;
     private final PaymentCommandService paymentCommandService;
+    private final LightningInvoicePaymentCommand lightningInvoicePaymentCommand;
     private final WebhookEventService webhookEventService;
 
     @Value("${aratiri.payment.default.fee.limit.sat:200}")
@@ -68,21 +70,9 @@ public class PaymentsAdapter implements PaymentsPort {
     @Override
     @Transactional
     public PaymentResponseDTO payLightningInvoice(PayInvoiceRequestDTO request, String userId, String idempotencyKey) {
-        String canonicalPayload = JsonUtils.toJson(request);
-        PaymentCommandService.PaymentCommandResult result = paymentCommandService.resolveIdempotency(
-                userId, idempotencyKey, "LIGHTNING_INVOICE_PAY", canonicalPayload
+        return lightningInvoicePaymentCommand.execute(
+                userId, idempotencyKey, request, () -> executeLightningPayment(request, userId)
         );
-
-        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.REPLAY) {
-            return JsonUtils.fromJson(result.responsePayload(), PaymentResponseDTO.class);
-        }
-        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.IN_PROGRESS) {
-            throw new AratiriException("Payment with this idempotency key is still in progress", HttpStatus.CONFLICT.value());
-        }
-
-        PaymentResponseDTO response = executeLightningPayment(request, userId);
-        paymentCommandService.completeCommand(result.commandId(), response.getTransactionId(), JsonUtils.toJson(response));
-        return response;
     }
 
     @Override

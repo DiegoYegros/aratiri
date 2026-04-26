@@ -1,11 +1,18 @@
 import org.springframework.boot.gradle.plugin.SpringBootPlugin
 
+buildscript {
+    dependencies {
+        classpath 'org.flywaydb:flyway-database-postgresql:11.14.1'
+    }
+}
+
 plugins {
     id 'java'
     id 'org.springframework.boot' version '4.0.0'
     id 'com.google.protobuf' version '0.9.5'
     id 'pl.allegro.tech.build.axion-release' version '1.21.1'
     id 'name.remal.sonarlint' version '7.0.1'
+    id 'org.flywaydb.flyway' version '11.14.1'
 }
 
 group = 'com.aratiri'
@@ -57,6 +64,16 @@ sonarLint {
     }
     ignoredPaths.add('build/**')
     ignoredPaths.add('**/generated/**')
+}
+
+flyway {
+    url = System.getenv('SPRING_DATASOURCE_URL')
+    user = System.getenv('SPRING_DATASOURCE_USERNAME')
+    password = System.getenv('SPRING_DATASOURCE_PASSWORD')
+    schemas = [System.getenv('SPRING_FLYWAY_SCHEMAS')]
+    defaultSchema = System.getenv('SPRING_FLYWAY_DEFAULT_SCHEMA')
+    locations = ['classpath:db/migration']
+    baselineOnMigrate = true
 }
 
 dependencies {
