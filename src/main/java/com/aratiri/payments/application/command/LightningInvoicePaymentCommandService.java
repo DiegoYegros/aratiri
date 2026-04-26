@@ -35,16 +35,26 @@ public class LightningInvoicePaymentCommandService implements LightningInvoicePa
 
         return switch (result.type()) {
             case REPLAY -> JsonUtils.fromJson(result.responsePayload(), PaymentResponseDTO.class);
+            case FAILED_REPLAY -> throw JsonUtils.fromJson(
+                    result.responsePayload(), PaymentCommandFailurePayload.class
+            ).toException();
             case IN_PROGRESS -> throw new AratiriException(
                     "Payment with this idempotency key is still in progress",
                     HttpStatus.CONFLICT.value()
             );
             case NEW_COMMAND -> {
-                PaymentResponseDTO response = execution.get();
-                paymentCommandService.completeCommand(
-                        result.commandId(), response.getTransactionId(), JsonUtils.toJson(response)
-                );
-                yield response;
+                try {
+                    PaymentResponseDTO response = execution.get();
+                    paymentCommandService.completeCommand(
+                            result.commandId(), response.getTransactionId(), JsonUtils.toJson(response)
+                    );
+                    yield response;
+                } catch (RuntimeException exception) {
+                    paymentCommandService.failCommand(
+                            result.commandId(), JsonUtils.toJson(PaymentCommandFailurePayload.from(exception))
+                    );
+                    throw exception;
+                }
             }
         };
     }

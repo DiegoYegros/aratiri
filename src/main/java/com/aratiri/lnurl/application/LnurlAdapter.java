@@ -10,6 +10,7 @@ import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.lnurl.application.port.in.LnurlApplicationPort;
 import com.aratiri.lnurl.application.port.out.LnurlRemotePort;
 import com.aratiri.payments.application.PaymentCommandService;
+import com.aratiri.payments.application.command.PaymentCommandFailurePayload;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.payments.application.port.in.PaymentsPort;
@@ -103,16 +104,31 @@ public class LnurlAdapter implements LnurlApplicationPort {
         if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.REPLAY) {
             return JsonUtils.fromJson(result.responsePayload(), PaymentResponseDTO.class);
         }
+        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.FAILED_REPLAY) {
+            throw JsonUtils.fromJson(result.responsePayload(), PaymentCommandFailurePayload.class).toException();
+        }
         if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.IN_PROGRESS) {
             throw new AratiriException("LNURL payment with this idempotency key is still in progress", HttpStatus.CONFLICT.value());
         }
 
-        UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromUriString(request.getCallback())
-                .queryParam("amount", request.getAmountMsat());
-        if (request.getComment() != null && !request.getComment().isEmpty()) {
-            uriBuilder.queryParam("comment", request.getComment());
+        try {
+            LnurlCallbackResponseDTO callbackResponse = fetchCallbackInvoice(request);
+            PayInvoiceRequestDTO payRequest = new PayInvoiceRequestDTO();
+            payRequest.setInvoice(callbackResponse.getPaymentRequest());
+            PaymentResponseDTO response = paymentsPort.payLightningInvoiceInternal(payRequest, userId);
+
+            paymentCommandService.completeCommand(result.commandId(), response.getTransactionId(), JsonUtils.toJson(response));
+            return response;
+        } catch (RuntimeException exception) {
+            paymentCommandService.failCommand(
+                    result.commandId(), JsonUtils.toJson(PaymentCommandFailurePayload.from(exception))
+            );
+            throw exception;
         }
-        String finalCallbackUrl = uriBuilder.toUriString();
+    }
+
+    private LnurlCallbackResponseDTO fetchCallbackInvoice(LnurlPayRequestDTO request) {
+        String finalCallbackUrl = buildCallbackUrl(request);
         LnurlCallbackResponseDTO callbackResponse;
         try {
             callbackResponse = lnurlRemotePort.fetchCallbackInvoice(finalCallbackUrl);
@@ -122,11 +138,15 @@ public class LnurlAdapter implements LnurlApplicationPort {
         if (callbackResponse == null || callbackResponse.getPaymentRequest() == null || callbackResponse.getPaymentRequest().isEmpty()) {
             throw new AratiriException("Invalid response from LNURL callback.", HttpStatus.BAD_GATEWAY.value());
         }
-        PayInvoiceRequestDTO payRequest = new PayInvoiceRequestDTO();
-        payRequest.setInvoice(callbackResponse.getPaymentRequest());
-        PaymentResponseDTO response = paymentsPort.payLightningInvoiceInternal(payRequest, userId);
+        return callbackResponse;
+    }
 
-        paymentCommandService.completeCommand(result.commandId(), response.getTransactionId(), JsonUtils.toJson(response));
-        return response;
+    private String buildCallbackUrl(LnurlPayRequestDTO request) {
+        UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromUriString(request.getCallback())
+                .queryParam("amount", request.getAmountMsat());
+        if (request.getComment() != null && !request.getComment().isEmpty()) {
+            uriBuilder.queryParam("comment", request.getComment());
+        }
+        return uriBuilder.toUriString();
     }
 }

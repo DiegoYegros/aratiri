@@ -8,6 +8,7 @@ import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
@@ -26,7 +27,7 @@ public class PaymentCommandService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PaymentCommandResult resolveIdempotency(
             String userId,
             String idempotencyKey,
@@ -85,11 +86,14 @@ public class PaymentCommandService {
                     HttpStatus.CONFLICT.value()
             );
         }
-        if ("ACCEPTED".equals(existing.getStatus()) || "FAILED".equals(existing.getStatus())) {
+        if ("ACCEPTED".equals(existing.getStatus())) {
             return PaymentCommandResult.replay(
                     existing.getTransactionId(),
                     existing.getResponsePayload()
             );
+        }
+        if ("FAILED".equals(existing.getStatus())) {
+            return PaymentCommandResult.failedReplay(existing.getResponsePayload());
         }
         return PaymentCommandResult.inProgress(existing.getTransactionId());
     }
@@ -105,7 +109,7 @@ public class PaymentCommandService {
         paymentCommandRepository.save(command);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void failCommand(UUID commandId, String responsePayload) {
         PaymentCommandEntity command = paymentCommandRepository.findById(commandId)
                 .orElseThrow(() -> new AratiriException("Payment command not found"));
@@ -134,7 +138,8 @@ public class PaymentCommandService {
         public enum ResultType {
             NEW_COMMAND,
             IN_PROGRESS,
-            REPLAY
+            REPLAY,
+            FAILED_REPLAY
         }
 
         public static PaymentCommandResult newCommand(UUID commandId) {
@@ -147,6 +152,10 @@ public class PaymentCommandService {
 
         public static PaymentCommandResult replay(String transactionId, String responsePayload) {
             return new PaymentCommandResult(ResultType.REPLAY, null, transactionId, responsePayload);
+        }
+
+        public static PaymentCommandResult failedReplay(String responsePayload) {
+            return new PaymentCommandResult(ResultType.FAILED_REPLAY, null, null, responsePayload);
         }
     }
 }

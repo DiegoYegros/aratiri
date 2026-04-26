@@ -9,6 +9,8 @@ import com.aratiri.accounts.application.port.out.CurrencyConversionPort;
 import com.aratiri.accounts.application.port.out.LightningAddressPort;
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
 import com.aratiri.payments.application.PaymentCommandService;
+import com.aratiri.payments.application.command.PaymentCommandFailurePayload;
+import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.shared.exception.AratiriException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -196,6 +198,34 @@ class PaymentIdempotencyIntegrationTest extends AbstractIntegrationTest {
         );
         assertEquals(PaymentCommandService.PaymentCommandResult.ResultType.REPLAY, second.type());
         assertEquals("tx-123", second.transactionId());
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("Failed command returns failed replay on subsequent call")
+    void failedCommand_returnsFailedReplay() {
+        String idempotencyKey = UUID.randomUUID().toString();
+        String payload = "{\"invoice\":\"lnbc1testfailed\"}";
+        PaymentCommandFailurePayload failure = new PaymentCommandFailurePayload(
+                "Invoice has already been paid",
+                HttpStatus.BAD_REQUEST.value()
+        );
+
+        PaymentCommandService.PaymentCommandResult first = paymentCommandService.resolveIdempotency(
+                userId, idempotencyKey, "LIGHTNING_INVOICE_PAY", payload
+        );
+        paymentCommandService.failCommand(first.commandId(), JsonUtils.toJson(failure));
+
+        PaymentCommandService.PaymentCommandResult second = paymentCommandService.resolveIdempotency(
+                userId, idempotencyKey, "LIGHTNING_INVOICE_PAY", payload
+        );
+
+        assertEquals(PaymentCommandService.PaymentCommandResult.ResultType.FAILED_REPLAY, second.type());
+        PaymentCommandFailurePayload replayedFailure = JsonUtils.fromJson(
+                second.responsePayload(), PaymentCommandFailurePayload.class
+        );
+        assertEquals("Invoice has already been paid", replayedFailure.message());
+        assertEquals(HttpStatus.BAD_REQUEST.value(), replayedFailure.status());
     }
 
     private RegistrationRequestDTO createRegistrationRequest(String name, String email, String password, String alias) {

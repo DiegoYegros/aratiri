@@ -114,11 +114,34 @@ class LightningInvoicePaymentCommandServiceTest {
     }
 
     @Test
-    void execute_executionFailure_propagatesAndDoesNotComplete() {
+    void execute_failedReplay_throwsStoredFailureWithoutExecuting() {
+        PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
+        request.setInvoice("lnbc1test");
+        PaymentCommandFailurePayload failure = new PaymentCommandFailurePayload(
+                "Invoice has already been paid",
+                HttpStatus.BAD_REQUEST.value()
+        );
+
+        when(paymentCommandService.resolveIdempotency(any(), any(), eq("LIGHTNING_INVOICE_PAY"), any()))
+                .thenReturn(PaymentCommandService.PaymentCommandResult.failedReplay(JsonUtils.toJson(failure)));
+
+        AratiriException exception = assertThrows(AratiriException.class, () ->
+                commandService.execute("user-1", "key-1", request, () -> {
+                    throw new AssertionError("Execution should not be called on failed replay");
+                })
+        );
+
+        assertEquals("Invoice has already been paid", exception.getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST.value(), exception.getStatus());
+        verify(paymentCommandService, never()).completeCommand(any(), any(), any());
+    }
+
+    @Test
+    void execute_executionFailure_recordsFailureAndPropagates() {
         UUID commandId = UUID.randomUUID();
         PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
         request.setInvoice("lnbc1test");
-        RuntimeException failure = new RuntimeException("Payment failed");
+        AratiriException failure = new AratiriException("Payment failed", HttpStatus.BAD_REQUEST.value());
 
         when(paymentCommandService.resolveIdempotency(any(), any(), eq("LIGHTNING_INVOICE_PAY"), any()))
                 .thenReturn(PaymentCommandService.PaymentCommandResult.newCommand(commandId));
@@ -131,5 +154,6 @@ class LightningInvoicePaymentCommandServiceTest {
 
         assertEquals("Payment failed", exception.getMessage());
         verify(paymentCommandService, never()).completeCommand(any(), any(), any());
+        verify(paymentCommandService).failCommand(eq(commandId), any());
     }
 }
