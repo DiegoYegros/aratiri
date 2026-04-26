@@ -1,0 +1,62 @@
+package com.aratiri.payments.application.command;
+
+import com.aratiri.payments.application.PaymentCommandService;
+import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
+import com.aratiri.payments.infrastructure.json.JsonUtils;
+import com.aratiri.shared.exception.AratiriException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.function.Supplier;
+
+@Service
+@RequiredArgsConstructor
+public class OnChainPaymentCommandService implements OnChainPaymentCommand {
+
+    private static final String COMMAND_TYPE = "ONCHAIN_SEND";
+
+    private final PaymentCommandService paymentCommandService;
+
+    @Override
+    @Transactional
+    public OnChainPaymentDTOs.SendOnChainResponseDTO execute(
+            String userId,
+            String idempotencyKey,
+            OnChainPaymentDTOs.SendOnChainRequestDTO request,
+            Supplier<OnChainPaymentDTOs.SendOnChainResponseDTO> execution
+    ) {
+        String canonicalPayload = JsonUtils.toJson(request);
+        PaymentCommandService.PaymentCommandResult result = paymentCommandService.resolveIdempotency(
+                userId, idempotencyKey, COMMAND_TYPE, canonicalPayload
+        );
+
+        return switch (result.type()) {
+            case REPLAY -> JsonUtils.fromJson(
+                    result.responsePayload(), OnChainPaymentDTOs.SendOnChainResponseDTO.class
+            );
+            case FAILED_REPLAY -> throw JsonUtils.fromJson(
+                    result.responsePayload(), PaymentCommandFailurePayload.class
+            ).toException();
+            case IN_PROGRESS -> throw new AratiriException(
+                    "Payment with this idempotency key is still in progress",
+                    HttpStatus.CONFLICT.value()
+            );
+            case NEW_COMMAND -> {
+                try {
+                    OnChainPaymentDTOs.SendOnChainResponseDTO response = execution.get();
+                    paymentCommandService.completeCommand(
+                            result.commandId(), response.getTransactionId(), JsonUtils.toJson(response)
+                    );
+                    yield response;
+                } catch (RuntimeException exception) {
+                    paymentCommandService.failCommand(
+                            result.commandId(), JsonUtils.toJson(PaymentCommandFailurePayload.from(exception))
+                    );
+                    throw exception;
+                }
+            }
+        };
+    }
+}

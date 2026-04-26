@@ -2,7 +2,7 @@ package com.aratiri.payments.application;
 
 import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.payments.application.command.LightningInvoicePaymentCommand;
-import com.aratiri.payments.application.command.PaymentCommandFailurePayload;
+import com.aratiri.payments.application.command.OnChainPaymentCommand;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
@@ -46,8 +46,8 @@ public class PaymentsAdapter implements PaymentsPort {
     private final LightningNodePort lightningNodePort;
     private final OutboxEventPort outboxEventPort;
     private final LightningInvoicePort lightningInvoicePort;
-    private final PaymentCommandService paymentCommandService;
     private final LightningInvoicePaymentCommand lightningInvoicePaymentCommand;
+    private final OnChainPaymentCommand onChainPaymentCommand;
     private final WebhookEventService webhookEventService;
 
     @Value("${aratiri.payment.default.fee.limit.sat:200}")
@@ -278,82 +278,65 @@ public class PaymentsAdapter implements PaymentsPort {
     @Override
     @Transactional
     public OnChainPaymentDTOs.SendOnChainResponseDTO sendOnChain(OnChainPaymentDTOs.SendOnChainRequestDTO request, String userId, String idempotencyKey) {
-        String canonicalPayload = JsonUtils.toJson(request);
-        PaymentCommandService.PaymentCommandResult result = paymentCommandService.resolveIdempotency(
-                userId, idempotencyKey, "ONCHAIN_SEND", canonicalPayload
-        );
+        return onChainPaymentCommand.execute(userId, idempotencyKey, request, () -> executeOnChainPayment(request, userId));
+    }
 
-        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.REPLAY) {
-            return JsonUtils.fromJson(result.responsePayload(), OnChainPaymentDTOs.SendOnChainResponseDTO.class);
+    private OnChainPaymentDTOs.SendOnChainResponseDTO executeOnChainPayment(
+            OnChainPaymentDTOs.SendOnChainRequestDTO request,
+            String userId
+    ) {
+        OnChainPaymentDTOs.SendOnChainRequestDTO normalizedRequest = normalizeOnChainRequest(request);
+        PaymentAccount account = accountsPort.getAccount(userId);
+
+        OnChainPaymentDTOs.EstimateFeeRequestDTO feeRequest = new OnChainPaymentDTOs.EstimateFeeRequestDTO();
+        feeRequest.setAddress(normalizedRequest.getAddress());
+        feeRequest.setSatsAmount(normalizedRequest.getSatsAmount());
+        feeRequest.setTargetConf(normalizedRequest.getTargetConf());
+
+        OnChainPaymentDTOs.EstimateFeeResponseDTO feeResponse = estimateOnChainFee(feeRequest, userId);
+        long amountSat = normalizedRequest.getSatsAmount();
+        long networkFeeSat = feeResponse.getFeeSat();
+        long platformFeeSat = feeResponse.getPlatformFeeSat();
+        long totalFeeSat = Math.addExact(networkFeeSat, platformFeeSat);
+        long totalAmount = Math.addExact(amountSat, totalFeeSat);
+        if (account.bitcoinAddress().equals(normalizedRequest.getAddress())) {
+            throw new AratiriException("Payment to self not allowed.", HttpStatus.BAD_REQUEST.value());
         }
-        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.FAILED_REPLAY) {
-            throw JsonUtils.fromJson(result.responsePayload(), PaymentCommandFailurePayload.class).toException();
-        }
-        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.IN_PROGRESS) {
-            throw new AratiriException("Payment with this idempotency key is still in progress", HttpStatus.CONFLICT.value());
-        }
 
-        try {
-            OnChainPaymentDTOs.SendOnChainRequestDTO normalizedRequest = normalizeOnChainRequest(request);
-            PaymentAccount account = accountsPort.getAccount(userId);
+        CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
+                .userId(userId)
+                .amountSat(totalAmount)
+                .currency(TransactionCurrency.BTC)
+                .type(TransactionType.ONCHAIN_DEBIT)
+                .status(TransactionStatus.PENDING)
+                .description("On-chain payment to " + normalizedRequest.getAddress())
+                .externalReference(request.getExternalReference())
+                .metadata(request.getMetadata())
+                .build();
 
-            OnChainPaymentDTOs.EstimateFeeRequestDTO feeRequest = new OnChainPaymentDTOs.EstimateFeeRequestDTO();
-            feeRequest.setAddress(normalizedRequest.getAddress());
-            feeRequest.setSatsAmount(normalizedRequest.getSatsAmount());
-            feeRequest.setTargetConf(normalizedRequest.getTargetConf());
+        TransactionDTOResponse txDto = transactionsPort.createTransaction(txRequest);
+        OnChainPaymentInitiatedEvent eventPayload = new OnChainPaymentInitiatedEvent(userId, txDto.getId(), normalizedRequest);
+        persistOutboxMessage(new OutboxMessage(
+                "ONCHAIN_PAYMENT",
+                txDto.getId(),
+                KafkaTopics.ONCHAIN_PAYMENT_INITIATED.getCode(),
+                JsonUtils.toJson(eventPayload)
+        ));
 
-            OnChainPaymentDTOs.EstimateFeeResponseDTO feeResponse = estimateOnChainFee(feeRequest, userId);
-            long amountSat = normalizedRequest.getSatsAmount();
-            long networkFeeSat = feeResponse.getFeeSat();
-            long platformFeeSat = feeResponse.getPlatformFeeSat();
-            long totalFeeSat = Math.addExact(networkFeeSat, platformFeeSat);
-            long totalAmount = Math.addExact(amountSat, totalFeeSat);
-            if (account.bitcoinAddress().equals(normalizedRequest.getAddress())) {
-                throw new AratiriException("Payment to self not allowed.", HttpStatus.BAD_REQUEST.value());
-            }
+        webhookEventService.createPaymentAcceptedEvent(PaymentWebhookFacts.accepted(
+                txDto.getId(),
+                userId,
+                TransactionType.ONCHAIN_DEBIT,
+                totalAmount,
+                null,
+                request.getExternalReference(),
+                request.getMetadata()
+        ));
 
-            CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
-                    .userId(userId)
-                    .amountSat(totalAmount)
-                    .currency(TransactionCurrency.BTC)
-                    .type(TransactionType.ONCHAIN_DEBIT)
-                    .status(TransactionStatus.PENDING)
-                    .description("On-chain payment to " + normalizedRequest.getAddress())
-                    .externalReference(request.getExternalReference())
-                    .metadata(request.getMetadata())
-                    .build();
-
-            TransactionDTOResponse txDto = transactionsPort.createTransaction(txRequest);
-            OnChainPaymentInitiatedEvent eventPayload = new OnChainPaymentInitiatedEvent(userId, txDto.getId(), normalizedRequest);
-            persistOutboxMessage(new OutboxMessage(
-                    "ONCHAIN_PAYMENT",
-                    txDto.getId(),
-                    KafkaTopics.ONCHAIN_PAYMENT_INITIATED.getCode(),
-                    JsonUtils.toJson(eventPayload)
-            ));
-
-            webhookEventService.createPaymentAcceptedEvent(PaymentWebhookFacts.accepted(
-                    txDto.getId(),
-                    userId,
-                    TransactionType.ONCHAIN_DEBIT,
-                    totalAmount,
-                    null,
-                    request.getExternalReference(),
-                    request.getMetadata()
-            ));
-
-            OnChainPaymentDTOs.SendOnChainResponseDTO response = new OnChainPaymentDTOs.SendOnChainResponseDTO();
-            response.setTransactionId(txDto.getId());
-            response.setTransactionStatus(txDto.getStatus());
-
-            paymentCommandService.completeCommand(result.commandId(), response.getTransactionId(), JsonUtils.toJson(response));
-            return response;
-        } catch (RuntimeException exception) {
-            paymentCommandService.failCommand(
-                    result.commandId(), JsonUtils.toJson(PaymentCommandFailurePayload.from(exception))
-            );
-            throw exception;
-        }
+        OnChainPaymentDTOs.SendOnChainResponseDTO response = new OnChainPaymentDTOs.SendOnChainResponseDTO();
+        response.setTransactionId(txDto.getId());
+        response.setTransactionStatus(txDto.getStatus());
+        return response;
     }
 
     @Override

@@ -4,17 +4,15 @@ import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.invoices.application.dto.GenerateInvoiceDTO;
 import com.aratiri.invoices.application.port.in.InvoicesPort;
+import com.aratiri.lnurl.application.command.LnurlPaymentCommand;
 import com.aratiri.lnurl.application.dto.LnurlCallbackResponseDTO;
 import com.aratiri.lnurl.application.dto.LnurlPayRequestDTO;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.lnurl.application.port.in.LnurlApplicationPort;
 import com.aratiri.lnurl.application.port.out.LnurlRemotePort;
-import com.aratiri.payments.application.PaymentCommandService;
-import com.aratiri.payments.application.command.PaymentCommandFailurePayload;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.payments.application.port.in.PaymentsPort;
-import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
 import org.springframework.http.HttpStatus;
@@ -33,7 +31,7 @@ public class LnurlAdapter implements LnurlApplicationPort {
     private final PaymentsPort paymentsPort;
     private final AratiriProperties properties;
     private final LnurlRemotePort lnurlRemotePort;
-    private final PaymentCommandService paymentCommandService;
+    private final LnurlPaymentCommand lnurlPaymentCommand;
 
     public LnurlAdapter(
             AccountsPort accountsPort,
@@ -41,14 +39,14 @@ public class LnurlAdapter implements LnurlApplicationPort {
             PaymentsPort paymentsPort,
             AratiriProperties properties,
             LnurlRemotePort lnurlRemotePort,
-            PaymentCommandService paymentCommandService
+            LnurlPaymentCommand lnurlPaymentCommand
     ) {
         this.accountsPort = accountsPort;
         this.invoicesPort = invoicesPort;
         this.paymentsPort = paymentsPort;
         this.properties = properties;
         this.lnurlRemotePort = lnurlRemotePort;
-        this.paymentCommandService = paymentCommandService;
+        this.lnurlPaymentCommand = lnurlPaymentCommand;
     }
 
     @Override
@@ -96,35 +94,14 @@ public class LnurlAdapter implements LnurlApplicationPort {
     @Override
     @Transactional
     public PaymentResponseDTO handlePayRequest(LnurlPayRequestDTO request, String userId, String idempotencyKey) {
-        String canonicalPayload = JsonUtils.toJson(request);
-        PaymentCommandService.PaymentCommandResult result = paymentCommandService.resolveIdempotency(
-                userId, idempotencyKey, "LNURL_PAY", canonicalPayload
-        );
+        return lnurlPaymentCommand.execute(userId, idempotencyKey, request, () -> executeLnurlPayment(request, userId));
+    }
 
-        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.REPLAY) {
-            return JsonUtils.fromJson(result.responsePayload(), PaymentResponseDTO.class);
-        }
-        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.FAILED_REPLAY) {
-            throw JsonUtils.fromJson(result.responsePayload(), PaymentCommandFailurePayload.class).toException();
-        }
-        if (result.type() == PaymentCommandService.PaymentCommandResult.ResultType.IN_PROGRESS) {
-            throw new AratiriException("LNURL payment with this idempotency key is still in progress", HttpStatus.CONFLICT.value());
-        }
-
-        try {
-            LnurlCallbackResponseDTO callbackResponse = fetchCallbackInvoice(request);
-            PayInvoiceRequestDTO payRequest = new PayInvoiceRequestDTO();
-            payRequest.setInvoice(callbackResponse.getPaymentRequest());
-            PaymentResponseDTO response = paymentsPort.payLightningInvoiceInternal(payRequest, userId);
-
-            paymentCommandService.completeCommand(result.commandId(), response.getTransactionId(), JsonUtils.toJson(response));
-            return response;
-        } catch (RuntimeException exception) {
-            paymentCommandService.failCommand(
-                    result.commandId(), JsonUtils.toJson(PaymentCommandFailurePayload.from(exception))
-            );
-            throw exception;
-        }
+    private PaymentResponseDTO executeLnurlPayment(LnurlPayRequestDTO request, String userId) {
+        LnurlCallbackResponseDTO callbackResponse = fetchCallbackInvoice(request);
+        PayInvoiceRequestDTO payRequest = new PayInvoiceRequestDTO();
+        payRequest.setInvoice(callbackResponse.getPaymentRequest());
+        return paymentsPort.payLightningInvoiceInternal(payRequest, userId);
     }
 
     private LnurlCallbackResponseDTO fetchCallbackInvoice(LnurlPayRequestDTO request) {
