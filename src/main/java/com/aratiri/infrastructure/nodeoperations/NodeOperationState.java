@@ -1,5 +1,6 @@
-package com.aratiri.infrastructure.scheduling.job;
+package com.aratiri.infrastructure.nodeoperations;
 
+import com.aratiri.infrastructure.configuration.NodeOperationProperties;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
 import com.aratiri.infrastructure.persistence.jpa.repository.NodeOperationsRepository;
@@ -20,6 +21,7 @@ class NodeOperationState {
 
     private final NodeOperationsRepository nodeOperationsRepository;
     private final TransactionsPort transactionsPort;
+    private final NodeOperationProperties nodeOperationProperties;
 
     void recordFeeIfPresent(String transactionId, Payment payment) {
         long feeSat = payment.getFeeSat();
@@ -50,6 +52,16 @@ class NodeOperationState {
                 throw e;
             }
         }
+    }
+
+    @Transactional
+    void markRetryable(NodeOperationEntity op, String error) {
+        op.setStatus(NodeOperationStatus.PENDING);
+        op.setLastError(error);
+        op.setNextAttemptAt(Instant.now().plusMillis(nodeOperationProperties.getFixedDelayMs()));
+        op.setLockedBy(null);
+        op.setLockedUntil(null);
+        nodeOperationsRepository.save(op);
     }
 
     @Transactional

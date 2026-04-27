@@ -1,4 +1,4 @@
-package com.aratiri.infrastructure.scheduling.job;
+package com.aratiri.infrastructure.nodeoperations;
 
 import com.aratiri.infrastructure.configuration.NodeOperationProperties;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationEntity;

@@ -25,7 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,12 +48,6 @@ public class PaymentsAdapter implements PaymentsPort {
     private final LightningInvoicePaymentCommand lightningInvoicePaymentCommand;
     private final OnChainPaymentCommand onChainPaymentCommand;
     private final WebhookEventService webhookEventService;
-
-    @Value("${aratiri.payment.default.fee.limit.sat:200}")
-    private int defaultFeeLimitSat;
-
-    @Value("${aratiri.payment.default.timeout.seconds:200}")
-    private int defaultTimeoutSeconds;
 
     @Value("${aratiri.payment.lightning.fee.fixed.sat:0}")
     private long lightningFixedFeeSat;
@@ -222,31 +215,6 @@ public class PaymentsAdapter implements PaymentsPort {
                 .build();
     }
 
-    @Async
-    @Override
-    public void initiateGrpcLightningPayment(String transactionId, String userId, PayInvoiceRequestDTO payRequest) {
-        PayInvoiceRequestDTO normalizedRequest = normalizeInvoice(payRequest);
-        try {
-            Payment finalPayment = lightningNodePort.executeLightningPayment(normalizedRequest, defaultFeeLimitSat, defaultTimeoutSeconds);
-            if (finalPayment != null && finalPayment.getStatus() == Payment.PaymentStatus.SUCCEEDED) {
-                long feeSat = finalPayment.getFeeSat();
-                long feeMsat = finalPayment.getFeeMsat();
-                if (feeSat <= 0 && feeMsat > 0) {
-                    feeSat = (feeMsat + 999) / 1000;
-                }
-                if (feeSat > 0) {
-                    transactionsPort.addFeeToTransaction(transactionId, feeSat);
-                }
-                transactionsPort.confirmTransaction(transactionId, userId);
-            } else {
-                String reason = finalPayment != null ? finalPayment.getFailureReason().toString() : "Unknown failure";
-                transactionsPort.failTransaction(transactionId, reason);
-            }
-        } catch (Exception e) {
-            transactionsPort.failTransaction(transactionId, e.getMessage());
-        }
-    }
-
     @Override
     public Optional<Payment> checkPaymentStatusOnNode(String paymentHash) {
         try {
@@ -258,20 +226,6 @@ public class PaymentsAdapter implements PaymentsPort {
             throw new AratiriException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         } catch (Exception e) {
             throw new AratiriException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
-        }
-    }
-
-    @Async
-    @Override
-    public void initiateGrpcOnChainPayment(String transactionId, String userId, OnChainPaymentDTOs.SendOnChainRequestDTO payRequest) {
-        OnChainPaymentDTOs.SendOnChainRequestDTO normalizedRequest = normalizeOnChainRequest(payRequest);
-        try {
-            String txid = lightningNodePort.sendOnChain(normalizedRequest);
-            logger.info("Successfully broadcast on-chain transaction with txid: {}", txid);
-            transactionsPort.confirmTransaction(transactionId, userId);
-        } catch (Exception e) {
-            logger.error("gRPC call to SendCoins failed for transactionId: {}. Reason: {}", transactionId, e.getMessage());
-            transactionsPort.failTransaction(transactionId, e.getMessage());
         }
     }
 
@@ -396,18 +350,6 @@ public class PaymentsAdapter implements PaymentsPort {
         }
     }
 
-
-    private PayInvoiceRequestDTO normalizeInvoice(PayInvoiceRequestDTO request) {
-        PayInvoiceRequestDTO normalized = new PayInvoiceRequestDTO();
-        if (request.getInvoice() != null && request.getInvoice().toLowerCase().startsWith("lightning:")) {
-            normalized.setInvoice(request.getInvoice().substring(10));
-        } else {
-            normalized.setInvoice(request.getInvoice());
-        }
-        normalized.setFeeLimitSat(request.getFeeLimitSat());
-        normalized.setTimeoutSeconds(request.getTimeoutSeconds());
-        return normalized;
-    }
 
     private OnChainPaymentDTOs.SendOnChainRequestDTO normalizeOnChainRequest(OnChainPaymentDTOs.SendOnChainRequestDTO request) {
         OnChainPaymentDTOs.SendOnChainRequestDTO normalized = new OnChainPaymentDTOs.SendOnChainRequestDTO();
