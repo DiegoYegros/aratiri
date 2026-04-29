@@ -1,6 +1,7 @@
 package com.aratiri.payments.application;
 
 import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
 import com.aratiri.payments.application.command.LightningInvoicePaymentCommand;
 import com.aratiri.payments.application.command.OnChainPaymentCommand;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
@@ -44,6 +45,7 @@ public class PaymentsAdapter implements PaymentsPort {
     private final InvoicesPort invoicesPort;
     private final LightningNodePort lightningNodePort;
     private final OutboxEventPort outboxEventPort;
+    private final OutboxWriter outboxWriter;
     private final LightningInvoicePort lightningInvoicePort;
     private final LightningInvoicePaymentCommand lightningInvoicePaymentCommand;
     private final OnChainPaymentCommand onChainPaymentCommand;
@@ -132,12 +134,7 @@ public class PaymentsAdapter implements PaymentsPort {
                 .build();
         TransactionDTOResponse txDto = transactionsPort.createTransaction(txRequest);
         PaymentInitiatedEvent eventPayload = new PaymentInitiatedEvent(userId, txDto.getId(), request);
-        persistOutboxMessage(new OutboxMessage(
-                "LIGHTNING_INVOICE_PAYMENT",
-                txDto.getId(),
-                KafkaTopics.PAYMENT_INITIATED.getCode(),
-                JsonUtils.toJson(eventPayload)
-        ));
+        publishPaymentInitiated(txDto.getId(), eventPayload);
 
         webhookEventService.createPaymentAcceptedEvent(PaymentWebhookFacts.accepted(
                 txDto.getId(),
@@ -345,6 +342,15 @@ public class PaymentsAdapter implements PaymentsPort {
         try {
             outboxEventPort.save(message);
             logger.info("Saved {} event to outbox for aggregateId: {}", message.eventType(), message.aggregateId());
+        } catch (Exception _) {
+            throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        }
+    }
+
+    private void publishPaymentInitiated(String transactionId, PaymentInitiatedEvent eventPayload) {
+        try {
+            outboxWriter.publishPaymentInitiated(transactionId, eventPayload);
+            logger.info("Saved payment initiated event to outbox for aggregateId: {}", transactionId);
         } catch (Exception _) {
             throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }

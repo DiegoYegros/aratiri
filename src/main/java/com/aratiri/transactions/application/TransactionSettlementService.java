@@ -1,6 +1,6 @@
 package com.aratiri.transactions.application;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriterService;
+import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
@@ -60,7 +60,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
     private final TransactionsRepository transactionsRepository;
     private final TransactionEventRepository transactionEventRepository;
     private final Map<TransactionType, TransactionProcessor> processors;
-    private final OutboxWriterService outboxWriterService;
+    private final OutboxWriter outboxWriter;
     private final WebhookEventService webhookEventService;
     private final LightningInvoiceRepository lightningInvoiceRepository;
 
@@ -68,7 +68,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
             TransactionsRepository transactionsRepository,
             TransactionEventRepository transactionEventRepository,
             List<TransactionProcessor> processorList,
-            OutboxWriterService outboxWriterService,
+            OutboxWriter outboxWriter,
             WebhookEventService webhookEventService,
             LightningInvoiceRepository lightningInvoiceRepository
     ) {
@@ -76,7 +76,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
         this.transactionEventRepository = transactionEventRepository;
         this.processors = processorList.stream()
                 .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
-        this.outboxWriterService = outboxWriterService;
+        this.outboxWriter = outboxWriter;
         this.webhookEventService = webhookEventService;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
     }
@@ -457,7 +457,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
                     LocalDateTime.now(),
                     transaction.getDescription()
             );
-            outboxWriterService.publishPaymentSent(transaction.getId(), eventPayload);
+            outboxWriter.publishPaymentSent(transaction.getId(), eventPayload);
         } catch (Exception e) {
             logger.error("Failed to create outbox event for PaymentSentEvent", e);
         }
@@ -507,7 +507,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
                 invoice.getMemo()
         );
         try {
-            outboxWriterService.publishInternalTransferCompleted(settlement.transactionId(), completedEvent);
+            outboxWriter.publishInternalTransferCompleted(settlement.transactionId(), completedEvent);
         } catch (Exception e) {
             logger.error("Failed to create outbox event for InternalTransferCompletedEvent", e);
             throw new AratiriException("Failed to publish settlement event for internal transfer.");
@@ -517,7 +517,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
     private void publishInternalInvoiceCancel(InternalTransferSettlement settlement) {
         try {
             InternalInvoiceCancelEvent cancelEvent = new InternalInvoiceCancelEvent(settlement.paymentHash());
-            outboxWriterService.publishInternalInvoiceCancel(settlement.paymentHash(), cancelEvent);
+            outboxWriter.publishInternalInvoiceCancel(settlement.paymentHash(), cancelEvent);
         } catch (Exception e) {
             logger.error("Failed to create outbox event for InternalInvoiceCancelEvent", e);
         }

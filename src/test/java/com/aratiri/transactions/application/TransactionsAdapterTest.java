@@ -1,6 +1,6 @@
 package com.aratiri.transactions.application;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriterService;
+import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
@@ -38,7 +38,7 @@ class TransactionsAdapterTest {
     private LightningInvoiceRepository lightningInvoiceRepository;
 
     @Mock
-    private OutboxWriterService outboxWriterService;
+    private OutboxWriter outboxWriter;
 
     @Mock
     private TransactionProcessor debitProcessor;
@@ -63,7 +63,7 @@ class TransactionsAdapterTest {
                 transactionsRepository,
                 transactionEventRepository,
                 List.of(creditProcessor, debitProcessor),
-                outboxWriterService,
+                outboxWriter,
                 webhookEventService,
                 lightningInvoiceRepository
         );
@@ -131,7 +131,7 @@ class TransactionsAdapterTest {
         TransactionDTOResponse response = transactionsAdapter.confirmTransaction(TRANSACTION_ID, USER_ID);
 
         assertEquals(TransactionStatus.COMPLETED, response.getStatus());
-        verify(outboxWriterService).publishPaymentSent(eq(TRANSACTION_ID), any());
+        verify(outboxWriter).publishPaymentSent(eq(TRANSACTION_ID), any());
     }
 
     @Test

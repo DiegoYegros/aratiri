@@ -3,6 +3,8 @@ package com.aratiri.infrastructure.messaging.outbox;
 import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
+import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.application.event.PaymentInitiatedEvent;
 import com.aratiri.payments.application.event.PaymentSentEvent;
 import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
@@ -34,6 +36,24 @@ class OutboxWriterServiceTest {
     @BeforeEach
     void setUp() {
         outboxWriterService = new OutboxWriterService(outboxEventRepository, jsonMapper);
+    }
+
+    @Test
+    void publishPaymentInitiated_ownsAggregateMetadataTopicAndSerialization() throws Exception {
+        PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
+        request.setInvoice("lnbc1test");
+        request.setExternalReference("external-ref");
+        request.setMetadata("{\"orderId\":\"order-123\"}");
+        PaymentInitiatedEvent eventPayload = new PaymentInitiatedEvent("user-123", "tx-123", request);
+        when(jsonMapper.writeValueAsString(eventPayload)).thenReturn("{\"payment\":\"initiated\"}");
+
+        outboxWriterService.publishPaymentInitiated("tx-123", eventPayload);
+
+        OutboxEventEntity event = savedEvent();
+        assertEquals("LIGHTNING_INVOICE_PAYMENT", event.getAggregateType());
+        assertEquals("tx-123", event.getAggregateId());
+        assertEquals(KafkaTopics.PAYMENT_INITIATED.getCode(), event.getEventType());
+        assertEquals("{\"payment\":\"initiated\"}", event.getPayload());
     }
 
     @Test
