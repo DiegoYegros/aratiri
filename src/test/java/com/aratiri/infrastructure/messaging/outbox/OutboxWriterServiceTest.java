@@ -2,6 +2,7 @@ package com.aratiri.infrastructure.messaging.outbox;
 
 import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.OutboxPublishStatus;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
@@ -79,6 +80,8 @@ class OutboxWriterServiceTest {
         assertEquals("tx-123", event.getAggregateId());
         assertEquals(KafkaTopics.PAYMENT_INITIATED.getCode(), event.getEventType());
         assertEquals("{\"payment\":\"initiated\"}", event.getPayload());
+        assertEquals(OutboxPublishStatus.PENDING, event.getPublishStatus());
+        assertEquals(0, event.getPublishAttempts());
     }
 
     @Test

@@ -1,10 +1,12 @@
 package com.aratiri.webhooks.application;
 
-import com.aratiri.infrastructure.persistence.jpa.entity.*;
+import com.aratiri.infrastructure.persistence.jpa.entity.WebhookDeliveryEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.WebhookDeliveryStatus;
+import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookDeliveryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEndpointRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEventRepository;
-import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.webhooks.application.dto.WebhookPayload;
 import com.aratiri.webhooks.application.dto.WebhookPayloadData;
@@ -89,20 +91,20 @@ public class WebhookEventService {
         createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, payment.transactionId(), payment.userId(), payment.externalReference(), data);
     }
 
-    public void createInvoiceCreatedEvent(LightningInvoice invoice) {
+    public void createInvoiceCreatedEvent(InvoiceCreatedWebhookFacts invoice) {
         String eventType = "invoice.created";
         String eventKey = eventType + ":" + invoice.paymentHash();
         WebhookPayloadData data = WebhookPayloadData.builder()
-                .invoiceId(invoice.id())
+                .invoiceId(invoice.invoiceId())
                 .userId(invoice.userId())
                 .externalReference(invoice.externalReference())
                 .metadata(invoice.metadata())
-                .amountSat(invoice.amountSats())
+                .amountSat(invoice.amountSat())
                 .paymentHash(invoice.paymentHash())
                 .paymentRequest(invoice.paymentRequest())
                 .memo(invoice.memo())
                 .build();
-        createEventAndDeliveries(eventKey, eventType, "INVOICE", invoice.id(), invoice.userId(), invoice.externalReference(), data);
+        createEventAndDeliveries(eventKey, eventType, "INVOICE", invoice.invoiceId(), invoice.userId(), invoice.externalReference(), data);
     }
 
     public void createInvoiceSettledEvent(InvoiceSettledWebhookFacts invoice) {
@@ -138,24 +140,20 @@ public class WebhookEventService {
         createEventAndDeliveries(eventKey, eventType, AGGREGATE_TYPE_TRANSACTION, deposit.transactionId(), deposit.userId(), deposit.externalReference(), data);
     }
 
-    public void createAccountBalanceChangedEvent(TransactionEntity transaction, AccountEntryEntity entry) {
+    public void createAccountBalanceChangedEvent(AccountBalanceChangedWebhookFacts facts) {
         String eventType = "account.balance_changed";
-        String eventKey = eventType + ":" + entry.getId();
+        String eventKey = eventType + ":" + facts.ledgerEntryId();
         WebhookPayloadData data = WebhookPayloadData.builder()
-                .transactionId(transaction.getId())
-                .userId(transaction.getUserId())
-                .externalReference(transaction.getExternalReference())
-                .metadata(transaction.getMetadata())
-                .amountSat(Math.abs(entry.getDeltaSats()))
+                .transactionId(facts.transactionId())
+                .userId(facts.userId())
+                .externalReference(facts.externalReference())
+                .metadata(facts.metadata())
+                .amountSat(facts.amountSat())
                 .status(STATUS_COMPLETED)
-                .referenceId(transaction.getReferenceId())
-                .balanceAfterSat(entry.getBalanceAfter())
+                .referenceId(facts.referenceId())
+                .balanceAfterSat(facts.balanceAfterSat())
                 .build();
-        createEventAndDeliveries(eventKey, eventType, "ACCOUNT_ENTRY", entry.getId(), transaction.getUserId(), transaction.getExternalReference(), data);
-    }
-
-    public void createNodeOperationUnknownOutcomeEvent(NodeOperationEntity operation) {
-        createNodeOperationUnknownOutcomeEvent(NodeOperationUnknownOutcomeFacts.from(operation, Optional.empty()));
+        createEventAndDeliveries(eventKey, eventType, "ACCOUNT_ENTRY", facts.ledgerEntryId(), facts.userId(), facts.externalReference(), data);
     }
 
     public void createNodeOperationUnknownOutcomeEvent(NodeOperationUnknownOutcomeFacts facts) {
@@ -179,19 +177,19 @@ public class WebhookEventService {
         createEventAndDeliveries(eventKey, eventType, "NODE_OPERATION", facts.operationId(), facts.userId(), facts.externalReference(), data);
     }
 
-    public void createWebhookTestEvent(WebhookEndpointEntity endpoint) {
+    public void createWebhookTestEvent(WebhookTestEventFacts facts) {
         String eventType = "webhook.test";
-        String eventKey = eventType + ":" + endpoint.getId() + ":" + UUID.randomUUID();
+        String eventKey = eventType + ":" + facts.endpointId() + ":" + UUID.randomUUID();
         WebhookPayloadData data = WebhookPayloadData.builder()
                 .userId("system")
                 .build();
-        WebhookEventEntity event = createEventEntity(eventKey, eventType, "WEBHOOK", endpoint.getId().toString(), null, null, data);
+        WebhookEventEntity event = createEventEntity(eventKey, eventType, "WEBHOOK", facts.endpointId().toString(), null, null, data);
         if (event == null) {
             return;
         }
         WebhookDeliveryEntity delivery = WebhookDeliveryEntity.builder()
                 .eventId(event.getId())
-                .endpointId(endpoint.getId())
+                .endpointId(facts.endpointId())
                 .eventType(eventType)
                 .payload(event.getPayload())
                 .status(WebhookDeliveryStatus.PENDING)
@@ -199,7 +197,7 @@ public class WebhookEventService {
                 .nextAttemptAt(Instant.now())
                 .build();
         webhookDeliveryRepository.save(delivery);
-        log.debug("Created test webhook delivery for event={} endpoint={}", event.getId(), endpoint.getId());
+        log.debug("Created test webhook delivery for event={} endpoint={}", event.getId(), facts.endpointId());
     }
 
     private void createEventAndDeliveries(String eventKey, String eventType, String aggregateType, String aggregateId, String userId, String externalReference, WebhookPayloadData data) {

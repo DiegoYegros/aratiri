@@ -58,12 +58,12 @@ public class AdminAdapter implements AdminPort {
     }
 
     @Override
-    public List<Peer> listPeers() {
+    public List<PeerDTO> listPeers() {
         return lightningNodeAdminPort.listPeers();
     }
 
     @Override
-    public GetInfoResponse getNodeInfo() {
+    public NodeInfoResponseDTO getNodeInfo() {
         return lightningNodeAdminPort.getNodeInfo();
     }
 

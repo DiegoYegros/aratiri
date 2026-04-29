@@ -9,6 +9,7 @@ import com.aratiri.infrastructure.messaging.listener.OnChainTransactionListener;
 import com.aratiri.infrastructure.messaging.consumer.NotificationConsumer;
 import com.aratiri.infrastructure.messaging.producer.OutboxEventProducer;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.OutboxPublishStatus;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.infrastructure.scheduling.job.OutboxEventJob;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -130,8 +131,8 @@ class OutboxKafkaIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Unknown event type is ignored and not marked processed")
-    void unknown_event_type_ignored() {
+    @DisplayName("Unknown event type is marked invalid and not marked processed")
+    void unknown_event_type_marked_invalid() {
         OutboxEventEntity event = OutboxEventEntity.builder()
                 .aggregateType("UNKNOWN")
                 .aggregateId("unknown-001")
@@ -145,6 +146,8 @@ class OutboxKafkaIntegrationTest extends AbstractIntegrationTest {
 
         OutboxEventEntity unprocessed = outboxEventRepository.findById(event.getId()).orElseThrow();
         assertNull(unprocessed.getProcessedAt());
+        assertEquals(OutboxPublishStatus.INVALID, unprocessed.getPublishStatus());
+        assertTrue(unprocessed.getLastError().contains("unknown.event.type"));
     }
 
     @Test

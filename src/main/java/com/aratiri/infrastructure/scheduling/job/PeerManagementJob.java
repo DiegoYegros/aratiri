@@ -2,11 +2,11 @@ package com.aratiri.infrastructure.scheduling.job;
 
 import com.aratiri.admin.application.dto.ConnectPeerRequestDTO;
 import com.aratiri.admin.application.dto.NodeInfoDTO;
+import com.aratiri.admin.application.dto.PeerDTO;
 import com.aratiri.admin.application.port.in.AdminPort;
 import com.aratiri.admin.application.port.out.NodeSettingsPort;
 import com.aratiri.admin.domain.NodeSettings;
 import com.aratiri.shared.exception.AratiriException;
-import lnrpc.Peer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,9 +45,9 @@ public class PeerManagementJob {
         logger.info("Starting automatic peer management job. Target peer count: {}", targetPeerCount);
 
         try {
-            List<Peer> currentPeers = adminPort.listPeers();
+            List<PeerDTO> currentPeers = adminPort.listPeers();
             Set<String> currentPeerPubkeys = currentPeers.stream()
-                    .map(Peer::getPubKey)
+                    .map(PeerDTO::getPubKey)
                     .collect(Collectors.toSet());
             int peersToConnect = targetPeerCount - currentPeers.size();
 

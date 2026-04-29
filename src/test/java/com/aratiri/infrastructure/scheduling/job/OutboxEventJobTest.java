@@ -3,6 +3,7 @@ package com.aratiri.infrastructure.scheduling.job;
 import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.infrastructure.messaging.producer.OutboxEventProducer;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.OutboxPublishStatus;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,7 +16,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import java.time.Instant;
+
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,7 +39,7 @@ class OutboxEventJobTest {
 
     @Test
     void processOutboxEvents_shouldDoNothingWhenNoEvents() {
-        when(outboxEventRepository.findAndLockByProcessedAtIsNullOrderByCreatedAtAsc())
+        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection()))
                 .thenReturn(Collections.emptyList());
 
         outboxEventJob.processOutboxEvents();
@@ -52,7 +55,7 @@ class OutboxEventJobTest {
                 .payload("{\"test\": \"payload\"}")
                 .build();
 
-        when(outboxEventRepository.findAndLockByProcessedAtIsNullOrderByCreatedAtAsc())
+        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection()))
                 .thenReturn(List.of(event));
 
         outboxEventJob.processOutboxEvents();
@@ -62,6 +65,8 @@ class OutboxEventJobTest {
         ArgumentCaptor<OutboxEventEntity> captor = ArgumentCaptor.forClass(OutboxEventEntity.class);
         verify(outboxEventRepository).save(captor.capture());
         assertNotNull(captor.getValue().getProcessedAt());
+        assertEquals(OutboxPublishStatus.PUBLISHED, captor.getValue().getPublishStatus());
+        assertNull(captor.getValue().getLastError());
     }
 
     @Test
@@ -72,7 +77,7 @@ class OutboxEventJobTest {
                 .payload("{\"payment\": \"data\"}")
                 .build();
 
-        when(outboxEventRepository.findAndLockByProcessedAtIsNullOrderByCreatedAtAsc())
+        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection()))
                 .thenReturn(List.of(event));
 
         outboxEventJob.processOutboxEvents();
@@ -88,7 +93,7 @@ class OutboxEventJobTest {
                 .payload("{\"onchain\": \"data\"}")
                 .build();
 
-        when(outboxEventRepository.findAndLockByProcessedAtIsNullOrderByCreatedAtAsc())
+        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection()))
                 .thenReturn(List.of(event));
 
         outboxEventJob.processOutboxEvents();
@@ -104,7 +109,7 @@ class OutboxEventJobTest {
                 .payload("{\"transfer\": \"data\"}")
                 .build();
 
-        when(outboxEventRepository.findAndLockByProcessedAtIsNullOrderByCreatedAtAsc())
+        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection()))
                 .thenReturn(List.of(event));
 
         outboxEventJob.processOutboxEvents();
@@ -120,7 +125,7 @@ class OutboxEventJobTest {
                 .payload("{\"completed\": \"data\"}")
                 .build();
 
-        when(outboxEventRepository.findAndLockByProcessedAtIsNullOrderByCreatedAtAsc())
+        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection()))
                 .thenReturn(List.of(event));
 
         outboxEventJob.processOutboxEvents();
@@ -136,7 +141,7 @@ class OutboxEventJobTest {
                 .payload("{\"sent\": \"data\"}")
                 .build();
 
-        when(outboxEventRepository.findAndLockByProcessedAtIsNullOrderByCreatedAtAsc())
+        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection()))
                 .thenReturn(List.of(event));
 
         outboxEventJob.processOutboxEvents();
@@ -152,7 +157,7 @@ class OutboxEventJobTest {
                 .payload("{\"received\": \"data\"}")
                 .build();
 
-        when(outboxEventRepository.findAndLockByProcessedAtIsNullOrderByCreatedAtAsc())
+        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection()))
                 .thenReturn(List.of(event));
 
         outboxEventJob.processOutboxEvents();
@@ -168,7 +173,7 @@ class OutboxEventJobTest {
                 .payload("{\"paymentHash\": \"abc\"}")
                 .build();
 
-        when(outboxEventRepository.findAndLockByProcessedAtIsNullOrderByCreatedAtAsc())
+        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection()))
                 .thenReturn(List.of(event));
 
         outboxEventJob.processOutboxEvents();
@@ -177,19 +182,48 @@ class OutboxEventJobTest {
     }
 
     @Test
-    void processOutboxEvents_shouldIgnoreUnknownEventType() {
+    void processOutboxEvents_shouldMarkUnknownEventTypeInvalid() {
         OutboxEventEntity event = OutboxEventEntity.builder()
                 .id(UUID.randomUUID())
                 .eventType("unknown.event.type")
                 .payload("{\"unknown\": \"data\"}")
                 .build();
 
-        when(outboxEventRepository.findAndLockByProcessedAtIsNullOrderByCreatedAtAsc())
+        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection()))
                 .thenReturn(List.of(event));
 
         outboxEventJob.processOutboxEvents();
 
         verify(outboxEventProducer, never()).sendEvent(any(), any());
-        verify(outboxEventRepository, never()).save(any());
+        ArgumentCaptor<OutboxEventEntity> captor = ArgumentCaptor.forClass(OutboxEventEntity.class);
+        verify(outboxEventRepository).save(captor.capture());
+        assertEquals(OutboxPublishStatus.INVALID, captor.getValue().getPublishStatus());
+        assertNull(captor.getValue().getProcessedAt());
+        assertTrue(captor.getValue().getLastError().contains("unknown.event.type"));
+    }
+
+    @Test
+    void processOutboxEvents_shouldRecordFailureWithoutMarkingProcessedSoItCanRetry() {
+        OutboxEventEntity event = OutboxEventEntity.builder()
+                .id(UUID.randomUUID())
+                .eventType(KafkaTopics.PAYMENT_INITIATED.getCode())
+                .payload("{\"payment\": \"data\"}")
+                .build();
+
+        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection()))
+                .thenReturn(List.of(event));
+        doThrow(new IllegalStateException("kafka unavailable"))
+                .when(outboxEventProducer).sendEvent(KafkaTopics.PAYMENT_INITIATED, "{\"payment\": \"data\"}");
+
+        outboxEventJob.processOutboxEvents();
+
+        ArgumentCaptor<OutboxEventEntity> captor = ArgumentCaptor.forClass(OutboxEventEntity.class);
+        verify(outboxEventRepository).save(captor.capture());
+        OutboxEventEntity failed = captor.getValue();
+        assertEquals(OutboxPublishStatus.FAILED, failed.getPublishStatus());
+        assertEquals(1, failed.getPublishAttempts());
+        assertNull(failed.getProcessedAt());
+        assertEquals("kafka unavailable", failed.getLastError());
+        assertNotNull(failed.getNextAttemptAt());
     }
 }

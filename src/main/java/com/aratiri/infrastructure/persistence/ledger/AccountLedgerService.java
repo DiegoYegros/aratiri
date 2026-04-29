@@ -7,6 +7,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountEntryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
 import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.webhooks.application.AccountBalanceChangedWebhookFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,42 @@ public class AccountLedgerService {
             throw new AratiriException("Account not found for user: " + transaction.getUserId());
         }
         return appendEntry(account, transaction, deltaSats, entryType, description);
+    }
+
+    @Transactional
+    public long appendLightningDebitSettlement(TransactionEntity transaction) {
+        return appendExternalDebitSettlement(
+                transaction,
+                AccountEntryType.LIGHTNING_DEBIT,
+                "Lightning payment sent"
+        );
+    }
+
+    @Transactional
+    public long appendLightningCreditSettlement(TransactionEntity transaction) {
+        return appendIncomingCreditSettlement(
+                transaction,
+                AccountEntryType.LIGHTNING_CREDIT,
+                "Lightning invoice settled"
+        );
+    }
+
+    @Transactional
+    public long appendOnChainDebitSettlement(TransactionEntity transaction) {
+        return appendExternalDebitSettlement(
+                transaction,
+                AccountEntryType.ONCHAIN_DEBIT,
+                "On-chain withdrawal"
+        );
+    }
+
+    @Transactional
+    public long appendOnChainCreditSettlement(TransactionEntity transaction) {
+        return appendIncomingCreditSettlement(
+                transaction,
+                AccountEntryType.ONCHAIN_CREDIT,
+                "On-chain deposit"
+        );
     }
 
     @Transactional
@@ -66,6 +103,24 @@ public class AccountLedgerService {
                 .orElseGet(() -> appendNewEntry(account, transaction, deltaSats, entryType, description));
     }
 
+    private long appendExternalDebitSettlement(TransactionEntity transaction, AccountEntryType entryType, String description) {
+        AccountEntity account = accountRepository.findByUserIdForUpdate(transaction.getUserId())
+                .orElse(null);
+        if (account == null) {
+            throw new AratiriException("Account not found for user: " + transaction.getUserId());
+        }
+        return appendEntry(account, transaction, -transaction.getCurrentAmount(), entryType, description);
+    }
+
+    private long appendIncomingCreditSettlement(TransactionEntity transaction, AccountEntryType entryType, String description) {
+        AccountEntity account = accountRepository.findByUserIdForUpdate(transaction.getUserId())
+                .orElse(null);
+        if (account == null) {
+            throw new AratiriException("Account not found for user: " + transaction.getUserId());
+        }
+        return appendEntry(account, transaction, transaction.getCurrentAmount(), entryType, description);
+    }
+
     private long appendEntry(AccountEntity account, String transactionId, long deltaSats, AccountEntryType entryType, String description) {
         if (transactionId != null) {
             return accountEntryRepository.findFirstByAccount_IdAndTransactionIdOrderByCreatedAtDescIdDesc(account.getId(), transactionId)
@@ -91,7 +146,16 @@ public class AccountLedgerService {
         entry.setEntryType(entryType);
         entry.setDescription(description);
         accountEntryRepository.save(entry);
-        webhookEventService.createAccountBalanceChangedEvent(transaction, entry);
+        webhookEventService.createAccountBalanceChangedEvent(new AccountBalanceChangedWebhookFacts(
+                transaction.getId(),
+                transaction.getUserId(),
+                transaction.getExternalReference(),
+                transaction.getMetadata(),
+                Math.abs(deltaSats),
+                transaction.getReferenceId(),
+                entry.getId(),
+                entry.getBalanceAfter()
+        ));
         return newBalance;
     }
 

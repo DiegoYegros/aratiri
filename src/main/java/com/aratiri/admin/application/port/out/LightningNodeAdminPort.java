@@ -1,5 +1,7 @@
 package com.aratiri.admin.application.port.out;
 
+import com.aratiri.admin.application.dto.NodeInfoResponseDTO;
+import com.aratiri.admin.application.dto.PeerDTO;
 import lnrpc.*;
 
 import java.util.List;
@@ -18,7 +20,7 @@ public interface LightningNodeAdminPort {
 
     NodeMetricsResponse getNodeMetrics();
 
-    GetInfoResponse getNodeInfo();
+    NodeInfoResponseDTO getNodeInfo();
 
     ChannelBalanceResponse getChannelBalance();
 
@@ -28,5 +30,5 @@ public interface LightningNodeAdminPort {
 
     void connectPeer(String pubkey, String host);
 
-    List<Peer> listPeers();
+    List<PeerDTO> listPeers();
 }

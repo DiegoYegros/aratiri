@@ -1,5 +1,8 @@
 package com.aratiri.admin.infrastructure.lightning;
 
+import com.aratiri.admin.application.dto.ChainDTO;
+import com.aratiri.admin.application.dto.NodeInfoResponseDTO;
+import com.aratiri.admin.application.dto.PeerDTO;
 import com.aratiri.admin.application.port.out.LightningNodeAdminPort;
 import com.google.protobuf.ByteString;
 import lnrpc.*;
@@ -67,8 +70,9 @@ public class LightningNodeAdminAdapter implements LightningNodeAdminPort {
     }
 
     @Override
-    public GetInfoResponse getNodeInfo() {
-        return lightningStub.getInfo(GetInfoRequest.newBuilder().build());
+    public NodeInfoResponseDTO getNodeInfo() {
+        GetInfoResponse info = lightningStub.getInfo(GetInfoRequest.newBuilder().build());
+        return toNodeInfoResponseDTO(info);
     }
 
     @Override
@@ -98,7 +102,40 @@ public class LightningNodeAdminAdapter implements LightningNodeAdminPort {
     }
 
     @Override
-    public List<Peer> listPeers() {
-        return lightningStub.listPeers(ListPeersRequest.newBuilder().build()).getPeersList();
+    public List<PeerDTO> listPeers() {
+        return lightningStub.listPeers(ListPeersRequest.newBuilder().build()).getPeersList().stream()
+                .map(this::toPeerDTO)
+                .toList();
+    }
+
+    private PeerDTO toPeerDTO(Peer peer) {
+        return PeerDTO.builder()
+                .pubKey(peer.getPubKey())
+                .address(peer.getAddress())
+                .build();
+    }
+
+    private NodeInfoResponseDTO toNodeInfoResponseDTO(GetInfoResponse info) {
+        // lnrpc.Chain#chain is deprecated upstream (bitcoin is implied); expose a stable value for API clients.
+        List<ChainDTO> chains = info.getChainsList().stream()
+                .map(chain -> new ChainDTO("bitcoin", chain.getNetwork()))
+                .toList();
+        return NodeInfoResponseDTO.builder()
+                .version(info.getVersion())
+                .commitHash(info.getCommitHash())
+                .identityPubkey(info.getIdentityPubkey())
+                .alias(info.getAlias())
+                .color(info.getColor())
+                .numPendingChannels(info.getNumPendingChannels())
+                .numActiveChannels(info.getNumActiveChannels())
+                .numInactiveChannels(info.getNumInactiveChannels())
+                .numPeers(info.getNumPeers())
+                .blockHeight(info.getBlockHeight())
+                .blockHash(info.getBlockHash())
+                .syncedToChain(info.getSyncedToChain())
+                .syncedToGraph(info.getSyncedToGraph())
+                .chains(chains)
+                .uris(info.getUrisList())
+                .build();
     }
 }

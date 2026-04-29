@@ -7,7 +7,9 @@ import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
 import com.aratiri.infrastructure.persistence.jpa.repository.NodeOperationsRepository;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.application.port.out.InvoicesPort;
 import com.aratiri.payments.application.port.out.LightningNodePort;
+import com.aratiri.payments.domain.DecodedInvoice;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.webhooks.application.NodeOperationUnknownOutcomeFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
@@ -31,6 +33,7 @@ public class NodeOperationService {
     private final NodeOperationsRepository nodeOperationsRepository;
     private final NodeOperationProperties nodeOperationProperties;
     private final LightningNodePort lightningNodePort;
+    private final InvoicesPort invoicesPort;
     private final NodeOperationState stateManager;
     private final NodeOperationClaimer claimer;
     private final WebhookEventService webhookEventService;
@@ -42,49 +45,53 @@ public class NodeOperationService {
     private int defaultTimeoutSeconds;
 
     @Transactional
-    public NodeOperationEntity enqueueLightningPayment(String transactionId, String userId, String paymentHash, String requestPayload) {
-        Optional<NodeOperationEntity> existing = nodeOperationsRepository.findByTransactionId(transactionId);
+    public NodeOperationEntity enqueueLightningPayment(LightningPaymentOperation payment) {
+        requireLightningPayment(payment);
+        Optional<NodeOperationEntity> existing = nodeOperationsRepository.findByTransactionId(payment.transactionId());
         if (existing.isPresent()) {
-            log.info("Node operation already exists for transactionId: {}", transactionId);
+            log.info("Node operation already exists for transactionId: {}", payment.transactionId());
             return existing.get();
         }
 
+        String paymentHash = resolvePaymentHash(payment);
+        LightningPaymentOperation durablePayment = payment.withPaymentHash(paymentHash);
+
         NodeOperationEntity operation = NodeOperationEntity.builder()
-                .transactionId(transactionId)
-                .userId(userId)
+                .transactionId(payment.transactionId())
+                .userId(payment.userId())
                 .operationType(NodeOperationType.LIGHTNING_PAYMENT)
                 .status(NodeOperationStatus.PENDING)
                 .referenceId(paymentHash)
-                .requestPayload(requestPayload)
+                .requestPayload(JsonUtils.toJson(durablePayment))
                 .attemptCount(0)
                 .nextAttemptAt(Instant.now())
                 .build();
 
         NodeOperationEntity saved = nodeOperationsRepository.save(operation);
-        log.info("Enqueued lightning payment operation: id={}, transactionId={}", saved.getId(), transactionId);
+        log.info("Enqueued lightning payment operation: id={}, transactionId={}", saved.getId(), payment.transactionId());
         return saved;
     }
 
     @Transactional
-    public NodeOperationEntity enqueueOnChainSend(String transactionId, String userId, String requestPayload) {
-        Optional<NodeOperationEntity> existing = nodeOperationsRepository.findByTransactionId(transactionId);
+    public NodeOperationEntity enqueueOnChainSend(OnChainSendOperationFact fact) {
+        Optional<NodeOperationEntity> existing = nodeOperationsRepository.findByTransactionId(fact.transactionId());
         if (existing.isPresent()) {
-            log.info("Node operation already exists for transactionId: {}", transactionId);
+            log.info("Node operation already exists for transactionId: {}", fact.transactionId());
             return existing.get();
         }
 
         NodeOperationEntity operation = NodeOperationEntity.builder()
-                .transactionId(transactionId)
-                .userId(userId)
+                .transactionId(fact.transactionId())
+                .userId(fact.userId())
                 .operationType(NodeOperationType.ONCHAIN_SEND)
                 .status(NodeOperationStatus.PENDING)
-                .requestPayload(requestPayload)
+                .requestPayload(JsonUtils.toJson(fact.toRequestDto()))
                 .attemptCount(0)
                 .nextAttemptAt(Instant.now())
                 .build();
 
         NodeOperationEntity saved = nodeOperationsRepository.save(operation);
-        log.info("Enqueued on-chain send operation: id={}, transactionId={}", saved.getId(), transactionId);
+        log.info("Enqueued on-chain send operation: id={}, transactionId={}", saved.getId(), fact.transactionId());
         return saved;
     }
 
@@ -167,12 +174,12 @@ public class NodeOperationService {
             stateManager.failTransaction(op.getTransactionId(), reason);
             stateManager.markFailed(op, "LND reported payment failure: " + reason);
         } else {
-            stateManager.markRetryable(op, "LND payment outcome is unknown: " + payment.getStatus());
+            handleUnknownLightningOutcome(op, "LND payment outcome is unknown: " + payment.getStatus());
         }
     }
 
     private void executeSendPayment(NodeOperationEntity op) {
-        PayInvoiceRequestDTO request = normalizeInvoice(JsonUtils.fromJson(op.getRequestPayload(), PayInvoiceRequestDTO.class));
+        PayInvoiceRequestDTO request = normalizeInvoice(paymentRequestFromPayload(op));
         Payment finalPayment;
         try {
             finalPayment = lightningNodePort.executeLightningPayment(request, defaultFeeLimitSat, defaultTimeoutSeconds);
@@ -185,7 +192,7 @@ public class NodeOperationService {
         }
 
         if (finalPayment == null) {
-            stateManager.markRetryable(op, "LND payment returned no terminal result");
+            handleUnknownLightningOutcome(op, "LND payment returned no terminal result");
             return;
         }
 
@@ -200,7 +207,16 @@ public class NodeOperationService {
             stateManager.failTransaction(op.getTransactionId(), reason);
             stateManager.markFailed(op, "LND payment failure: " + reason);
         } else {
-            stateManager.markRetryable(op, "LND payment outcome is unknown: " + finalPayment.getStatus());
+            handleUnknownLightningOutcome(op, "LND payment outcome is unknown: " + finalPayment.getStatus());
+        }
+    }
+
+    private void handleUnknownLightningOutcome(NodeOperationEntity op, String message) {
+        int maxAttempts = nodeOperationProperties.getLightningMaxAttempts();
+        if (op.getAttemptCount() >= maxAttempts) {
+            markUnknownOutcome(op, message + " after max attempts");
+        } else {
+            stateManager.markRetryable(op, message);
         }
     }
 
@@ -260,14 +276,77 @@ public class NodeOperationService {
         op.setLockedBy(null);
         op.setLockedUntil(null);
         nodeOperationsRepository.save(op);
-        webhookEventService.createNodeOperationUnknownOutcomeEvent(NodeOperationUnknownOutcomeFacts.from(
-                op,
-                stateManager.findTransaction(op.getTransactionId(), op.getUserId())
-        ));
+        webhookEventService.createNodeOperationUnknownOutcomeEvent(nodeOperationUnknownOutcomeFacts(op));
+    }
+
+    private NodeOperationUnknownOutcomeFacts nodeOperationUnknownOutcomeFacts(NodeOperationEntity op) {
+        var transaction = stateManager.findTransaction(op.getTransactionId(), op.getUserId()).orElse(null);
+        return new NodeOperationUnknownOutcomeFacts(
+                op.getId().toString(),
+                op.getTransactionId(),
+                op.getUserId(),
+                op.getOperationType().name(),
+                op.getStatus().name(),
+                firstPresent(op.getReferenceId(), transaction == null ? null : transaction.getReferenceId()),
+                op.getExternalId(),
+                op.getAttemptCount(),
+                op.getLastError(),
+                transaction == null ? null : transaction.getAmountSat(),
+                transaction == null || transaction.getStatus() == null ? null : transaction.getStatus().name(),
+                transaction == null ? null : transaction.getExternalReference(),
+                transaction == null ? null : transaction.getMetadata()
+        );
+    }
+
+    private String firstPresent(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        return second;
     }
 
     private boolean hasBroadcastId(NodeOperationEntity op) {
         return op.getExternalId() != null && !op.getExternalId().isBlank();
+    }
+
+    private void requireLightningPayment(LightningPaymentOperation payment) {
+        if (payment == null) {
+            throw new IllegalArgumentException("Lightning payment operation must not be null");
+        }
+        if (isBlank(payment.transactionId())) {
+            throw new IllegalArgumentException("Lightning payment transactionId must not be blank");
+        }
+        if (isBlank(payment.userId())) {
+            throw new IllegalArgumentException("Lightning payment userId must not be blank");
+        }
+        if (isBlank(payment.invoice())) {
+            throw new IllegalArgumentException("Lightning payment invoice must not be blank");
+        }
+    }
+
+    private String resolvePaymentHash(LightningPaymentOperation payment) {
+        if (!isBlank(payment.paymentHash())) {
+            return payment.paymentHash();
+        }
+        try {
+            DecodedInvoice decoded = invoicesPort.decodeInvoice(payment.invoice());
+            return decoded.paymentHash();
+        } catch (Exception e) {
+            log.warn("Failed to decode invoice for transactionId: {}, enqueueing without payment hash", payment.transactionId(), e);
+            return null;
+        }
+    }
+
+    private PayInvoiceRequestDTO paymentRequestFromPayload(NodeOperationEntity op) {
+        try {
+            LightningPaymentOperation payment = JsonUtils.fromJson(op.getRequestPayload(), LightningPaymentOperation.class);
+            if (!isBlank(payment.invoice())) {
+                return payment.toPaymentRequest();
+            }
+        } catch (Exception e) {
+            log.debug("Lightning operation id={} payload is not a LightningPaymentOperation: {}", op.getId(), e.getMessage());
+        }
+        return JsonUtils.fromJson(op.getRequestPayload(), PayInvoiceRequestDTO.class);
     }
 
     private PayInvoiceRequestDTO normalizeInvoice(PayInvoiceRequestDTO request) {
@@ -280,6 +359,10 @@ public class NodeOperationService {
         normalized.setFeeLimitSat(request.getFeeLimitSat());
         normalized.setTimeoutSeconds(request.getTimeoutSeconds());
         return normalized;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     @FunctionalInterface

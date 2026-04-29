@@ -8,6 +8,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
+import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import com.aratiri.payments.application.event.PaymentSentEvent;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
@@ -16,7 +17,6 @@ import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
-import com.aratiri.transactions.application.processor.TransactionProcessor;
 import com.aratiri.webhooks.application.InvoiceSettledWebhookFacts;
 import com.aratiri.webhooks.application.OnChainDepositWebhookFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -59,7 +58,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final TransactionsRepository transactionsRepository;
     private final TransactionEventRepository transactionEventRepository;
-    private final Map<TransactionType, TransactionProcessor> processors;
+    private final AccountLedgerService accountLedgerService;
     private final OutboxWriter outboxWriter;
     private final WebhookEventService webhookEventService;
     private final LightningInvoiceRepository lightningInvoiceRepository;
@@ -67,15 +66,14 @@ public class TransactionSettlementService implements TransactionSettlementModule
     public TransactionSettlementService(
             TransactionsRepository transactionsRepository,
             TransactionEventRepository transactionEventRepository,
-            List<TransactionProcessor> processorList,
+            AccountLedgerService accountLedgerService,
             OutboxWriter outboxWriter,
             WebhookEventService webhookEventService,
             LightningInvoiceRepository lightningInvoiceRepository
     ) {
         this.transactionsRepository = transactionsRepository;
         this.transactionEventRepository = transactionEventRepository;
-        this.processors = processorList.stream()
-                .collect(Collectors.toMap(TransactionProcessor::supportedType, Function.identity()));
+        this.accountLedgerService = accountLedgerService;
         this.outboxWriter = outboxWriter;
         this.webhookEventService = webhookEventService;
         this.lightningInvoiceRepository = lightningInvoiceRepository;
@@ -216,11 +214,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
         if (!state.isPending()) {
             throw new AratiriException(String.format("Transaction status [%s] is not valid for confirmation.", state.status()));
         }
-        TransactionProcessor processor = processors.get(transaction.getType());
-        if (processor == null) {
-            throw new IllegalStateException("No processor configured for type: " + transaction.getType());
-        }
-        long newBalanceSat = processor.process(transaction);
+        long newBalanceSat = postLedgerEntry(transaction);
         appendStatusEvent(transaction, TransactionStatus.COMPLETED, newBalanceSat, null);
         transaction.setCurrentStatus(STATUS_COMPLETED);
         transaction.setBalanceAfter(newBalanceSat);
@@ -353,6 +347,22 @@ public class TransactionSettlementService implements TransactionSettlementModule
                     action
             ));
         }
+    }
+
+    private long postLedgerEntry(TransactionEntity transaction) {
+        if (transaction.getType() == TransactionType.LIGHTNING_CREDIT) {
+            return accountLedgerService.appendLightningCreditSettlement(transaction);
+        }
+        if (transaction.getType() == TransactionType.ONCHAIN_CREDIT) {
+            return accountLedgerService.appendOnChainCreditSettlement(transaction);
+        }
+        if (transaction.getType() == TransactionType.LIGHTNING_DEBIT) {
+            return accountLedgerService.appendLightningDebitSettlement(transaction);
+        }
+        if (transaction.getType() == TransactionType.ONCHAIN_DEBIT) {
+            return accountLedgerService.appendOnChainDebitSettlement(transaction);
+        }
+        throw new IllegalStateException("No ledger settlement configured for type: " + transaction.getType());
     }
 
     private void requireInternalTransferDebit(TransactionEntity transaction, InternalTransferSettlement settlement) {

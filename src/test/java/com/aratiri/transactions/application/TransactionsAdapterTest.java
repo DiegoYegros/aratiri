@@ -7,9 +7,9 @@ import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
+import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
-import com.aratiri.transactions.application.processor.TransactionProcessor;
 import com.aratiri.webhooks.application.WebhookEventService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,10 +41,7 @@ class TransactionsAdapterTest {
     private OutboxWriter outboxWriter;
 
     @Mock
-    private TransactionProcessor debitProcessor;
-
-    @Mock
-    private TransactionProcessor creditProcessor;
+    private AccountLedgerService accountLedgerService;
 
     @Mock
     private WebhookEventService webhookEventService;
@@ -57,12 +54,10 @@ class TransactionsAdapterTest {
 
     @BeforeEach
     void setUp() {
-        when(debitProcessor.supportedType()).thenReturn(TransactionType.LIGHTNING_DEBIT);
-        when(creditProcessor.supportedType()).thenReturn(TransactionType.LIGHTNING_CREDIT);
         transactionSettlementService = new TransactionSettlementService(
                 transactionsRepository,
                 transactionEventRepository,
-                List.of(creditProcessor, debitProcessor),
+                accountLedgerService,
                 outboxWriter,
                 webhookEventService,
                 lightningInvoiceRepository
@@ -112,13 +107,14 @@ class TransactionsAdapterTest {
         pendingTx.setId(TRANSACTION_ID);
         pendingTx.setUserId(USER_ID);
         pendingTx.setAmount(1500L);
+        pendingTx.setCurrentAmount(1500L);
         pendingTx.setCurrency(TransactionCurrency.BTC);
         pendingTx.setType(TransactionType.LIGHTNING_DEBIT);
         pendingTx.setReferenceId("payhash");
         pendingTx.setCreatedAt(Instant.now());
 
         when(transactionsRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(pendingTx));
-        when(debitProcessor.process(pendingTx)).thenReturn(8500L);
+        when(accountLedgerService.appendLightningDebitSettlement(pendingTx)).thenReturn(8500L);
 
         List<TransactionEventEntity> pendingEvents = List.of(statusEvent(pendingTx, TransactionStatus.PENDING));
         List<TransactionEventEntity> completedEvents = List.of(
@@ -132,6 +128,29 @@ class TransactionsAdapterTest {
 
         assertEquals(TransactionStatus.COMPLETED, response.getStatus());
         verify(outboxWriter).publishPaymentSent(eq(TRANSACTION_ID), any());
+        verify(accountLedgerService).appendLightningDebitSettlement(pendingTx);
+    }
+
+    @Test
+    void confirmTransaction_shouldRejectAnotherUsersDebit() {
+        TransactionEntity pendingTx = new TransactionEntity();
+        pendingTx.setId(TRANSACTION_ID);
+        pendingTx.setUserId("other-user");
+        pendingTx.setAmount(1500L);
+        pendingTx.setCurrentAmount(1500L);
+        pendingTx.setCurrency(TransactionCurrency.BTC);
+        pendingTx.setType(TransactionType.LIGHTNING_DEBIT);
+        pendingTx.setCreatedAt(Instant.now());
+
+        when(transactionsRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(pendingTx));
+
+        AratiriException exception = assertThrows(
+                AratiriException.class,
+                () -> transactionsAdapter.confirmTransaction(TRANSACTION_ID, USER_ID)
+        );
+
+        assertTrue(exception.getMessage().contains("does not correspond to current user"));
+        verifyNoInteractions(accountLedgerService);
     }
 
     @Test

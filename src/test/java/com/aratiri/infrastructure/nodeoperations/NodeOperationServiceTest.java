@@ -5,9 +5,10 @@ import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
 import com.aratiri.infrastructure.persistence.jpa.repository.NodeOperationsRepository;
-import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.application.port.out.InvoicesPort;
 import com.aratiri.payments.application.port.out.LightningNodePort;
+import com.aratiri.payments.domain.DecodedInvoice;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
@@ -44,6 +45,9 @@ class NodeOperationServiceTest {
     private LightningNodePort lightningNodePort;
 
     @Mock
+    private InvoicesPort invoicesPort;
+
+    @Mock
     private TransactionsPort transactionsPort;
 
     @Mock
@@ -71,12 +75,57 @@ class NodeOperationServiceTest {
                 nodeOperationsRepository,
                 nodeOperationProperties,
                 lightningNodePort,
+                invoicesPort,
                 stateManager,
                 claimer,
                 webhookEventService
         );
         ReflectionTestUtils.setField(service, "defaultFeeLimitSat", 200);
         ReflectionTestUtils.setField(service, "defaultTimeoutSeconds", 200);
+    }
+
+    @Test
+    void enqueueLightningPayment_storesDurableFactWithDecodedPaymentHashAndIsIdempotentByTransactionId() {
+        LightningPaymentOperation payment = lightningPayment();
+        when(nodeOperationsRepository.findByTransactionId(TX_ID)).thenReturn(Optional.empty());
+        when(invoicesPort.decodeInvoice("lightning:lnbc1test"))
+                .thenReturn(new DecodedInvoice(PAYMENT_HASH, 1_000L, "memo"));
+        when(nodeOperationsRepository.save(any(NodeOperationEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        NodeOperationEntity saved = service.enqueueLightningPayment(payment);
+
+        assertEquals(TX_ID, saved.getTransactionId());
+        assertEquals(USER_ID, saved.getUserId());
+        assertEquals(NodeOperationType.LIGHTNING_PAYMENT, saved.getOperationType());
+        assertEquals(NodeOperationStatus.PENDING, saved.getStatus());
+        assertEquals(PAYMENT_HASH, saved.getReferenceId());
+        assertEquals(0, saved.getAttemptCount());
+        assertNotNull(saved.getNextAttemptAt());
+
+        LightningPaymentOperation payload = JsonUtils.fromJson(saved.getRequestPayload(), LightningPaymentOperation.class);
+        assertEquals(TX_ID, payload.transactionId());
+        assertEquals(USER_ID, payload.userId());
+        assertEquals(PAYMENT_HASH, payload.paymentHash());
+        assertEquals("lightning:lnbc1test", payload.invoice());
+        assertEquals(101L, payload.feeLimitSat());
+        assertEquals(22, payload.timeoutSeconds());
+        assertEquals("external-1", payload.externalReference());
+        assertEquals("{\"order\":\"123\"}", payload.metadata());
+
+        NodeOperationEntity existing = NodeOperationEntity.builder()
+                .transactionId(TX_ID)
+                .userId(USER_ID)
+                .operationType(NodeOperationType.LIGHTNING_PAYMENT)
+                .status(NodeOperationStatus.PENDING)
+                .referenceId(PAYMENT_HASH)
+                .requestPayload(saved.getRequestPayload())
+                .attemptCount(0)
+                .build();
+        when(nodeOperationsRepository.findByTransactionId(TX_ID)).thenReturn(Optional.of(existing));
+
+        assertSame(existing, service.enqueueLightningPayment(payment));
+        verify(nodeOperationsRepository, times(1)).save(any(NodeOperationEntity.class));
+        verify(invoicesPort, times(1)).decodeInvoice("lightning:lnbc1test");
     }
 
     @Test
@@ -228,6 +277,47 @@ class NodeOperationServiceTest {
     }
 
     @Test
+    void lightning_unknownSendOutcomeBeforeMaxAttempts_recordsRetryWithoutSettlement() {
+        NodeOperationEntity op = buildLightningOperation(NodeOperationStatus.IN_PROGRESS, 2);
+        Payment payment = Payment.newBuilder()
+                .setStatus(Payment.PaymentStatus.INITIATED)
+                .build();
+        when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.empty());
+        when(lightningNodePort.executeLightningPayment(any(), eq(200), eq(200))).thenReturn(payment);
+
+        service.executeLightning(op);
+
+        assertEquals(NodeOperationStatus.PENDING, op.getStatus());
+        assertEquals("LND payment outcome is unknown: INITIATED", op.getLastError());
+        verify(transactionsPort, never()).confirmTransaction(any(), any());
+        verify(transactionsPort, never()).failTransaction(any(), any());
+        verify(webhookEventService, never()).createNodeOperationUnknownOutcomeEvent(any());
+        verify(nodeOperationsRepository).save(op);
+    }
+
+    @Test
+    void lightning_unknownExistingPaymentAtMaxAttempts_recordsUnknownOutcome() {
+        NodeOperationEntity op = buildLightningOperation(NodeOperationStatus.IN_PROGRESS, 5);
+        Payment payment = Payment.newBuilder()
+                .setStatus(Payment.PaymentStatus.INITIATED)
+                .build();
+        when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.of(payment));
+
+        service.executeLightning(op);
+
+        assertEquals(NodeOperationStatus.UNKNOWN_OUTCOME, op.getStatus());
+        assertTrue(op.getLastError().contains("LND payment outcome is unknown: INITIATED"));
+        assertTrue(op.getLastError().contains("after max attempts"));
+        NodeOperationUnknownOutcomeFacts facts = captureUnknownOutcomeFacts();
+        assertEquals(NodeOperationType.LIGHTNING_PAYMENT.name(), facts.operationType());
+        assertEquals(PAYMENT_HASH, facts.referenceId());
+        verify(lightningNodePort, never()).executeLightningPayment(any(), anyInt(), anyInt());
+        verify(transactionsPort, never()).confirmTransaction(any(), any());
+        verify(transactionsPort, never()).failTransaction(any(), any());
+        verify(nodeOperationsRepository).save(op);
+    }
+
+    @Test
     void onChain_txidSaved_confirmationThrows_nextRunResumesWithoutSendOnChain() {
         NodeOperationEntity op = buildOnChainOperation(NodeOperationStatus.IN_PROGRESS, 1);
 
@@ -251,6 +341,41 @@ class NodeOperationServiceTest {
 
         verifyNoMoreInteractions(lightningNodePort);
         verify(transactionsPort, times(2)).confirmTransaction(TX_ID, USER_ID);
+    }
+
+    @Test
+    void enqueueOnChainSend_storesDurablePayloadFromOperationFactAndIsIdempotentByTransactionId() {
+        OnChainSendOperationFact fact = onChainFact();
+        when(nodeOperationsRepository.findByTransactionId(TX_ID)).thenReturn(Optional.empty());
+        when(nodeOperationsRepository.save(any(NodeOperationEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        NodeOperationEntity saved = service.enqueueOnChainSend(fact);
+
+        assertEquals(TX_ID, saved.getTransactionId());
+        assertEquals(USER_ID, saved.getUserId());
+        assertEquals(NodeOperationType.ONCHAIN_SEND, saved.getOperationType());
+        assertEquals(NodeOperationStatus.PENDING, saved.getStatus());
+        assertEquals(0, saved.getAttemptCount());
+        assertNotNull(saved.getNextAttemptAt());
+        assertTrue(saved.getRequestPayload().contains("\"address\":\"tb1qtest\""));
+        assertTrue(saved.getRequestPayload().contains("\"sats_amount\":1000"));
+        assertTrue(saved.getRequestPayload().contains("\"sat_per_vbyte\":12"));
+        assertTrue(saved.getRequestPayload().contains("\"target_conf\":3"));
+        assertTrue(saved.getRequestPayload().contains("\"external_reference\":\"external-1\""));
+        assertTrue(saved.getRequestPayload().contains("\"metadata\":\"{\\\"order\\\":\\\"123\\\"}\""));
+
+        NodeOperationEntity existing = NodeOperationEntity.builder()
+                .transactionId(TX_ID)
+                .userId(USER_ID)
+                .operationType(NodeOperationType.ONCHAIN_SEND)
+                .status(NodeOperationStatus.PENDING)
+                .requestPayload(saved.getRequestPayload())
+                .attemptCount(0)
+                .build();
+        when(nodeOperationsRepository.findByTransactionId(TX_ID)).thenReturn(Optional.of(existing));
+
+        assertSame(existing, service.enqueueOnChainSend(fact));
+        verify(nodeOperationsRepository, times(1)).save(any(NodeOperationEntity.class));
     }
 
     @Test
@@ -302,6 +427,23 @@ class NodeOperationServiceTest {
     }
 
     @Test
+    void onChain_blankTxid_marksUnknownOutcomeWithoutConfirmingTransaction() {
+        NodeOperationEntity op = buildOnChainOperation(NodeOperationStatus.IN_PROGRESS, 1);
+        when(lightningNodePort.sendOnChain(any())).thenReturn(" ");
+        when(transactionsPort.getTransactionById(TX_ID, USER_ID)).thenReturn(Optional.of(transaction()));
+
+        service.executeOnChain(op);
+
+        assertEquals(NodeOperationStatus.UNKNOWN_OUTCOME, op.getStatus());
+        assertEquals("LND sendCoins returned no transaction id", op.getLastError());
+        assertNull(op.getExternalId());
+        NodeOperationUnknownOutcomeFacts facts = captureUnknownOutcomeFacts();
+        assertEquals(NodeOperationType.ONCHAIN_SEND.name(), facts.operationType());
+        assertEquals(TransactionStatus.PENDING.name(), facts.transactionStatus());
+        verify(transactionsPort, never()).confirmTransaction(any(), any());
+    }
+
+    @Test
     void onChain_withExternalId_confirmsWithoutSendOnChain() {
         NodeOperationEntity op = buildOnChainOperation(NodeOperationStatus.IN_PROGRESS, 1);
         op.setExternalId("preexisting-txid");
@@ -319,8 +461,6 @@ class NodeOperationServiceTest {
     }
 
     private NodeOperationEntity buildLightningOperation(NodeOperationStatus status, int attemptCount) {
-        PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
-        request.setInvoice("lightning:lnbc1test");
         NodeOperationEntity op = new NodeOperationEntity();
         op.setId(UUID.randomUUID());
         op.setTransactionId(TX_ID);
@@ -329,25 +469,42 @@ class NodeOperationServiceTest {
         op.setStatus(status);
         op.setAttemptCount(attemptCount);
         op.setReferenceId(PAYMENT_HASH);
-        op.setRequestPayload(JsonUtils.toJson(request));
+        op.setRequestPayload(JsonUtils.toJson(lightningPayment().withPaymentHash(PAYMENT_HASH)));
         return op;
     }
 
-    private NodeOperationEntity buildOnChainOperation(NodeOperationStatus status, int attemptCount) {
-        OnChainPaymentDTOs.SendOnChainRequestDTO request = new OnChainPaymentDTOs.SendOnChainRequestDTO();
-        request.setAddress("tb1qtest");
-        request.setSatsAmount(1_000L);
+    private LightningPaymentOperation lightningPayment() {
+        PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
+        request.setInvoice("lightning:lnbc1test");
+        request.setFeeLimitSat(101L);
+        request.setTimeoutSeconds(22);
         request.setExternalReference("external-1");
         request.setMetadata("{\"order\":\"123\"}");
-        NodeOperationEntity op = new NodeOperationEntity();
+        return LightningPaymentOperation.fromPaymentRequest(TX_ID, USER_ID, request);
+    }
+
+    private NodeOperationEntity buildOnChainOperation(NodeOperationStatus status, int attemptCount) {
+        when(nodeOperationsRepository.findByTransactionId(TX_ID)).thenReturn(Optional.empty());
+        when(nodeOperationsRepository.save(any(NodeOperationEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        NodeOperationEntity op = service.enqueueOnChainSend(onChainFact());
+        clearInvocations(nodeOperationsRepository);
         op.setId(UUID.randomUUID());
-        op.setTransactionId(TX_ID);
-        op.setUserId(USER_ID);
-        op.setOperationType(NodeOperationType.ONCHAIN_SEND);
         op.setStatus(status);
         op.setAttemptCount(attemptCount);
-        op.setRequestPayload(JsonUtils.toJson(request));
         return op;
+    }
+
+    private OnChainSendOperationFact onChainFact() {
+        return new OnChainSendOperationFact(
+                TX_ID,
+                USER_ID,
+                "tb1qtest",
+                1_000L,
+                12L,
+                3,
+                "external-1",
+                "{\"order\":\"123\"}"
+        );
     }
 
     private TransactionDTOResponse transaction() {

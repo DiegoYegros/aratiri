@@ -7,53 +7,87 @@ import com.aratiri.infrastructure.persistence.jpa.repository.WebhookDeliveryRepo
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEndpointRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
 import java.time.Instant;
-import java.util.HexFormat;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class WebhookDeliveryService {
+public class WebhookDeliveryService implements WebhookDeliveryLifecycle {
 
-    private static final String USER_AGENT = "Aratiri-Webhooks/1.0";
-    private static final String SIGNATURE_VERSION = "v1";
-    private static final long CONNECT_TIMEOUT_SECONDS = 10;
-    private static final long READ_TIMEOUT_SECONDS = 10;
-
+    private static final String LOCKED_BY_PREFIX = "webhook-worker-";
+    private static final long LEASE_SECONDS = 120;
+    private static final int BATCH_SIZE = 50;
     private static final long[] RETRY_DELAYS_MINUTES = {1, 5, 15, 60, 360};
     private static final int MAX_ATTEMPTS = 12;
 
     private final WebhookDeliveryRepository webhookDeliveryRepository;
     private final WebhookEndpointRepository webhookEndpointRepository;
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
-            .followRedirects(HttpClient.Redirect.NEVER)
-            .build();
+    private final WebhookDeliverySender webhookDeliverySender;
+
+    @Override
+    @Transactional
+    public List<WebhookDeliveryEntity> claimRunnableDeliveries() {
+        Instant now = Instant.now();
+        Instant lockedUntil = now.plusSeconds(LEASE_SECONDS);
+        String lockedBy = LOCKED_BY_PREFIX + Thread.currentThread().threadId();
+        PageRequest page = PageRequest.of(0, BATCH_SIZE);
+
+        List<WebhookDeliveryEntity> pending = webhookDeliveryRepository.findRunnableDeliveries(now, page);
+        List<WebhookDeliveryEntity> claimed = new ArrayList<>();
+
+        for (WebhookDeliveryEntity delivery : pending) {
+            int updated = webhookDeliveryRepository.claimDelivery(
+                    delivery.getId(),
+                    lockedBy,
+                    lockedUntil,
+                    now
+            );
+            if (updated > 0) {
+                delivery.setLockedBy(lockedBy);
+                delivery.setLockedUntil(lockedUntil);
+                claimed.add(delivery);
+            }
+        }
+        return claimed;
+    }
+
+    @Override
+    public void attemptDelivery(WebhookDeliveryEntity delivery) {
+        try {
+            boolean success = deliver(delivery);
+            if (!success) {
+                scheduleRetryOrFail(delivery);
+            }
+        } catch (Exception e) {
+            log.error("Unexpected error processing webhook delivery id={}", delivery.getId(), e);
+            try {
+                delivery.setLastError("Unexpected: " + e.getMessage());
+                scheduleRetryOrFail(delivery);
+            } catch (Exception ex) {
+                log.error("Failed to schedule retry for delivery id={}", delivery.getId(), ex);
+            }
+        }
+    }
 
     public boolean deliver(WebhookDeliveryEntity delivery) {
         Optional<WebhookEndpointEntity> endpointOpt = webhookEndpointRepository.findById(delivery.getEndpointId());
         if (endpointOpt.isEmpty()) {
             log.warn("Endpoint not found for delivery id={}", delivery.getId());
+            delivery.setLastError("Endpoint not found");
             return false;
         }
         WebhookEndpointEntity endpoint = endpointOpt.get();
         if (!Boolean.TRUE.equals(endpoint.getEnabled())) {
             log.debug("Endpoint {} is disabled, skipping delivery {}", endpoint.getId(), delivery.getId());
+            delivery.setLastError("Endpoint disabled");
             return false;
         }
 
@@ -62,46 +96,18 @@ public class WebhookDeliveryService {
 
     private boolean sendDelivery(WebhookDeliveryEntity delivery, WebhookEndpointEntity endpoint) {
         try {
-            String payload = delivery.getPayload() != null ? delivery.getPayload() : "";
-            String timestamp = String.valueOf(Instant.now().getEpochSecond());
-            String signature = generateSignature(endpoint.getSigningSecret(), timestamp, delivery.getEventId().toString(), payload);
+            WebhookSendResult result = webhookDeliverySender.send(delivery, endpoint);
+            delivery.setResponseStatus(result.statusCode());
+            delivery.setResponseBody(result.body());
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(endpoint.getUrl()))
-                    .header("Content-Type", "application/json")
-                    .header("User-Agent", USER_AGENT)
-                    .header("X-Aratiri-Event-Id", delivery.getEventId().toString())
-                    .header("X-Aratiri-Event-Type", delivery.getEventType())
-                    .header("X-Aratiri-Delivery-Id", delivery.getId().toString())
-                    .header("X-Aratiri-Timestamp", timestamp)
-                    .header("X-Aratiri-Signature", signature)
-                    .timeout(Duration.ofSeconds(READ_TIMEOUT_SECONDS))
-                    .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            delivery.setResponseStatus(response.statusCode());
-            delivery.setResponseBody(response.body());
-
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                delivery.setAttemptCount(delivery.getAttemptCount() + 1);
-                delivery.setStatus(WebhookDeliveryStatus.SUCCEEDED);
-                delivery.setDeliveredAt(Instant.now());
-                delivery.setLastError(null);
-                delivery.setLockedBy(null);
-                delivery.setLockedUntil(null);
-                endpoint.setLastSuccessAt(Instant.now());
-                webhookEndpointRepository.save(endpoint);
-                webhookDeliveryRepository.save(delivery);
-                log.info("Webhook delivery succeeded for deliveryId={}, endpoint={}, status={}",
-                        delivery.getId(), endpoint.getId(), response.statusCode());
+            if (result.successful()) {
+                recordDeliverySuccess(delivery, endpoint, result);
                 return true;
             } else {
-                String error = "HTTP " + response.statusCode();
+                String error = "HTTP " + result.statusCode();
                 delivery.setLastError(error);
                 log.warn("Webhook delivery failed for deliveryId={}, endpoint={}, status={}",
-                        delivery.getId(), endpoint.getId(), response.statusCode());
+                        delivery.getId(), endpoint.getId(), result.statusCode());
                 return false;
             }
         } catch (InterruptedException e) {
@@ -118,7 +124,27 @@ public class WebhookDeliveryService {
         }
     }
 
+    @Override
+    public void recordDeliverySuccess(WebhookDeliveryEntity delivery, WebhookEndpointEntity endpoint, WebhookSendResult result) {
+        Instant now = Instant.now();
+        delivery.setResponseStatus(result.statusCode());
+        delivery.setResponseBody(result.body());
+        delivery.setAttemptCount(delivery.getAttemptCount() + 1);
+        delivery.setStatus(WebhookDeliveryStatus.SUCCEEDED);
+        delivery.setDeliveredAt(now);
+        delivery.setLastError(null);
+        delivery.setLockedBy(null);
+        delivery.setLockedUntil(null);
+        endpoint.setLastSuccessAt(now);
+        webhookEndpointRepository.save(endpoint);
+        webhookDeliveryRepository.save(delivery);
+        log.info("Webhook delivery succeeded for deliveryId={}, endpoint={}, status={}",
+                delivery.getId(), endpoint.getId(), result.statusCode());
+    }
+
+    @Override
     public void scheduleRetryOrFail(WebhookDeliveryEntity delivery) {
+        Instant now = Instant.now();
         int completedAttempts = delivery.getAttemptCount();
         if (completedAttempts + 1 >= MAX_ATTEMPTS) {
             delivery.setStatus(WebhookDeliveryStatus.FAILED);
@@ -128,7 +154,7 @@ public class WebhookDeliveryService {
             long delayMinutes = completedAttempts < RETRY_DELAYS_MINUTES.length
                     ? RETRY_DELAYS_MINUTES[completedAttempts]
                     : RETRY_DELAYS_MINUTES[RETRY_DELAYS_MINUTES.length - 1];
-            delivery.setNextAttemptAt(Instant.now().plusSeconds(delayMinutes * 60));
+            delivery.setNextAttemptAt(now.plusSeconds(delayMinutes * 60));
             delivery.setAttemptCount(completedAttempts + 1);
             log.info("Webhook delivery scheduled retry {} for deliveryId={}, delay={}m", completedAttempts + 1, delivery.getId(), delayMinutes);
         }
@@ -138,11 +164,12 @@ public class WebhookDeliveryService {
 
         WebhookEndpointEntity endpoint = webhookEndpointRepository.findById(delivery.getEndpointId()).orElse(null);
         if (endpoint != null) {
-            endpoint.setLastFailureAt(Instant.now());
+            endpoint.setLastFailureAt(now);
             webhookEndpointRepository.save(endpoint);
         }
     }
 
+    @Override
     public void resetForManualRetry(WebhookDeliveryEntity delivery) {
         delivery.setStatus(WebhookDeliveryStatus.PENDING);
         delivery.setNextAttemptAt(Instant.now());
@@ -151,17 +178,5 @@ public class WebhookDeliveryService {
         delivery.setLastError(null);
         webhookDeliveryRepository.save(delivery);
         log.info("Webhook delivery manually retried for deliveryId={}", delivery.getId());
-    }
-
-    static String generateSignature(String secret, String timestamp, String eventId, String payload) {
-        try {
-            String signedPayload = timestamp + "." + eventId + "." + payload;
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] hash = mac.doFinal(signedPayload.getBytes(StandardCharsets.UTF_8));
-            return SIGNATURE_VERSION + "=" + HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            throw new IllegalStateException("Failed to generate webhook signature", e);
-        }
     }
 }

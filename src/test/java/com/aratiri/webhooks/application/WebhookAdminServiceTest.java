@@ -33,11 +33,19 @@ class WebhookAdminServiceTest {
     @Mock
     private WebhookEventService webhookEventService;
 
+    @Mock
+    private WebhookDeliveryLifecycle webhookDeliveryLifecycle;
+
     private WebhookAdminService webhookAdminService;
 
     @BeforeEach
     void setUp() {
-        webhookAdminService = new WebhookAdminService(webhookEndpointRepository, webhookDeliveryRepository, webhookEventService);
+        webhookAdminService = new WebhookAdminService(
+                webhookEndpointRepository,
+                webhookDeliveryRepository,
+                webhookEventService,
+                webhookDeliveryLifecycle
+        );
     }
 
     @Test
@@ -97,11 +105,13 @@ class WebhookAdminServiceTest {
 
         webhookAdminService.sendTestEvent(id);
 
-        verify(webhookEventService).createWebhookTestEvent(endpoint);
+        ArgumentCaptor<WebhookTestEventFacts> captor = ArgumentCaptor.forClass(WebhookTestEventFacts.class);
+        verify(webhookEventService).createWebhookTestEvent(captor.capture());
+        assertEquals(id, captor.getValue().endpointId());
     }
 
     @Test
-    void retryDelivery_succeedsForFailedDelivery() {
+    void retryDelivery_reusesLifecycleManualResetForFailedDelivery() {
         UUID id = UUID.randomUUID();
         WebhookDeliveryEntity delivery = WebhookDeliveryEntity.builder()
                 .id(id)
@@ -111,12 +121,11 @@ class WebhookAdminServiceTest {
                 .lastError("error")
                 .build();
         when(webhookDeliveryRepository.findById(id)).thenReturn(Optional.of(delivery));
-        when(webhookDeliveryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         webhookAdminService.retryDelivery(id);
 
-        assertEquals(WebhookDeliveryStatus.PENDING, delivery.getStatus());
-        assertNull(delivery.getLastError());
+        verify(webhookDeliveryLifecycle).resetForManualRetry(delivery);
+        verify(webhookDeliveryRepository, never()).save(any());
     }
 
     @Test

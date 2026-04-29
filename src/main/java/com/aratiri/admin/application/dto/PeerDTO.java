@@ -1,6 +1,5 @@
 package com.aratiri.admin.application.dto;
 
-import lnrpc.Peer;
 import lombok.Builder;
 import lombok.Data;
 
@@ -9,11 +8,4 @@ import lombok.Data;
 public class PeerDTO {
     private String pubKey;
     private String address;
-
-    public static PeerDTO fromGrpc(Peer peer) {
-        return PeerDTO.builder()
-                .pubKey(peer.getPubKey())
-                .address(peer.getAddress())
-                .build();
-    }
 }

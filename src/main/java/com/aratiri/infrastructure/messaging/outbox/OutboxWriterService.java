@@ -22,7 +22,6 @@ import tools.jackson.databind.json.JsonMapper;
 public class OutboxWriterService implements OutboxWriter {
 
     private static final String INVOICE_AGGREGATE_TYPE = "Invoice";
-    private static final String PAYMENT_INITIATED_AGGREGATE_TYPE = "LIGHTNING_INVOICE_PAYMENT";
     private static final String ONCHAIN_PAYMENT_AGGREGATE_TYPE = "ONCHAIN_PAYMENT";
     private static final String PAYMENT_SENT_AGGREGATE_TYPE = "PAYMENT_SENT";
     private static final String INTERNAL_TRANSFER_AGGREGATE_TYPE = "INTERNAL_TRANSFER";
@@ -39,7 +38,7 @@ public class OutboxWriterService implements OutboxWriter {
 
     @Override
     public void publishPaymentInitiated(String transactionId, PaymentInitiatedEvent eventPayload) {
-        publish(PAYMENT_INITIATED_AGGREGATE_TYPE, transactionId, KafkaTopics.PAYMENT_INITIATED, eventPayload);
+        publish(new PaymentInitiatedCommittedEvent(transactionId, eventPayload));
     }
 
     @Override
@@ -84,5 +83,14 @@ public class OutboxWriterService implements OutboxWriter {
         } catch (Exception e) {
             throw new AratiriException("Failed to create outbox event.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
         }
+    }
+
+    private void publish(CommittedEvent committedEvent) {
+        publish(
+                committedEvent.aggregateType(),
+                committedEvent.aggregateId(),
+                committedEvent.topic(),
+                committedEvent.payload()
+        );
     }
 }

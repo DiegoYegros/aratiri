@@ -9,6 +9,7 @@ import com.aratiri.infrastructure.messaging.consumer.NotificationConsumer;
 import com.aratiri.infrastructure.messaging.listener.LightningListener;
 import com.aratiri.infrastructure.messaging.listener.OnChainTransactionListener;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.OutboxPublishStatus;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
@@ -79,6 +80,8 @@ class OutboxWriterPersistenceIntegrationTest extends AbstractIntegrationTest {
         assertTrue(event.getPayload().contains("\"transactionId\":\"tx-123\""));
         assertTrue(event.getPayload().contains("\"invoice\":\"lnbc1paymentrequest\""));
         assertNull(event.getProcessedAt());
+        assertEquals(OutboxPublishStatus.PENDING, event.getPublishStatus());
+        assertEquals(0, event.getPublishAttempts());
         assertNotNull(event.getCreatedAt());
     }
 

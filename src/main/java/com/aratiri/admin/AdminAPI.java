@@ -12,7 +12,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lnrpc.CloseStatusUpdate;
-import lnrpc.GetInfoResponse;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -50,8 +49,7 @@ public class AdminAPI {
     @GetMapping("/peers")
     @Operation(summary = "List all connected peers")
     public ResponseEntity<List<PeerDTO>> listPeers() {
-        List<PeerDTO> peerDTOs = adminPort.listPeers().stream().map(PeerDTO::fromGrpc).toList();
-        return ResponseEntity.ok(peerDTOs);
+        return ResponseEntity.ok(adminPort.listPeers());
     }
 
     @GetMapping("/node-info")
@@ -60,29 +58,7 @@ public class AdminAPI {
             description = "Gets general information about the connected Lightning node"
     )
     public ResponseEntity<NodeInfoResponseDTO> getNodeInfo() {
-        GetInfoResponse info = adminPort.getNodeInfo();
-        // lnrpc.Chain#chain is deprecated upstream (bitcoin is implied); expose a stable value for API clients.
-        List<com.aratiri.admin.application.dto.ChainDTO> chains = info.getChainsList().stream()
-                .map(chain -> new com.aratiri.admin.application.dto.ChainDTO("bitcoin", chain.getNetwork()))
-                .toList();
-        NodeInfoResponseDTO response = NodeInfoResponseDTO.builder()
-                .version(info.getVersion())
-                .commitHash(info.getCommitHash())
-                .identityPubkey(info.getIdentityPubkey())
-                .alias(info.getAlias())
-                .color(info.getColor())
-                .numPendingChannels(info.getNumPendingChannels())
-                .numActiveChannels(info.getNumActiveChannels())
-                .numInactiveChannels(info.getNumInactiveChannels())
-                .numPeers(info.getNumPeers())
-                .blockHeight(info.getBlockHeight())
-                .blockHash(info.getBlockHash())
-                .syncedToChain(info.getSyncedToChain())
-                .syncedToGraph(info.getSyncedToGraph())
-                .chains(chains)
-                .uris(info.getUrisList())
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(adminPort.getNodeInfo());
     }
 
     @GetMapping("/channels")

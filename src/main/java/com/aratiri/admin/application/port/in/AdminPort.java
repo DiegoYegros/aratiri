@@ -4,8 +4,6 @@ import com.aratiri.admin.application.dto.*;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
 import lnrpc.CloseStatusUpdate;
-import lnrpc.GetInfoResponse;
-import lnrpc.Peer;
 
 import java.time.Instant;
 import java.util.List;
@@ -14,9 +12,9 @@ public interface AdminPort {
 
     void connectPeer(ConnectPeerRequestDTO request);
 
-    List<Peer> listPeers();
+    List<PeerDTO> listPeers();
 
-    GetInfoResponse getNodeInfo();
+    NodeInfoResponseDTO getNodeInfo();
 
     ListChannelsResponseDTO listChannels();
 

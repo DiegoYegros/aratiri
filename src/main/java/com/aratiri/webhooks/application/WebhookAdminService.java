@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
-import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -31,6 +30,7 @@ public class WebhookAdminService {
     private final WebhookEndpointRepository webhookEndpointRepository;
     private final WebhookDeliveryRepository webhookDeliveryRepository;
     private final WebhookEventService webhookEventService;
+    private final WebhookDeliveryLifecycle webhookDeliveryLifecycle;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Transactional
@@ -104,7 +104,7 @@ public class WebhookAdminService {
     @Transactional
     public void sendTestEvent(UUID id) {
         WebhookEndpointEntity endpoint = findEndpointOrThrow(id);
-        webhookEventService.createWebhookTestEvent(endpoint);
+        webhookEventService.createWebhookTestEvent(new WebhookTestEventFacts(endpoint.getId()));
     }
 
     @Transactional(readOnly = true)
@@ -150,12 +150,7 @@ public class WebhookAdminService {
         if (delivery.getStatus() == WebhookDeliveryStatus.SUCCEEDED) {
             throw new AratiriException("Cannot retry a succeeded delivery", HttpStatus.BAD_REQUEST.value());
         }
-        delivery.setStatus(WebhookDeliveryStatus.PENDING);
-        delivery.setNextAttemptAt(Instant.now());
-        delivery.setLockedBy(null);
-        delivery.setLockedUntil(null);
-        delivery.setLastError(null);
-        webhookDeliveryRepository.save(delivery);
+        webhookDeliveryLifecycle.resetForManualRetry(delivery);
         log.info("Manually retried webhook delivery id={}", id);
     }
 

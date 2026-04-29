@@ -202,23 +202,86 @@ class WebhookEventServiceTest {
     }
 
     @Test
-    void createAccountBalanceChangedEvent_createsEvent() throws Exception {
+    void createAccountBalanceChangedEvent_usesDomainFactsAndKeepsPayloadShape() throws Exception {
         WebhookEndpointEntity endpoint = enabledEndpoint("account.balance_changed");
         when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
         when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
         when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
 
-        TransactionEntity tx = debitTransaction();
-        AccountEntryEntity entry = new AccountEntryEntity();
-        entry.setId("entry-1");
-        entry.setDeltaSats(1000);
-        entry.setBalanceAfter(5000);
+        AccountBalanceChangedWebhookFacts facts = new AccountBalanceChangedWebhookFacts(
+                "tx-1",
+                "user-1",
+                "external-1",
+                "{\"order\":\"123\"}",
+                1000L,
+                "ref-1",
+                "entry-1",
+                5000L
+        );
 
-        webhookEventService.createAccountBalanceChangedEvent(tx, entry);
+        webhookEventService.createAccountBalanceChangedEvent(facts);
 
-        ArgumentCaptor<WebhookEventEntity> captor = ArgumentCaptor.forClass(WebhookEventEntity.class);
-        verify(webhookEventRepository).save(captor.capture());
-        assertEquals("account.balance_changed:entry-1", captor.getValue().getEventKey());
+        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
+        verify(webhookEventRepository).save(eventCaptor.capture());
+        assertEquals("account.balance_changed:entry-1", eventCaptor.getValue().getEventKey());
+        assertEquals("account.balance_changed", eventCaptor.getValue().getEventType());
+        assertEquals("ACCOUNT_ENTRY", eventCaptor.getValue().getAggregateType());
+        assertEquals("entry-1", eventCaptor.getValue().getAggregateId());
+        assertEquals("user-1", eventCaptor.getValue().getUserId());
+        assertEquals("external-1", eventCaptor.getValue().getExternalReference());
+
+        WebhookPayloadData data = capturedPayloadData();
+        assertEquals("tx-1", data.getTransactionId());
+        assertEquals("user-1", data.getUserId());
+        assertEquals("external-1", data.getExternalReference());
+        assertEquals("{\"order\":\"123\"}", data.getMetadata());
+        assertEquals(1000L, data.getAmountSat());
+        assertEquals("COMPLETED", data.getStatus());
+        assertEquals("ref-1", data.getReferenceId());
+        assertEquals(5000L, data.getBalanceAfterSat());
+
+        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
+    }
+
+    @Test
+    void createInvoiceCreatedEvent_usesDomainFactsAndKeepsPayloadShape() throws Exception {
+        WebhookEndpointEntity endpoint = enabledEndpoint("invoice.created");
+        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
+        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
+        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
+
+        InvoiceCreatedWebhookFacts invoice = new InvoiceCreatedWebhookFacts(
+                "invoice-1",
+                "user-1",
+                "payment-hash-1",
+                "lnbc1test",
+                1500L,
+                "memo-1",
+                "external-1",
+                "{\"order\":\"123\"}"
+        );
+        webhookEventService.createInvoiceCreatedEvent(invoice);
+
+        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
+        verify(webhookEventRepository).save(eventCaptor.capture());
+        assertEquals("invoice.created:payment-hash-1", eventCaptor.getValue().getEventKey());
+        assertEquals("invoice.created", eventCaptor.getValue().getEventType());
+        assertEquals("INVOICE", eventCaptor.getValue().getAggregateType());
+        assertEquals("invoice-1", eventCaptor.getValue().getAggregateId());
+        assertEquals("user-1", eventCaptor.getValue().getUserId());
+        assertEquals("external-1", eventCaptor.getValue().getExternalReference());
+
+        WebhookPayloadData data = capturedPayloadData();
+        assertEquals("invoice-1", data.getInvoiceId());
+        assertEquals("user-1", data.getUserId());
+        assertEquals("external-1", data.getExternalReference());
+        assertEquals("{\"order\":\"123\"}", data.getMetadata());
+        assertEquals(1500L, data.getAmountSat());
+        assertEquals("payment-hash-1", data.getPaymentHash());
+        assertEquals("lnbc1test", data.getPaymentRequest());
+        assertEquals("memo-1", data.getMemo());
+
+        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
     }
 
     @Test
@@ -373,17 +436,6 @@ class WebhookEventServiceTest {
         ArgumentCaptor<WebhookPayload> payloadCaptor = ArgumentCaptor.forClass(WebhookPayload.class);
         verify(jsonMapper).writeValueAsString(payloadCaptor.capture());
         return payloadCaptor.getValue().getData();
-    }
-
-    private TransactionEntity debitTransaction() {
-        TransactionEntity tx = new TransactionEntity();
-        tx.setId("tx-1");
-        tx.setUserId("user-1");
-        tx.setType(TransactionType.LIGHTNING_DEBIT);
-        tx.setCurrentStatus("PENDING");
-        tx.setCurrentAmount(1000);
-        tx.setReferenceId("ref-1");
-        return tx;
     }
 
     private WebhookEndpointEntity enabledEndpoint(String eventType) {

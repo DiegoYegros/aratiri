@@ -6,15 +6,20 @@ import com.aratiri.auth.application.dto.VerificationRequestDTO;
 import com.aratiri.auth.application.port.out.EmailNotificationPort;
 import com.aratiri.accounts.application.port.out.CurrencyConversionPort;
 import com.aratiri.accounts.application.port.out.LightningAddressPort;
+import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryType;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
+import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountEntryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
+import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEventRepository;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.InvoiceCreditSettlement;
 import com.aratiri.transactions.application.ExternalDebitCompletionSettlement;
@@ -73,6 +78,12 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private TransactionsRepository transactionsRepository;
+
+    @Autowired
+    private OutboxEventRepository outboxEventRepository;
+
+    @Autowired
+    private WebhookEventRepository webhookEventRepository;
 
     @Autowired
     private TransactionSettlementModule transactionSettlementModule;
@@ -264,6 +275,8 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
 
         List<AccountEntryEntity> entries = accountEntryRepository.findAll();
         assertInvoiceCreditLedgerEntry(entries, savedTransaction.getId());
+        assertInvoiceSettledWebhook(savedTransaction.getId(), settlement);
+        assertAccountBalanceChangedWebhook(entries.get(0), savedTransaction.getId(), settlement.paymentHash(), settlement.externalReference(), settlement.metadata());
     }
 
     @Test
@@ -278,38 +291,50 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
 
         TransactionSettlementResult result = transactionSettlementModule.settleOnChainCredit(settlement);
 
-        assertEquals(TransactionStatus.COMPLETED, result.status());
-        assertEquals(3500L, result.amountSat());
-        assertEquals(3500L, result.balanceAfterSat());
+        assertOnChainCreditSettlementResult(result);
 
         var savedTransaction = transactionsRepository.findById(result.transactionId()).orElseThrow();
-        assertEquals(TransactionType.ONCHAIN_CREDIT, savedTransaction.getType());
-        assertEquals(TransactionStatus.COMPLETED.name(), savedTransaction.getCurrentStatus());
-        assertEquals(3500L, savedTransaction.getCurrentAmount());
-        assertEquals(3500L, savedTransaction.getBalanceAfter());
-        assertEquals("onchain-tx-hash:1", savedTransaction.getReferenceId());
-        assertNotNull(savedTransaction.getCompletedAt());
+        assertOnChainCreditReadModel(savedTransaction);
 
         TransactionDTOResponse response = transactionsPort.getTransactionById(savedTransaction.getId(), userId).orElseThrow();
-        assertEquals(TransactionStatus.COMPLETED, response.getStatus());
-        assertEquals(3500L, response.getAmountSat());
-        assertEquals(3500L, response.getBalanceAfterSat());
-        assertEquals("onchain-tx-hash:1", response.getReferenceId());
+        assertOnChainCreditResponse(response);
 
         List<TransactionEventEntity> events = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(savedTransaction.getId());
-        assertEquals(2, events.size());
-        assertEquals(TransactionStatus.PENDING, events.get(0).getStatus());
-        assertNull(events.get(0).getBalanceAfter());
-        assertEquals(TransactionStatus.COMPLETED, events.get(1).getStatus());
-        assertEquals(3500L, events.get(1).getBalanceAfter());
+        assertOnChainCreditLifecycleEvents(events);
 
         List<AccountEntryEntity> entries = accountEntryRepository.findAll();
-        assertEquals(1, entries.size());
-        assertEquals(savedTransaction.getId(), entries.get(0).getTransactionId());
-        assertEquals(3500L, entries.get(0).getDeltaSats());
-        assertEquals(3500L, entries.get(0).getBalanceAfter());
-        assertEquals(AccountEntryType.ONCHAIN_CREDIT, entries.get(0).getEntryType());
-        assertEquals("On-chain deposit", entries.get(0).getDescription());
+        assertOnChainCreditLedgerEntry(entries, savedTransaction.getId());
+        assertOnChainDepositConfirmedWebhook(savedTransaction.getId(), settlement.referenceId(), 3500L, 3500L);
+        assertAccountBalanceChangedWebhook(entries.get(0), savedTransaction.getId(), settlement.referenceId(), null, null);
+    }
+
+    @Test
+    @DisplayName("Invoice credit settlement is idempotent for already-settled invoices")
+    void settleInvoiceCredit_idempotent_for_already_settled_invoices() {
+        InvoiceCreditSettlement settlement = new InvoiceCreditSettlement(
+                userId,
+                2500L,
+                "duplicate-invoice-payment-hash",
+                "Duplicate invoice settlement",
+                "duplicate-invoice-ref",
+                "{\"order_id\":\"1002\"}"
+        );
+
+        TransactionSettlementResult first = transactionSettlementModule.settleInvoiceCredit(settlement);
+        TransactionSettlementResult second = transactionSettlementModule.settleInvoiceCredit(settlement);
+
+        assertEquals(first.transactionId(), second.transactionId());
+        assertEquals(first.balanceAfterSat(), second.balanceAfterSat());
+
+        List<TransactionEventEntity> events = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(first.transactionId());
+        assertEquals(2, events.size());
+        assertEquals(1, accountEntryRepository.findAll().size());
+        assertEquals(1, transactionsRepository.findAll().stream()
+                .filter(transaction -> "duplicate-invoice-payment-hash".equals(transaction.getReferenceId()))
+                .count());
+        assertEquals(1, webhookEventRepository.findAll().stream()
+                .filter(event -> "invoice.settled:duplicate-invoice-payment-hash".equals(event.getEventKey()))
+                .count());
     }
 
     @Test
@@ -331,6 +356,12 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
         List<TransactionEventEntity> events = transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(first.transactionId());
         assertEquals(2, events.size());
         assertEquals(1, accountEntryRepository.findAll().size());
+        assertEquals(1, transactionsRepository.findAll().stream()
+                .filter(transaction -> "duplicate-onchain-tx-hash:0".equals(transaction.getReferenceId()))
+                .count());
+        assertEquals(1, webhookEventRepository.findAll().stream()
+                .filter(event -> "onchain.deposit.confirmed:duplicate-onchain-tx-hash:0".equals(event.getEventKey()))
+                .count());
     }
 
     @Test
@@ -382,6 +413,19 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
                 .orElseThrow();
         assertEquals(AccountEntryType.LIGHTNING_DEBIT, debitEntry.getEntryType());
         assertEquals(-1025L, debitEntry.getDeltaSats());
+
+        List<OutboxEventEntity> outboxEvents = outboxEventRepository.findAll();
+        assertTrue(outboxEvents.stream().anyMatch(event ->
+                event.getEventType().equals(KafkaTopics.PAYMENT_SENT.getCode())
+                        && event.getAggregateId().equals(created.getId())
+                        && event.getPayload().contains("external-payment-hash")
+        ));
+
+        WebhookEventEntity webhookEvent = webhookEventRepository.findByEventKey("payment.succeeded:" + created.getId())
+                .orElseThrow();
+        assertEquals("payment.succeeded", webhookEvent.getEventType());
+        assertTrue(webhookEvent.getPayload().contains("\"amount_sat\":1025"));
+        assertTrue(webhookEvent.getPayload().contains("\"balance_after_sat\":3975"));
     }
 
     @Test
@@ -424,6 +468,48 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
                 .orElseThrow();
         assertEquals(AccountEntryType.ONCHAIN_DEBIT, debitEntry.getEntryType());
         assertEquals(-1500L, debitEntry.getDeltaSats());
+
+        assertTrue(outboxEventRepository.findAll().stream().anyMatch(event ->
+                event.getEventType().equals(KafkaTopics.PAYMENT_SENT.getCode())
+                        && event.getAggregateId().equals(created.getId())
+                        && event.getPayload().contains("onchain-debit-ref")
+        ));
+        assertTrue(webhookEventRepository.findByEventKey("payment.succeeded:" + created.getId()).isPresent());
+    }
+
+    @Test
+    @DisplayName("External debit completion is idempotent after completion")
+    void settleExternalDebit_idempotent_after_completion() {
+        transactionSettlementModule.settleOnChainCredit(new OnChainCreditSettlement(
+                userId,
+                5000L,
+                "idempotent-debit-funding-tx-hash",
+                0L
+        ));
+        TransactionDTOResponse created = transactionsPort.createTransaction(CreateTransactionRequest.builder()
+                .userId(userId)
+                .amountSat(1500)
+                .currency(TransactionCurrency.BTC)
+                .type(TransactionType.ONCHAIN_DEBIT)
+                .status(TransactionStatus.PENDING)
+                .description("On-chain payment")
+                .referenceId("idempotent-onchain-debit-ref")
+                .build());
+
+        TransactionSettlementResult first = transactionSettlementModule.settleExternalDebit(
+                new ExternalDebitCompletionSettlement(created.getId(), userId)
+        );
+        TransactionSettlementResult second = transactionSettlementModule.settleExternalDebit(
+                new ExternalDebitCompletionSettlement(created.getId(), userId)
+        );
+
+        assertEquals(first, second);
+        assertEquals(1, accountEntryRepository.findAll().stream()
+                .filter(entry -> created.getId().equals(entry.getTransactionId()))
+                .count());
+        assertEquals(1, transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(created.getId()).stream()
+                .filter(event -> event.getStatus() == TransactionStatus.COMPLETED)
+                .count());
     }
 
     @Test
@@ -500,6 +586,94 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
         assertEquals(2500L, entries.get(0).getBalanceAfter());
         assertEquals(AccountEntryType.LIGHTNING_CREDIT, entries.get(0).getEntryType());
         assertEquals("Lightning invoice settled", entries.get(0).getDescription());
+    }
+
+    private void assertOnChainCreditSettlementResult(TransactionSettlementResult result) {
+        assertEquals(TransactionStatus.COMPLETED, result.status());
+        assertEquals(3500L, result.amountSat());
+        assertEquals(3500L, result.balanceAfterSat());
+    }
+
+    private void assertOnChainCreditReadModel(com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity transaction) {
+        assertEquals(TransactionType.ONCHAIN_CREDIT, transaction.getType());
+        assertEquals(TransactionStatus.COMPLETED.name(), transaction.getCurrentStatus());
+        assertEquals(3500L, transaction.getCurrentAmount());
+        assertEquals(3500L, transaction.getBalanceAfter());
+        assertEquals("onchain-tx-hash:1", transaction.getReferenceId());
+        assertNotNull(transaction.getCompletedAt());
+    }
+
+    private void assertOnChainCreditResponse(TransactionDTOResponse response) {
+        assertEquals(TransactionStatus.COMPLETED, response.getStatus());
+        assertEquals(3500L, response.getAmountSat());
+        assertEquals(3500L, response.getBalanceAfterSat());
+        assertEquals("onchain-tx-hash:1", response.getReferenceId());
+    }
+
+    private void assertOnChainCreditLifecycleEvents(List<TransactionEventEntity> events) {
+        assertEquals(2, events.size());
+        assertEquals(TransactionStatus.PENDING, events.get(0).getStatus());
+        assertNull(events.get(0).getBalanceAfter());
+        assertEquals(TransactionStatus.COMPLETED, events.get(1).getStatus());
+        assertEquals(3500L, events.get(1).getBalanceAfter());
+    }
+
+    private void assertOnChainCreditLedgerEntry(List<AccountEntryEntity> entries, String transactionId) {
+        assertEquals(1, entries.size());
+        assertEquals(transactionId, entries.get(0).getTransactionId());
+        assertEquals(3500L, entries.get(0).getDeltaSats());
+        assertEquals(3500L, entries.get(0).getBalanceAfter());
+        assertEquals(AccountEntryType.ONCHAIN_CREDIT, entries.get(0).getEntryType());
+        assertEquals("On-chain deposit", entries.get(0).getDescription());
+    }
+
+    private void assertInvoiceSettledWebhook(String transactionId, InvoiceCreditSettlement settlement) {
+        WebhookEventEntity event = webhookEventRepository.findByEventKey("invoice.settled:" + settlement.paymentHash())
+                .orElseThrow();
+        assertEquals("invoice.settled", event.getEventType());
+        assertEquals("INVOICE", event.getAggregateType());
+        assertEquals(settlement.paymentHash(), event.getAggregateId());
+        assertEquals(settlement.externalReference(), event.getExternalReference());
+        assertTrue(event.getPayload().contains("\"transaction_id\":\"" + transactionId + "\""));
+        assertTrue(event.getPayload().contains("\"payment_hash\":\"" + settlement.paymentHash() + "\""));
+        assertTrue(event.getPayload().contains("\"amount_sat\":2500"));
+        assertTrue(event.getPayload().contains("\"balance_after_sat\":2500"));
+        assertTrue(event.getPayload().contains("\"external_reference\":\"" + settlement.externalReference() + "\""));
+        assertTrue(event.getPayload().contains("\"metadata\":\"" + settlement.metadata().replace("\"", "\\\"") + "\""));
+    }
+
+    private void assertOnChainDepositConfirmedWebhook(String transactionId, String referenceId, long amountSat, long balanceAfterSat) {
+        WebhookEventEntity event = webhookEventRepository.findByEventKey("onchain.deposit.confirmed:" + referenceId)
+                .orElseThrow();
+        assertEquals("onchain.deposit.confirmed", event.getEventType());
+        assertEquals("TRANSACTION", event.getAggregateType());
+        assertEquals(transactionId, event.getAggregateId());
+        assertTrue(event.getPayload().contains("\"transaction_id\":\"" + transactionId + "\""));
+        assertTrue(event.getPayload().contains("\"reference_id\":\"" + referenceId + "\""));
+        assertTrue(event.getPayload().contains("\"amount_sat\":" + amountSat));
+        assertTrue(event.getPayload().contains("\"balance_after_sat\":" + balanceAfterSat));
+    }
+
+    private void assertAccountBalanceChangedWebhook(
+            AccountEntryEntity entry,
+            String transactionId,
+            String referenceId,
+            String externalReference,
+            String metadata
+    ) {
+        WebhookEventEntity event = webhookEventRepository.findByEventKey("account.balance_changed:" + entry.getId())
+                .orElseThrow();
+        assertEquals("account.balance_changed", event.getEventType());
+        assertEquals("ACCOUNT_ENTRY", event.getAggregateType());
+        assertEquals(entry.getId(), event.getAggregateId());
+        assertEquals(externalReference, event.getExternalReference());
+        assertTrue(event.getPayload().contains("\"transaction_id\":\"" + transactionId + "\""));
+        assertTrue(event.getPayload().contains("\"reference_id\":\"" + referenceId + "\""));
+        assertTrue(event.getPayload().contains("\"amount_sat\":" + Math.abs(entry.getDeltaSats())));
+        assertTrue(event.getPayload().contains("\"balance_after_sat\":" + entry.getBalanceAfter()));
+        if (metadata != null) {
+            assertTrue(event.getPayload().contains("\"metadata\":\"" + metadata.replace("\"", "\\\"") + "\""));
+        }
     }
 
     @Test

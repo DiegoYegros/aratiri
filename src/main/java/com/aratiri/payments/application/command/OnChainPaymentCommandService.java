@@ -1,13 +1,8 @@
 package com.aratiri.payments.application.command;
 
-import com.aratiri.payments.application.PaymentCommandService;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
-import com.aratiri.payments.infrastructure.json.JsonUtils;
-import com.aratiri.shared.exception.AratiriException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.function.Supplier;
 
@@ -16,46 +11,25 @@ import java.util.function.Supplier;
 public class OnChainPaymentCommandService {
 
     private static final String COMMAND_TYPE = "ONCHAIN_SEND";
+    private static final String IN_PROGRESS_MESSAGE = "Payment with this idempotency key is still in progress";
 
-    private final PaymentCommandService paymentCommandService;
+    private final PaymentCommandExecutor paymentCommandExecutor;
 
-    @Transactional
     public OnChainPaymentDTOs.SendOnChainResponseDTO execute(
             String userId,
             String idempotencyKey,
             OnChainPaymentDTOs.SendOnChainRequestDTO request,
             Supplier<OnChainPaymentDTOs.SendOnChainResponseDTO> execution
     ) {
-        String canonicalPayload = JsonUtils.toJson(request);
-        PaymentCommandService.PaymentCommandResult result = paymentCommandService.resolveIdempotency(
-                userId, idempotencyKey, COMMAND_TYPE, canonicalPayload
-        );
-
-        return switch (result.type()) {
-            case REPLAY -> JsonUtils.fromJson(
-                    result.responsePayload(), OnChainPaymentDTOs.SendOnChainResponseDTO.class
-            );
-            case FAILED_REPLAY -> throw JsonUtils.fromJson(
-                    result.responsePayload(), PaymentCommandFailurePayload.class
-            ).toException();
-            case IN_PROGRESS -> throw new AratiriException(
-                    "Payment with this idempotency key is still in progress",
-                    HttpStatus.CONFLICT.value()
-            );
-            case NEW_COMMAND -> {
-                try {
-                    OnChainPaymentDTOs.SendOnChainResponseDTO response = execution.get();
-                    paymentCommandService.completeCommand(
-                            result.commandId(), response.getTransactionId(), JsonUtils.toJson(response)
-                    );
-                    yield response;
-                } catch (RuntimeException exception) {
-                    paymentCommandService.failCommand(
-                            result.commandId(), JsonUtils.toJson(PaymentCommandFailurePayload.from(exception))
-                    );
-                    throw exception;
-                }
-            }
-        };
+        return paymentCommandExecutor.execute(new PaymentCommandExecutor.PaymentCommandExecution<>(
+                userId,
+                idempotencyKey,
+                COMMAND_TYPE,
+                request,
+                execution,
+                OnChainPaymentDTOs.SendOnChainResponseDTO.class,
+                OnChainPaymentDTOs.SendOnChainResponseDTO::getTransactionId,
+                IN_PROGRESS_MESSAGE
+        ));
     }
 }
