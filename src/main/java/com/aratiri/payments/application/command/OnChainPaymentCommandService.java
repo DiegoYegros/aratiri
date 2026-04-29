@@ -13,13 +13,12 @@ import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
-public class OnChainPaymentCommandService implements OnChainPaymentCommand {
+public class OnChainPaymentCommandService {
 
     private static final String COMMAND_TYPE = "ONCHAIN_SEND";
 
     private final PaymentCommandService paymentCommandService;
 
-    @Override
     @Transactional
     public OnChainPaymentDTOs.SendOnChainResponseDTO execute(
             String userId,

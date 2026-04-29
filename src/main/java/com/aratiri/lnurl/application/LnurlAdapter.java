@@ -4,7 +4,7 @@ import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.invoices.application.dto.GenerateInvoiceDTO;
 import com.aratiri.invoices.application.port.in.InvoicesPort;
-import com.aratiri.lnurl.application.command.LnurlPaymentCommand;
+import com.aratiri.lnurl.application.command.LnurlPaymentCommandService;
 import com.aratiri.lnurl.application.dto.LnurlCallbackResponseDTO;
 import com.aratiri.lnurl.application.dto.LnurlPayRequestDTO;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
@@ -31,7 +31,7 @@ public class LnurlAdapter implements LnurlApplicationPort {
     private final PaymentsPort paymentsPort;
     private final AratiriProperties properties;
     private final LnurlRemotePort lnurlRemotePort;
-    private final LnurlPaymentCommand lnurlPaymentCommand;
+    private final LnurlPaymentCommandService lnurlPaymentCommand;
 
     public LnurlAdapter(
             AccountsPort accountsPort,
@@ -39,7 +39,7 @@ public class LnurlAdapter implements LnurlApplicationPort {
             PaymentsPort paymentsPort,
             AratiriProperties properties,
             LnurlRemotePort lnurlRemotePort,
-            LnurlPaymentCommand lnurlPaymentCommand
+            LnurlPaymentCommandService lnurlPaymentCommand
     ) {
         this.accountsPort = accountsPort;
         this.invoicesPort = invoicesPort;

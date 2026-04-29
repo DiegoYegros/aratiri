@@ -14,13 +14,12 @@ import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
-public class LightningInvoicePaymentCommandService implements LightningInvoicePaymentCommand {
+public class LightningInvoicePaymentCommandService {
 
     private static final String COMMAND_TYPE = "LIGHTNING_INVOICE_PAY";
 
     private final PaymentCommandService paymentCommandService;
 
-    @Override
     @Transactional
     public PaymentResponseDTO execute(
             String userId,

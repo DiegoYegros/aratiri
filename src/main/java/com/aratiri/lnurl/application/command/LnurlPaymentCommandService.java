@@ -15,13 +15,12 @@ import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
-public class LnurlPaymentCommandService implements LnurlPaymentCommand {
+public class LnurlPaymentCommandService {
 
     private static final String COMMAND_TYPE = "LNURL_PAY";
 
     private final PaymentCommandService paymentCommandService;
 
-    @Override
     @Transactional
     public PaymentResponseDTO execute(
             String userId,

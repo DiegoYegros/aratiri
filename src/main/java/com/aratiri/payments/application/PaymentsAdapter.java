@@ -1,8 +1,8 @@
 package com.aratiri.payments.application;
 
 import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
-import com.aratiri.payments.application.command.LightningInvoicePaymentCommand;
-import com.aratiri.payments.application.command.OnChainPaymentCommand;
+import com.aratiri.payments.application.command.LightningInvoicePaymentCommandService;
+import com.aratiri.payments.application.command.OnChainPaymentCommandService;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
@@ -44,8 +44,8 @@ public class PaymentsAdapter implements PaymentsPort {
     private final LightningNodePort lightningNodePort;
     private final OutboxWriter outboxWriter;
     private final LightningInvoicePort lightningInvoicePort;
-    private final LightningInvoicePaymentCommand lightningInvoicePaymentCommand;
-    private final OnChainPaymentCommand onChainPaymentCommand;
+    private final LightningInvoicePaymentCommandService lightningInvoicePaymentCommand;
+    private final OnChainPaymentCommandService onChainPaymentCommand;
     private final WebhookEventService webhookEventService;
 
     @Value("${aratiri.payment.lightning.fee.fixed.sat:0}")
