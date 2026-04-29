@@ -1,12 +1,10 @@
 package com.aratiri.payments.application.invoice;
 
-import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
 import com.aratiri.infrastructure.persistence.jpa.entity.InvoiceSubscriptionState;
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
-import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.shared.exception.AratiriException;
 import lnrpc.Invoice;
@@ -16,7 +14,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -27,16 +24,14 @@ public class InvoiceProcessorService {
     private static final Logger logger = LoggerFactory.getLogger(InvoiceProcessorService.class);
 
     private final LightningInvoiceRepository lightningInvoiceRepository;
-    private final OutboxEventRepository outboxEventRepository;
-    private final JsonMapper jsonMapper;
+    private final OutboxWriter outboxWriter;
     private final InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
 
     public InvoiceProcessorService(LightningInvoiceRepository lightningInvoiceRepository,
-                                   OutboxEventRepository outboxEventRepository,
-                                   JsonMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
+                                   OutboxWriter outboxWriter,
+                                   InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.lightningInvoiceRepository = lightningInvoiceRepository;
-        this.outboxEventRepository = outboxEventRepository;
-        this.jsonMapper = objectMapper;
+        this.outboxWriter = outboxWriter;
         this.invoiceSubscriptionStateRepository = invoiceSubscriptionStateRepository;
     }
 
@@ -94,14 +89,7 @@ public class InvoiceProcessorService {
 
     private void saveInvoiceSettledEvent(LightningInvoiceEntity invoiceEntity, InvoiceSettledEvent eventPayload) {
         try {
-            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
-                    .aggregateType("Invoice")
-                    .aggregateId(invoiceEntity.getId())
-                    .eventType(KafkaTopics.INVOICE_SETTLED.getCode())
-                    .payload(jsonMapper.writeValueAsString(eventPayload))
-                    .build();
-
-            outboxEventRepository.save(outboxEvent);
+            outboxWriter.publishInvoiceSettled(invoiceEntity.getId(), eventPayload);
         } catch (Exception e) {
             throw new AratiriException("Failed to create outbox event for settled invoice.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
         }

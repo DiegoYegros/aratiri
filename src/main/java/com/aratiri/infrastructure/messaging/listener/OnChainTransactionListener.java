@@ -1,11 +1,9 @@
 package com.aratiri.infrastructure.messaging.listener;
 
-import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
 import com.aratiri.infrastructure.persistence.jpa.entity.InvoiceSubscriptionState;
-import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscriptionStateRepository;
-import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.transactions.application.event.OnChainTransactionReceivedEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import io.grpc.stub.StreamObserver;
@@ -21,7 +19,6 @@ import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,8 +32,7 @@ public class OnChainTransactionListener {
     private final LightningGrpc.LightningStub lightningAsyncStub;
     private final AccountRepository accountRepository;
     private final TransactionsPort transactionsService;
-    private final OutboxEventRepository outboxEventRepository;
-    private final JsonMapper jsonMapper;
+    private final OutboxWriter outboxWriter;
     private final AtomicBoolean isListening = new AtomicBoolean(false);
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(true);
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
@@ -47,13 +43,12 @@ public class OnChainTransactionListener {
             LightningGrpc.LightningStub lightningAsyncStub,
             AccountRepository accountRepository,
             TransactionsPort transactionsService,
-            OutboxEventRepository outboxEventRepository,
-            JsonMapper objectMapper, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
+            OutboxWriter outboxWriter,
+            InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.lightningAsyncStub = lightningAsyncStub;
         this.accountRepository = accountRepository;
         this.transactionsService = transactionsService;
-        this.outboxEventRepository = outboxEventRepository;
-        this.jsonMapper = objectMapper;
+        this.outboxWriter = outboxWriter;
         this.invoiceSubscriptionStateRepository = invoiceSubscriptionStateRepository;
     }
 
@@ -183,13 +178,7 @@ public class OnChainTransactionListener {
                 output.getOutputIndex()
         );
         try {
-            OutboxEventEntity outboxEvent = OutboxEventEntity.builder()
-                    .aggregateType("ONCHAIN_TRANSACTION")
-                    .aggregateId(referenceId)
-                    .eventType(KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED.getCode())
-                    .payload(jsonMapper.writeValueAsString(eventPayload))
-                    .build();
-            outboxEventRepository.save(outboxEvent);
+            outboxWriter.publishOnChainTransactionReceived(referenceId, eventPayload);
             updateLastProcessedBlockHeight(transaction.getBlockHeight());
             logger.info("Saved ONCHAIN_TRANSACTION_RECEIVED event to outbox for txHash: {}", transaction.getTxHash());
         } catch (Exception e) {

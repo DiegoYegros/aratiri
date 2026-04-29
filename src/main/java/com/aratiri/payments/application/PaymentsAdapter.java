@@ -1,6 +1,5 @@
 package com.aratiri.payments.application;
 
-import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
 import com.aratiri.payments.application.command.LightningInvoicePaymentCommand;
 import com.aratiri.payments.application.command.OnChainPaymentCommand;
@@ -12,7 +11,6 @@ import com.aratiri.payments.application.event.PaymentInitiatedEvent;
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.payments.application.port.out.*;
 import com.aratiri.payments.domain.*;
-import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
@@ -44,7 +42,6 @@ public class PaymentsAdapter implements PaymentsPort {
     private final TransactionsPort transactionsPort;
     private final InvoicesPort invoicesPort;
     private final LightningNodePort lightningNodePort;
-    private final OutboxEventPort outboxEventPort;
     private final OutboxWriter outboxWriter;
     private final LightningInvoicePort lightningInvoicePort;
     private final LightningInvoicePaymentCommand lightningInvoicePaymentCommand;
@@ -188,12 +185,7 @@ public class PaymentsAdapter implements PaymentsPort {
                 amountSat,
                 decodedInvoice.paymentHash()
         );
-        persistOutboxMessage(new OutboxMessage(
-                "INTERNAL_TRANSFER",
-                txDto.getId(),
-                KafkaTopics.INTERNAL_TRANSFER_INITIATED.getCode(),
-                JsonUtils.toJson(eventPayload)
-        ));
+        publishInternalTransferInitiated(txDto.getId(), eventPayload);
 
         webhookEventService.createPaymentAcceptedEvent(PaymentWebhookFacts.accepted(
                 txDto.getId(),
@@ -267,12 +259,7 @@ public class PaymentsAdapter implements PaymentsPort {
 
         TransactionDTOResponse txDto = transactionsPort.createTransaction(txRequest);
         OnChainPaymentInitiatedEvent eventPayload = new OnChainPaymentInitiatedEvent(userId, txDto.getId(), normalizedRequest);
-        persistOutboxMessage(new OutboxMessage(
-                "ONCHAIN_PAYMENT",
-                txDto.getId(),
-                KafkaTopics.ONCHAIN_PAYMENT_INITIATED.getCode(),
-                JsonUtils.toJson(eventPayload)
-        ));
+        publishOnChainPaymentInitiated(txDto.getId(), eventPayload);
 
         webhookEventService.createPaymentAcceptedEvent(PaymentWebhookFacts.accepted(
                 txDto.getId(),
@@ -338,15 +325,6 @@ public class PaymentsAdapter implements PaymentsPort {
         }
     }
 
-    private void persistOutboxMessage(OutboxMessage message) {
-        try {
-            outboxEventPort.save(message);
-            logger.info("Saved {} event to outbox for aggregateId: {}", message.eventType(), message.aggregateId());
-        } catch (Exception _) {
-            throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        }
-    }
-
     private void publishPaymentInitiated(String transactionId, PaymentInitiatedEvent eventPayload) {
         try {
             outboxWriter.publishPaymentInitiated(transactionId, eventPayload);
@@ -356,6 +334,23 @@ public class PaymentsAdapter implements PaymentsPort {
         }
     }
 
+    private void publishOnChainPaymentInitiated(String transactionId, OnChainPaymentInitiatedEvent eventPayload) {
+        try {
+            outboxWriter.publishOnChainPaymentInitiated(transactionId, eventPayload);
+            logger.info("Saved on-chain payment initiated event to outbox for aggregateId: {}", transactionId);
+        } catch (Exception _) {
+            throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        }
+    }
+
+    private void publishInternalTransferInitiated(String transactionId, InternalTransferInitiatedEvent eventPayload) {
+        try {
+            outboxWriter.publishInternalTransferInitiated(transactionId, eventPayload);
+            logger.info("Saved internal transfer initiated event to outbox for aggregateId: {}", transactionId);
+        } catch (Exception _) {
+            throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        }
+    }
 
     private OnChainPaymentDTOs.SendOnChainRequestDTO normalizeOnChainRequest(OnChainPaymentDTOs.SendOnChainRequestDTO request) {
         OnChainPaymentDTOs.SendOnChainRequestDTO normalized = new OnChainPaymentDTOs.SendOnChainRequestDTO();

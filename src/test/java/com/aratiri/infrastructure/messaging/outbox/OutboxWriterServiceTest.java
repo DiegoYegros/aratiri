@@ -3,11 +3,16 @@ package com.aratiri.infrastructure.messaging.outbox;
 import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
+import com.aratiri.invoices.application.event.InvoiceSettledEvent;
+import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.application.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.payments.application.event.PaymentInitiatedEvent;
 import com.aratiri.payments.application.event.PaymentSentEvent;
 import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
+import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
+import com.aratiri.transactions.application.event.OnChainTransactionReceivedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +44,26 @@ class OutboxWriterServiceTest {
     }
 
     @Test
+    void publishInvoiceSettled_ownsAggregateMetadataTopicAndSerialization() throws Exception {
+        InvoiceSettledEvent eventPayload = new InvoiceSettledEvent(
+                "user-123",
+                1000L,
+                "payment-hash",
+                LocalDateTime.now(),
+                "memo"
+        );
+        when(jsonMapper.writeValueAsString(eventPayload)).thenReturn("{\"invoice\":\"settled\"}");
+
+        outboxWriterService.publishInvoiceSettled("invoice-123", eventPayload);
+
+        OutboxEventEntity event = savedEvent();
+        assertEquals("Invoice", event.getAggregateType());
+        assertEquals("invoice-123", event.getAggregateId());
+        assertEquals(KafkaTopics.INVOICE_SETTLED.getCode(), event.getEventType());
+        assertEquals("{\"invoice\":\"settled\"}", event.getPayload());
+    }
+
+    @Test
     void publishPaymentInitiated_ownsAggregateMetadataTopicAndSerialization() throws Exception {
         PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
         request.setInvoice("lnbc1test");
@@ -54,6 +79,43 @@ class OutboxWriterServiceTest {
         assertEquals("tx-123", event.getAggregateId());
         assertEquals(KafkaTopics.PAYMENT_INITIATED.getCode(), event.getEventType());
         assertEquals("{\"payment\":\"initiated\"}", event.getPayload());
+    }
+
+    @Test
+    void publishOnChainPaymentInitiated_ownsAggregateMetadataTopicAndSerialization() throws Exception {
+        OnChainPaymentDTOs.SendOnChainRequestDTO request = new OnChainPaymentDTOs.SendOnChainRequestDTO();
+        request.setAddress("bc1qrecipient");
+        request.setSatsAmount(2500L);
+        OnChainPaymentInitiatedEvent eventPayload = new OnChainPaymentInitiatedEvent("user-123", "tx-123", request);
+        when(jsonMapper.writeValueAsString(eventPayload)).thenReturn("{\"onchain\":\"payment\"}");
+
+        outboxWriterService.publishOnChainPaymentInitiated("tx-123", eventPayload);
+
+        OutboxEventEntity event = savedEvent();
+        assertEquals("ONCHAIN_PAYMENT", event.getAggregateType());
+        assertEquals("tx-123", event.getAggregateId());
+        assertEquals(KafkaTopics.ONCHAIN_PAYMENT_INITIATED.getCode(), event.getEventType());
+        assertEquals("{\"onchain\":\"payment\"}", event.getPayload());
+    }
+
+    @Test
+    void publishInternalTransferInitiated_ownsAggregateMetadataTopicAndSerialization() throws Exception {
+        InternalTransferInitiatedEvent eventPayload = new InternalTransferInitiatedEvent(
+                "tx-123",
+                "sender-123",
+                "receiver-123",
+                2500L,
+                "payment-hash"
+        );
+        when(jsonMapper.writeValueAsString(eventPayload)).thenReturn("{\"transfer\":\"initiated\"}");
+
+        outboxWriterService.publishInternalTransferInitiated("tx-123", eventPayload);
+
+        OutboxEventEntity event = savedEvent();
+        assertEquals("INTERNAL_TRANSFER", event.getAggregateType());
+        assertEquals("tx-123", event.getAggregateId());
+        assertEquals(KafkaTopics.INTERNAL_TRANSFER_INITIATED.getCode(), event.getEventType());
+        assertEquals("{\"transfer\":\"initiated\"}", event.getPayload());
     }
 
     @Test
@@ -75,6 +137,25 @@ class OutboxWriterServiceTest {
         assertEquals("tx-123", event.getAggregateId());
         assertEquals(KafkaTopics.PAYMENT_SENT.getCode(), event.getEventType());
         assertEquals("{\"payment\":\"sent\"}", event.getPayload());
+    }
+
+    @Test
+    void publishOnChainTransactionReceived_ownsAggregateMetadataTopicAndSerialization() throws Exception {
+        OnChainTransactionReceivedEvent eventPayload = new OnChainTransactionReceivedEvent(
+                "user-123",
+                2500L,
+                "tx-hash",
+                2L
+        );
+        when(jsonMapper.writeValueAsString(eventPayload)).thenReturn("{\"onchain\":\"received\"}");
+
+        outboxWriterService.publishOnChainTransactionReceived("tx-hash:2", eventPayload);
+
+        OutboxEventEntity event = savedEvent();
+        assertEquals("ONCHAIN_TRANSACTION", event.getAggregateType());
+        assertEquals("tx-hash:2", event.getAggregateId());
+        assertEquals(KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED.getCode(), event.getEventType());
+        assertEquals("{\"onchain\":\"received\"}", event.getPayload());
     }
 
     @Test

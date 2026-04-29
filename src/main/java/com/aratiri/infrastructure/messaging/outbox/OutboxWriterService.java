@@ -3,11 +3,15 @@ package com.aratiri.infrastructure.messaging.outbox;
 import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
+import com.aratiri.invoices.application.event.InvoiceSettledEvent;
+import com.aratiri.payments.application.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.payments.application.event.PaymentInitiatedEvent;
 import com.aratiri.payments.application.event.PaymentSentEvent;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
+import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
+import com.aratiri.transactions.application.event.OnChainTransactionReceivedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,13 +21,21 @@ import tools.jackson.databind.json.JsonMapper;
 @RequiredArgsConstructor
 public class OutboxWriterService implements OutboxWriter {
 
+    private static final String INVOICE_AGGREGATE_TYPE = "Invoice";
     private static final String PAYMENT_INITIATED_AGGREGATE_TYPE = "LIGHTNING_INVOICE_PAYMENT";
+    private static final String ONCHAIN_PAYMENT_AGGREGATE_TYPE = "ONCHAIN_PAYMENT";
     private static final String PAYMENT_SENT_AGGREGATE_TYPE = "PAYMENT_SENT";
     private static final String INTERNAL_TRANSFER_AGGREGATE_TYPE = "INTERNAL_TRANSFER";
+    private static final String ONCHAIN_TRANSACTION_AGGREGATE_TYPE = "ONCHAIN_TRANSACTION";
     private static final String INTERNAL_INVOICE_CANCEL_AGGREGATE_TYPE = "INTERNAL_INVOICE_CANCEL";
 
     private final OutboxEventRepository outboxEventRepository;
     private final JsonMapper jsonMapper;
+
+    @Override
+    public void publishInvoiceSettled(String invoiceId, InvoiceSettledEvent eventPayload) {
+        publish(INVOICE_AGGREGATE_TYPE, invoiceId, KafkaTopics.INVOICE_SETTLED, eventPayload);
+    }
 
     @Override
     public void publishPaymentInitiated(String transactionId, PaymentInitiatedEvent eventPayload) {
@@ -31,8 +43,23 @@ public class OutboxWriterService implements OutboxWriter {
     }
 
     @Override
+    public void publishOnChainPaymentInitiated(String transactionId, OnChainPaymentInitiatedEvent eventPayload) {
+        publish(ONCHAIN_PAYMENT_AGGREGATE_TYPE, transactionId, KafkaTopics.ONCHAIN_PAYMENT_INITIATED, eventPayload);
+    }
+
+    @Override
+    public void publishInternalTransferInitiated(String transactionId, InternalTransferInitiatedEvent eventPayload) {
+        publish(INTERNAL_TRANSFER_AGGREGATE_TYPE, transactionId, KafkaTopics.INTERNAL_TRANSFER_INITIATED, eventPayload);
+    }
+
+    @Override
     public void publishPaymentSent(String transactionId, PaymentSentEvent eventPayload) {
         publish(PAYMENT_SENT_AGGREGATE_TYPE, transactionId, KafkaTopics.PAYMENT_SENT, eventPayload);
+    }
+
+    @Override
+    public void publishOnChainTransactionReceived(String referenceId, OnChainTransactionReceivedEvent eventPayload) {
+        publish(ONCHAIN_TRANSACTION_AGGREGATE_TYPE, referenceId, KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED, eventPayload);
     }
 
     @Override
