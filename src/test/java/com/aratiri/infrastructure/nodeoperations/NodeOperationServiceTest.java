@@ -10,7 +10,10 @@ import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.port.out.LightningNodePort;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.transactions.application.dto.TransactionDTOResponse;
+import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
+import com.aratiri.webhooks.application.NodeOperationUnknownOutcomeFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -19,6 +22,7 @@ import lnrpc.PaymentFailureReason;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -210,7 +214,15 @@ class NodeOperationServiceTest {
         assertEquals(NodeOperationStatus.UNKNOWN_OUTCOME, op.getStatus());
         assertTrue(op.getLastError().contains("after max attempts"));
         assertNotNull(op.getCompletedAt());
-        verify(webhookEventService).createNodeOperationUnknownOutcomeEvent(op);
+        NodeOperationUnknownOutcomeFacts facts = captureUnknownOutcomeFacts();
+        assertEquals(op.getId().toString(), facts.operationId());
+        assertEquals(TX_ID, facts.transactionId());
+        assertEquals(USER_ID, facts.userId());
+        assertEquals(NodeOperationType.LIGHTNING_PAYMENT.name(), facts.operationType());
+        assertEquals(NodeOperationStatus.UNKNOWN_OUTCOME.name(), facts.operationStatus());
+        assertEquals(PAYMENT_HASH, facts.referenceId());
+        assertEquals(5, facts.attemptCount());
+        assertTrue(facts.operationError().contains("after max attempts"));
         verify(transactionsPort, never()).failTransaction(any(), any());
         verify(nodeOperationsRepository).save(op);
     }
@@ -246,15 +258,47 @@ class NodeOperationServiceTest {
         NodeOperationEntity op = buildOnChainOperation(NodeOperationStatus.IN_PROGRESS, 1);
 
         when(lightningNodePort.sendOnChain(any())).thenThrow(new RuntimeException("node unreachable"));
+        when(transactionsPort.getTransactionById(TX_ID, USER_ID)).thenReturn(Optional.of(transaction()));
 
         service.executeOnChain(op);
 
         assertEquals(NodeOperationStatus.UNKNOWN_OUTCOME, op.getStatus());
-        assertEquals("node unreachable", op.getLastError());
+        assertEquals("Exception sending on-chain transaction: node unreachable", op.getLastError());
         assertNull(op.getExternalId());
         verify(nodeOperationsRepository).save(op);
-        verify(webhookEventService).createNodeOperationUnknownOutcomeEvent(op);
+        NodeOperationUnknownOutcomeFacts facts = captureUnknownOutcomeFacts();
+        assertEquals(op.getId().toString(), facts.operationId());
+        assertEquals(TX_ID, facts.transactionId());
+        assertEquals(USER_ID, facts.userId());
+        assertEquals(NodeOperationType.ONCHAIN_SEND.name(), facts.operationType());
+        assertEquals(NodeOperationStatus.UNKNOWN_OUTCOME.name(), facts.operationStatus());
+        assertEquals(1, facts.attemptCount());
+        assertEquals("external-1", facts.externalReference());
+        assertEquals("{\"order\":\"123\"}", facts.metadata());
+        assertEquals(1_000L, facts.amountSat());
+        assertEquals(TransactionStatus.PENDING.name(), facts.transactionStatus());
+        assertEquals("transaction-ref-1", facts.referenceId());
+        assertTrue(facts.operationError().contains("node unreachable"));
         verify(transactionsPort, never()).confirmTransaction(any(), any());
+    }
+
+    @Test
+    void onChain_maxAttemptsWithoutBroadcastId_recordsUnknownOutcomeWithoutSendingAgain() {
+        NodeOperationEntity op = buildOnChainOperation(NodeOperationStatus.IN_PROGRESS, 6);
+        when(transactionsPort.getTransactionById(TX_ID, USER_ID)).thenReturn(Optional.of(transaction()));
+
+        service.executeOnChain(op);
+
+        assertEquals(NodeOperationStatus.UNKNOWN_OUTCOME, op.getStatus());
+        assertEquals("Max on-chain attempts (5) reached without a recorded broadcast transaction id", op.getLastError());
+        assertNull(op.getExternalId());
+        NodeOperationUnknownOutcomeFacts facts = captureUnknownOutcomeFacts();
+        assertEquals(NodeOperationType.ONCHAIN_SEND.name(), facts.operationType());
+        assertEquals("external-1", facts.externalReference());
+        assertEquals("transaction-ref-1", facts.referenceId());
+        verify(lightningNodePort, never()).sendOnChain(any());
+        verify(transactionsPort, never()).confirmTransaction(any(), any());
+        verify(transactionsPort, never()).failTransaction(any(), any());
     }
 
     @Test
@@ -266,6 +310,12 @@ class NodeOperationServiceTest {
 
         verify(lightningNodePort, never()).sendOnChain(any());
         verify(transactionsPort).confirmTransaction(TX_ID, USER_ID);
+    }
+
+    private NodeOperationUnknownOutcomeFacts captureUnknownOutcomeFacts() {
+        ArgumentCaptor<NodeOperationUnknownOutcomeFacts> captor = ArgumentCaptor.forClass(NodeOperationUnknownOutcomeFacts.class);
+        verify(webhookEventService).createNodeOperationUnknownOutcomeEvent(captor.capture());
+        return captor.getValue();
     }
 
     private NodeOperationEntity buildLightningOperation(NodeOperationStatus status, int attemptCount) {
@@ -287,6 +337,8 @@ class NodeOperationServiceTest {
         OnChainPaymentDTOs.SendOnChainRequestDTO request = new OnChainPaymentDTOs.SendOnChainRequestDTO();
         request.setAddress("tb1qtest");
         request.setSatsAmount(1_000L);
+        request.setExternalReference("external-1");
+        request.setMetadata("{\"order\":\"123\"}");
         NodeOperationEntity op = new NodeOperationEntity();
         op.setId(UUID.randomUUID());
         op.setTransactionId(TX_ID);
@@ -296,5 +348,17 @@ class NodeOperationServiceTest {
         op.setAttemptCount(attemptCount);
         op.setRequestPayload(JsonUtils.toJson(request));
         return op;
+    }
+
+    private TransactionDTOResponse transaction() {
+        return TransactionDTOResponse.builder()
+                .id(TX_ID)
+                .userId(USER_ID)
+                .amountSat(1_000L)
+                .status(TransactionStatus.PENDING)
+                .referenceId("transaction-ref-1")
+                .externalReference("external-1")
+                .metadata("{\"order\":\"123\"}")
+                .build();
     }
 }

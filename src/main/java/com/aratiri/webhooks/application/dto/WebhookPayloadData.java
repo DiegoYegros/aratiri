@@ -54,4 +54,16 @@ public class WebhookPayloadData {
 
     @JsonProperty("operation_type")
     private String operationType;
+
+    @JsonProperty("operation_status")
+    private String operationStatus;
+
+    @JsonProperty("external_id")
+    private String externalId;
+
+    @JsonProperty("attempt_count")
+    private Integer attemptCount;
+
+    @JsonProperty("operation_error")
+    private String operationError;
 }

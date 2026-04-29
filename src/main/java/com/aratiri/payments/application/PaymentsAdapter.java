@@ -361,6 +361,8 @@ public class PaymentsAdapter implements PaymentsPort {
         normalized.setSatsAmount(request.getSatsAmount());
         normalized.setSatPerVbyte(request.getSatPerVbyte());
         normalized.setTargetConf(request.getTargetConf());
+        normalized.setExternalReference(request.getExternalReference());
+        normalized.setMetadata(request.getMetadata());
         return normalized;
     }
 

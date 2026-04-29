@@ -305,6 +305,58 @@ class WebhookEventServiceTest {
         verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
     }
 
+    @Test
+    void createNodeOperationUnknownOutcomeEvent_includesOperationAndTransactionFacts() throws Exception {
+        WebhookEndpointEntity endpoint = enabledEndpoint("node_operation.unknown_outcome");
+        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
+        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
+        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
+
+        NodeOperationUnknownOutcomeFacts facts = new NodeOperationUnknownOutcomeFacts(
+                "operation-1",
+                "tx-1",
+                "user-1",
+                "ONCHAIN_SEND",
+                "UNKNOWN_OUTCOME",
+                "tx-ref-1",
+                "broadcast-txid-1",
+                5,
+                "node unreachable",
+                2500L,
+                TransactionStatus.PENDING.name(),
+                "external-1",
+                "{\"order\":\"123\"}"
+        );
+
+        webhookEventService.createNodeOperationUnknownOutcomeEvent(facts);
+
+        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
+        verify(webhookEventRepository).save(eventCaptor.capture());
+        assertEquals("node_operation.unknown_outcome:operation-1", eventCaptor.getValue().getEventKey());
+        assertEquals("node_operation.unknown_outcome", eventCaptor.getValue().getEventType());
+        assertEquals("NODE_OPERATION", eventCaptor.getValue().getAggregateType());
+        assertEquals("operation-1", eventCaptor.getValue().getAggregateId());
+        assertEquals("user-1", eventCaptor.getValue().getUserId());
+        assertEquals("external-1", eventCaptor.getValue().getExternalReference());
+
+        WebhookPayloadData data = capturedPayloadData();
+        assertEquals("operation-1", data.getOperationId());
+        assertEquals("tx-1", data.getTransactionId());
+        assertEquals("user-1", data.getUserId());
+        assertEquals("ONCHAIN_SEND", data.getOperationType());
+        assertEquals("UNKNOWN_OUTCOME", data.getOperationStatus());
+        assertEquals("tx-ref-1", data.getReferenceId());
+        assertEquals("broadcast-txid-1", data.getExternalId());
+        assertEquals(5, data.getAttemptCount());
+        assertEquals("node unreachable", data.getOperationError());
+        assertEquals(2500L, data.getAmountSat());
+        assertEquals("PENDING", data.getStatus());
+        assertEquals("external-1", data.getExternalReference());
+        assertEquals("{\"order\":\"123\"}", data.getMetadata());
+
+        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
+    }
+
     private PaymentWebhookFacts acceptedPayment() {
         return PaymentWebhookFacts.accepted(
                 "tx-1",

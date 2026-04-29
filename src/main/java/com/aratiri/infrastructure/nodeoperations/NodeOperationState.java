@@ -5,6 +5,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
 import com.aratiri.infrastructure.persistence.jpa.repository.NodeOperationsRepository;
 import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import lnrpc.Payment;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -51,6 +53,15 @@ class NodeOperationState {
             } else {
                 throw e;
             }
+        }
+    }
+
+    Optional<TransactionDTOResponse> findTransaction(String transactionId, String userId) {
+        try {
+            return transactionsPort.getTransactionById(transactionId, userId);
+        } catch (Exception e) {
+            log.warn("Failed to load transaction {} for node operation facts: {}", transactionId, e.getMessage());
+            return Optional.empty();
         }
     }
 

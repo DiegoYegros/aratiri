@@ -155,16 +155,28 @@ public class WebhookEventService {
     }
 
     public void createNodeOperationUnknownOutcomeEvent(NodeOperationEntity operation) {
+        createNodeOperationUnknownOutcomeEvent(NodeOperationUnknownOutcomeFacts.from(operation, Optional.empty()));
+    }
+
+    public void createNodeOperationUnknownOutcomeEvent(NodeOperationUnknownOutcomeFacts facts) {
         String eventType = "node_operation.unknown_outcome";
-        String eventKey = eventType + ":" + operation.getId();
+        String eventKey = eventType + ":" + facts.operationId();
         WebhookPayloadData data = WebhookPayloadData.builder()
-                .operationId(operation.getId().toString())
-                .transactionId(operation.getTransactionId())
-                .userId(operation.getUserId())
-                .operationType(operation.getOperationType().name())
-                .referenceId(operation.getReferenceId())
+                .operationId(facts.operationId())
+                .transactionId(facts.transactionId())
+                .userId(facts.userId())
+                .operationType(facts.operationType())
+                .operationStatus(facts.operationStatus())
+                .referenceId(facts.referenceId())
+                .externalId(facts.externalId())
+                .attemptCount(facts.attemptCount())
+                .operationError(facts.operationError())
+                .amountSat(facts.amountSat())
+                .status(facts.transactionStatus())
+                .externalReference(facts.externalReference())
+                .metadata(facts.metadata())
                 .build();
-        createEventAndDeliveries(eventKey, eventType, "NODE_OPERATION", operation.getId().toString(), operation.getUserId(), null, data);
+        createEventAndDeliveries(eventKey, eventType, "NODE_OPERATION", facts.operationId(), facts.userId(), facts.externalReference(), data);
     }
 
     public void createWebhookTestEvent(WebhookEndpointEntity endpoint) {

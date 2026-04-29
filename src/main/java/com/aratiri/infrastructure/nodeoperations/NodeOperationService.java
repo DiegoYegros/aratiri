@@ -9,6 +9,7 @@ import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.port.out.LightningNodePort;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
+import com.aratiri.webhooks.application.NodeOperationUnknownOutcomeFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
 import io.grpc.StatusRuntimeException;
 import lnrpc.Payment;
@@ -208,13 +209,7 @@ public class NodeOperationService {
         String message = prefix + ": " + e.getMessage();
         if (op.getAttemptCount() >= maxAttempts) {
             log.warn("{} for lightning operation id={} after max attempts", prefix, op.getId(), e);
-            op.setStatus(NodeOperationStatus.UNKNOWN_OUTCOME);
-            op.setLastError(message + " after max attempts");
-            op.setCompletedAt(Instant.now());
-            op.setLockedBy(null);
-            op.setLockedUntil(null);
-            nodeOperationsRepository.save(op);
-            webhookEventService.createNodeOperationUnknownOutcomeEvent(op);
+            markUnknownOutcome(op, message + " after max attempts");
         } else {
             log.warn("{} for lightning operation id={}, scheduling retry", prefix, op.getId(), e);
             stateManager.markRetryable(op, message);
@@ -224,14 +219,14 @@ public class NodeOperationService {
     void executeOnChain(NodeOperationEntity op) {
         int maxAttempts = nodeOperationProperties.getOnchainMaxAttempts();
 
-        if (op.getExternalId() != null) {
+        if (hasBroadcastId(op)) {
             stateManager.confirmTransaction(op.getTransactionId(), op.getUserId());
             stateManager.markSucceeded(op);
             return;
         }
 
         if (op.getAttemptCount() > maxAttempts) {
-            stateManager.markFailed(op, "Max on-chain attempts (" + maxAttempts + ") reached");
+            markUnknownOutcome(op, "Max on-chain attempts (" + maxAttempts + ") reached without a recorded broadcast transaction id");
             return;
         }
 
@@ -241,10 +236,12 @@ public class NodeOperationService {
             txid = lightningNodePort.sendOnChain(request);
         } catch (Exception e) {
             log.error("On-chain send failed for operation id={}: {}", op.getId(), e.getMessage());
-            op.setStatus(NodeOperationStatus.UNKNOWN_OUTCOME);
-            op.setLastError(e.getMessage());
-            nodeOperationsRepository.save(op);
-            webhookEventService.createNodeOperationUnknownOutcomeEvent(op);
+            markUnknownOutcome(op, "Exception sending on-chain transaction: " + e.getMessage());
+            return;
+        }
+
+        if (txid == null || txid.isBlank()) {
+            markUnknownOutcome(op, "LND sendCoins returned no transaction id");
             return;
         }
 
@@ -254,6 +251,23 @@ public class NodeOperationService {
 
         stateManager.confirmTransaction(op.getTransactionId(), op.getUserId());
         stateManager.markSucceeded(op);
+    }
+
+    private void markUnknownOutcome(NodeOperationEntity op, String error) {
+        op.setStatus(NodeOperationStatus.UNKNOWN_OUTCOME);
+        op.setLastError(error);
+        op.setCompletedAt(Instant.now());
+        op.setLockedBy(null);
+        op.setLockedUntil(null);
+        nodeOperationsRepository.save(op);
+        webhookEventService.createNodeOperationUnknownOutcomeEvent(NodeOperationUnknownOutcomeFacts.from(
+                op,
+                stateManager.findTransaction(op.getTransactionId(), op.getUserId())
+        ));
+    }
+
+    private boolean hasBroadcastId(NodeOperationEntity op) {
+        return op.getExternalId() != null && !op.getExternalId().isBlank();
     }
 
     private PayInvoiceRequestDTO normalizeInvoice(PayInvoiceRequestDTO request) {
