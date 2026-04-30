@@ -1,0 +1,12 @@
+<FindBugsFilter>
+    <Match>
+        <!-- Exclude generated protobuf/gRPC code -->
+        <Package name="~lnrpc\..*"/>
+        <Package name="~routerrpc\..*"/>
+        <Package name="~invoicesrpc\..*"/>
+    </Match>
+    <Match>
+        <!-- Exclude Lombok-generated methods from checks -->
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+</FindBugsFilter>

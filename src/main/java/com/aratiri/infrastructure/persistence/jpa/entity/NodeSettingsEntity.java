@@ -5,7 +5,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -13,7 +14,8 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "NODE_SETTINGS")
-@Data
+@Getter
+@Setter
 public class NodeSettingsEntity {
 
     @Id

@@ -19,6 +19,8 @@ import java.time.Duration;
 @ActiveProfiles("test")
 public abstract class AbstractIntegrationTest {
 
+    private static final Object DB_CLEANUP_LOCK = new Object();
+
     private static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
             DockerImageName.parse("postgres:16-alpine")
     )
@@ -45,8 +47,9 @@ public abstract class AbstractIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
-        jdbcTemplate.execute("""
-                TRUNCATE TABLE
+        synchronized (DB_CLEANUP_LOCK) {
+            jdbcTemplate.execute("""
+                    TRUNCATE TABLE
                     aratiri.account_entries,
                     aratiri.transaction_events,
                     aratiri.transactions,
@@ -65,6 +68,7 @@ public abstract class AbstractIntegrationTest {
                     aratiri.webhook_endpoints
                 CASCADE
                 """);
+        }
     }
 
     @DynamicPropertySource

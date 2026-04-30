@@ -1,5 +1,8 @@
 syntax = "proto3";
 
+// Source: LND v0.18.5-beta (github.com/lightningnetwork/lnd)
+// DO NOT MODIFY — synced from upstream release
+
 package lnrpc;
 
 option go_package = "github.com/lightningnetwork/lnd/lnrpc";

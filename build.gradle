@@ -13,6 +13,8 @@ plugins {
     id 'pl.allegro.tech.build.axion-release' version '1.21.1'
     id 'name.remal.sonarlint' version '7.0.1'
     id 'org.flywaydb.flyway' version '11.14.1'
+    id 'jacoco'
+    id 'com.github.spotbugs' version '6.1.7'
 }
 
 group = 'com.aratiri'
@@ -66,6 +68,26 @@ sonarLint {
     ignoredPaths.add('**/generated/**')
 }
 
+spotbugs {
+    ignoreFailures = true
+    showStackTraces = true
+    showProgress = true
+    effort = 'MAX'
+    reportLevel = 'LOW'
+    excludeFilter = file("$rootDir/config/spotbugs/exclude.xml")
+}
+
+spotbugsMain {
+    reports {
+        html.required = true
+        xml.required = true
+    }
+}
+
+spotbugsTest {
+    enabled = false
+}
+
 flyway {
     url = System.getenv('SPRING_DATASOURCE_URL')
     user = System.getenv('SPRING_DATASOURCE_USERNAME')
@@ -93,6 +115,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'io.micrometer:micrometer-tracing-bridge-brave'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-flyway'
@@ -113,6 +137,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-cache'
     implementation 'com.github.ben-manes.caffeine:caffeine'
     implementation "org.java-websocket:Java-WebSocket:${javaWebSocketVersion}"
+    implementation 'net.logstash.logback:logstash-logback-encoder:8.0'
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -123,6 +148,8 @@ dependencies {
     testImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
     testImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
     testImplementation "org.testcontainers:kafka:${testcontainersVersion}"
+
+    spotbugsPlugins 'com.h3xstream.findsecbugs:findsecbugs-plugin:1.13.0'
 }
 
 protobuf {
@@ -154,8 +181,62 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+tasks.named('sonarlintTest') {
+    setDependsOn([tasks.named('testClasses')])
+    setSource(sourceSets.test.allJava)
+    java {
+        mainOutputDirectories.setFrom(
+                layout.buildDirectory.dir('classes/java/main'),
+                layout.buildDirectory.dir('resources/main')
+        )
+        mainClasspath.setFrom(sourceSets.main.compileClasspath)
+        testOutputDirectories.setFrom(
+                layout.buildDirectory.dir('classes/java/test'),
+                layout.buildDirectory.dir('resources/test')
+        )
+        testClasspath.setFrom(sourceSets.test.compileClasspath)
+    }
+}
+
 tasks.named('check') {
-    dependsOn(tasks.named('sonarlintMain'), tasks.named('sonarlintTest'), tasks.named('verifyProtoClassesInBootJar'))
+    dependsOn(tasks.named('sonarlintMain'), tasks.named('sonarlintTest'), tasks.named('verifyProtoClassesInBootJar'), tasks.named('jacocoTestCoverageVerification'), tasks.named('spotbugsMain'))
+}
+
+def jacocoExcludes = [
+    'lnrpc/**',
+    'routerrpc/**',
+    'invoicesrpc/**',
+    'com/google/**',        // protobuf utilities
+]
+
+jacocoTestReport {
+    dependsOn(tasks.named('test'))
+    reports {
+        xml.required = true
+        html.required = true
+    }
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: jacocoExcludes)
+        }))
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn(tasks.named('test'))
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                minimum = 0.90
+            }
+        }
+    }
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: jacocoExcludes)
+        }))
+    }
 }
 
 tasks.named('jar') {

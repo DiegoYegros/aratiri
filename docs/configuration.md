@@ -56,6 +56,8 @@ If `LND_TLS_CERT_PATH` is blank and TLS is active, the app uses default transpor
 | `GOOGLE_OAUTH_CLIENT_ID` | blank | Google SSO client ID. |
 | `EMAIL_USERNAME` | none | SMTP username for verification and password reset emails. |
 | `EMAIL_PASSWORD` | none | SMTP password. |
+| `ARATIRI_MAIL_HOST` | `smtp.gmail.com` | SMTP server host. Configure if using a different email service. |
+| `ARATIRI_MAIL_PORT` | `587` | SMTP server port. |
 
 Trusted issuer/token exchange settings:
 

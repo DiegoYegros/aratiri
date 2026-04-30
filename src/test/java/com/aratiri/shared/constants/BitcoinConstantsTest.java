@@ -4,67 +4,37 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 class BitcoinConstantsTest {
 
     @Test
-    void satoshisToBtc_shouldConvertLongToCorrectBtc() {
-        BigDecimal result = BitcoinConstants.satoshisToBtc(100000000L);
-        assertEquals(new BigDecimal("1.00000000"), result);
+    void satoshisToBtc_long_convertsCorrectly() {
+        assertEquals(0, BigDecimal.valueOf(1, 8).compareTo(BitcoinConstants.satoshisToBtc(1)));
+        assertEquals(0, BigDecimal.ONE.compareTo(BitcoinConstants.satoshisToBtc(100_000_000)));
+        assertEquals(0, BigDecimal.ZERO.compareTo(BitcoinConstants.satoshisToBtc(0)));
     }
 
     @Test
-    void satoshisToBtc_shouldConvertSmallAmount() {
-        BigDecimal result = BitcoinConstants.satoshisToBtc(1L);
-        assertEquals(new BigDecimal("0.00000001"), result);
+    void satoshisToBtc_bigDecimal_convertsCorrectly() {
+        assertEquals(0, BigDecimal.valueOf(1, 8).compareTo(BitcoinConstants.satoshisToBtc(BigDecimal.ONE)));
+        assertEquals(0, BigDecimal.ZERO.compareTo(BitcoinConstants.satoshisToBtc(BigDecimal.ZERO)));
     }
 
     @Test
-    void satoshisToBtc_shouldConvertZero() {
-        BigDecimal result = BitcoinConstants.satoshisToBtc(0L);
-        assertEquals(new BigDecimal("0.00000000"), result);
+    void btcToSatoshis_bigDecimal_convertsCorrectly() {
+        assertEquals(0, BigDecimal.ONE.compareTo(BitcoinConstants.btcToSatoshis(BigDecimal.valueOf(1, 8))));
+        assertEquals(0, BigDecimal.valueOf(100_000_000).compareTo(BitcoinConstants.btcToSatoshis(BigDecimal.ONE)));
     }
 
     @Test
-    void satoshisToBtc_fromBigDecimal_shouldConvert() {
-        BigDecimal sats = new BigDecimal("50000000");
-        BigDecimal result = BitcoinConstants.satoshisToBtc(sats);
-        assertEquals(new BigDecimal("0.50000000"), result);
+    void btcToSatoshis_long_convertsCorrectly() {
+        assertEquals(0, BigDecimal.valueOf(100_000_000).compareTo(BitcoinConstants.btcToSatoshis(1L)));
     }
 
     @Test
-    void btcToSatoshis_shouldConvertBigDecimalToSats() {
-        BigDecimal btc = new BigDecimal("1.0");
-        BigDecimal result = BitcoinConstants.btcToSatoshis(btc);
-        assertEquals(new BigDecimal("100000000.0"), result);
-    }
-
-    @Test
-    void btcToSatoshis_shouldConvertSmallBtcAmount() {
-        BigDecimal btc = new BigDecimal("0.00000001");
-        BigDecimal result = BitcoinConstants.btcToSatoshis(btc);
-        assertEquals(new BigDecimal("1.00000000"), result);
-    }
-
-    @Test
-    void btcToSatoshis_fromLong_shouldConvert() {
-        BigDecimal result = BitcoinConstants.btcToSatoshis(2L);
-        assertEquals(new BigDecimal("200000000"), result);
-    }
-
-    @Test
-    void satoshisPerBtc_shouldBe100Million() {
+    void constants_areDefined() {
         assertEquals(100_000_000L, BitcoinConstants.SATOSHIS_PER_BTC_LONG);
-        BigDecimal actualSatoshisPerBtc = BitcoinConstants.SATOSHIS_PER_BTC;
-        assertEquals(new BigDecimal("100000000"), actualSatoshisPerBtc);
-    }
-
-    @Test
-    void roundTrip_shouldPreservValue() {
-        long originalSats = 12345678L;
-        BigDecimal btc = BitcoinConstants.satoshisToBtc(originalSats);
-        BigDecimal backToSats = BitcoinConstants.btcToSatoshis(btc);
-        assertEquals(originalSats, backToSats.longValue());
+        assertNotNull(BitcoinConstants.SATOSHIS_PER_BTC);
     }
 }

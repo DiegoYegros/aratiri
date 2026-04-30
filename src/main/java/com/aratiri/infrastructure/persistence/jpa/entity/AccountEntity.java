@@ -1,11 +1,13 @@
 package com.aratiri.infrastructure.persistence.jpa.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
 @Table(name = "ACCOUNTS")
-@Data
+@Getter
+@Setter
 public class AccountEntity {
 
     @Id

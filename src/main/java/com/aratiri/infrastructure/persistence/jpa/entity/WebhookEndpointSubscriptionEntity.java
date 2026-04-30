@@ -1,8 +1,11 @@
 package com.aratiri.infrastructure.persistence.jpa.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
-
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import java.util.UUID;
 
 @Entity
@@ -10,7 +13,8 @@ import java.util.UUID;
     name = "WEBHOOK_ENDPOINT_SUBSCRIPTIONS",
     uniqueConstraints = @UniqueConstraint(columnNames = {"endpoint_id", "event_type"})
 )
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor

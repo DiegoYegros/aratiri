@@ -188,6 +188,80 @@ class TransactionsAdapterTest {
         assertTrue(transactionsAdapter.existsByReferenceId("ref-123"));
     }
 
+    @Test
+    void confirmTransactionAsAdmin_shouldCompleteExternalDebit() {
+        TransactionEntity externalDebitTx = new TransactionEntity();
+        externalDebitTx.setId(TRANSACTION_ID);
+        externalDebitTx.setUserId(USER_ID);
+        externalDebitTx.setAmount(1500L);
+        externalDebitTx.setCurrentAmount(1500L);
+        externalDebitTx.setCurrency(TransactionCurrency.BTC);
+        externalDebitTx.setType(TransactionType.ONCHAIN_DEBIT);
+        externalDebitTx.setReferenceId("payhash");
+        externalDebitTx.setCreatedAt(Instant.now());
+
+        when(transactionsRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(externalDebitTx));
+        when(accountLedgerService.appendOnChainDebitSettlement(externalDebitTx)).thenReturn(8500L);
+
+        List<TransactionEventEntity> pendingEvents = List.of(statusEvent(externalDebitTx, TransactionStatus.PENDING));
+        List<TransactionEventEntity> completedEvents = List.of(
+                statusEvent(externalDebitTx, TransactionStatus.PENDING),
+                statusEvent(externalDebitTx, TransactionStatus.COMPLETED)
+        );
+        when(transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(TRANSACTION_ID))
+                .thenReturn(pendingEvents, completedEvents);
+
+        TransactionDTOResponse response = transactionsAdapter.confirmTransactionAsAdmin(TRANSACTION_ID);
+
+        assertEquals(TransactionStatus.COMPLETED, response.getStatus());
+    }
+
+    @Test
+    void confirmTransactionAsAdmin_shouldSettleNonDebit() {
+        TransactionEntity creditTx = new TransactionEntity();
+        creditTx.setId(TRANSACTION_ID);
+        creditTx.setUserId(USER_ID);
+        creditTx.setAmount(1000L);
+        creditTx.setCurrency(TransactionCurrency.BTC);
+        creditTx.setType(TransactionType.LIGHTNING_CREDIT);
+        creditTx.setDescription("Invoice paid");
+        creditTx.setReferenceId("payhash");
+        creditTx.setCreatedAt(Instant.now());
+
+        when(transactionsRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(creditTx));
+        when(accountLedgerService.appendLightningCreditSettlement(creditTx)).thenReturn(5000L);
+
+        List<TransactionEventEntity> pendingEvents = List.of(statusEvent(creditTx, TransactionStatus.PENDING));
+        List<TransactionEventEntity> completedEvents = List.of(
+                statusEvent(creditTx, TransactionStatus.PENDING),
+                statusEvent(creditTx, TransactionStatus.COMPLETED)
+        );
+        when(transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(TRANSACTION_ID))
+                .thenReturn(pendingEvents, completedEvents);
+
+        TransactionDTOResponse response = transactionsAdapter.confirmTransactionAsAdmin(TRANSACTION_ID);
+
+        assertEquals(TransactionStatus.COMPLETED, response.getStatus());
+    }
+
+    @Test
+    void failTransaction_shouldFailExternalDebit() {
+        TransactionEntity externalDebitTx = new TransactionEntity();
+        externalDebitTx.setId(TRANSACTION_ID);
+        externalDebitTx.setUserId(USER_ID);
+        externalDebitTx.setAmount(1000L);
+        externalDebitTx.setType(TransactionType.ONCHAIN_DEBIT);
+        externalDebitTx.setCreatedAt(Instant.now());
+
+        when(transactionsRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(externalDebitTx));
+        when(transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(TRANSACTION_ID))
+                .thenReturn(List.of(statusEvent(externalDebitTx, TransactionStatus.PENDING)));
+
+        transactionsAdapter.failTransaction(TRANSACTION_ID, "failure");
+
+        verify(transactionEventRepository).save(any(TransactionEventEntity.class));
+    }
+
     private TransactionEventEntity statusEvent(TransactionEntity tx, TransactionStatus status) {
         return TransactionEventEntity.builder()
                 .transaction(tx)

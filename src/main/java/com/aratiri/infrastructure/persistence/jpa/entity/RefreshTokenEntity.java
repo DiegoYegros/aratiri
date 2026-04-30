@@ -1,14 +1,16 @@
 package com.aratiri.infrastructure.persistence.jpa.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "REFRESH_TOKENS")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 public class RefreshTokenEntity {
 

@@ -206,3 +206,7 @@ Aratiri expects:
 - external BTC price APIs with fallback pricing.
 
 Generated LND protobuf classes are built from `src/main/proto` and packaged into the Spring Boot jar. The Gradle build includes a verification task to ensure the generated `lnrpc`, `routerrpc`, and `invoicesrpc` classes are present in the boot jar.
+
+## License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.

@@ -3,7 +3,12 @@ package com.aratiri.infrastructure.persistence.jpa.entity;
 import com.aratiri.transactions.application.dto.TransactionCurrency;
 import com.aratiri.transactions.application.dto.TransactionType;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
@@ -13,7 +18,8 @@ import java.util.UUID;
 @Table(name = "TRANSACTIONS", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"reference_id", "user_id"})
 })
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor

@@ -3,14 +3,16 @@ package com.aratiri.infrastructure.persistence.jpa.entity;
 import com.aratiri.auth.domain.AuthProvider;
 import com.aratiri.auth.domain.Role;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "USERS")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 public class UserEntity {
 

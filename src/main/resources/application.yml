@@ -30,8 +30,7 @@ spring:
     database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
 
   mail:
-    host: smtp.gmail.com
-    port: 587
+    port: ${ARATIRI_MAIL_PORT:587}
     username: ${EMAIL_USERNAME}
     password: ${EMAIL_PASSWORD}
     properties:
@@ -144,3 +143,22 @@ jwt:
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:8400}
   refresh-expiration: ${JWT_REFRESH_EXPIRATION:2592000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}
+
+logging:
+  level:
+    com.aratiri: ${ARATIRI_LOG_LEVEL:INFO}
