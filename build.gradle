@@ -14,7 +14,7 @@ plugins {
     id 'name.remal.sonarlint' version '7.0.1'
     id 'org.flywaydb.flyway' version '11.14.1'
     id 'jacoco'
-    id 'com.github.spotbugs' version '6.1.7'
+    id 'com.github.spotbugs' version '6.5.0'
 }
 
 group = 'com.aratiri'
@@ -69,7 +69,7 @@ sonarLint {
 }
 
 spotbugs {
-    ignoreFailures = true
+    ignoreFailures = false
     showStackTraces = true
     showProgress = true
     effort = 'MAX'

@@ -4,10 +4,10 @@ import com.aratiri.infrastructure.configuration.NodeOperationProperties;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
 import com.aratiri.infrastructure.persistence.jpa.repository.NodeOperationsRepository;
+import com.aratiri.payments.domain.LightningPayment;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
-import lnrpc.Payment;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -25,12 +25,8 @@ class NodeOperationState {
     private final TransactionsPort transactionsPort;
     private final NodeOperationProperties nodeOperationProperties;
 
-    void recordFeeIfPresent(String transactionId, Payment payment) {
-        long feeSat = payment.getFeeSat();
-        long feeMsat = payment.getFeeMsat();
-        if (feeSat <= 0 && feeMsat > 0) {
-            feeSat = (feeMsat + 999) / 1000;
-        }
+    void recordFeeIfPresent(String transactionId, LightningPayment payment) {
+        long feeSat = payment.feeSatRoundedUp();
         if (feeSat > 0) {
             try {
                 transactionsPort.addFeeToTransaction(transactionId, feeSat);

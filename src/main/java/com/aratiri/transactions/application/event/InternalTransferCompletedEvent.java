@@ -1,19 +1,37 @@
 package com.aratiri.transactions.application.event;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
 import java.time.LocalDateTime;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class InternalTransferCompletedEvent {
-    private String senderId;
-    private String receiverId;
-    private Long amountSat;
-    private String paymentHash;
-    private LocalDateTime timestamp;
-    private String memo;
+public record InternalTransferCompletedEvent(
+  String senderId,
+  String receiverId,
+  Long amountSat,
+  String paymentHash,
+  LocalDateTime timestamp,
+  String memo
+) {
+
+  public String getSenderId() {
+    return senderId;
+  }
+
+  public String getReceiverId() {
+    return receiverId;
+  }
+
+  public Long getAmountSat() {
+    return amountSat;
+  }
+
+  public String getPaymentHash() {
+    return paymentHash;
+  }
+
+  public LocalDateTime getTimestamp() {
+    return timestamp;
+  }
+
+  public String getMemo() {
+    return memo;
+  }
 }

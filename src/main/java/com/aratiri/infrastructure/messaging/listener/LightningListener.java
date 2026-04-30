@@ -3,6 +3,7 @@ package com.aratiri.infrastructure.messaging.listener;
 import com.aratiri.infrastructure.persistence.jpa.entity.InvoiceSubscriptionState;
 import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.payments.application.invoice.InvoiceProcessorService;
+import com.aratiri.payments.domain.LightningInvoiceUpdate;
 import io.grpc.stub.StreamObserver;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -90,7 +91,7 @@ public class LightningListener {
                         return;
                     }
                     try {
-                        invoiceProcessorService.processInvoiceUpdate(invoice);
+                        invoiceProcessorService.processInvoiceUpdate(toDomain(invoice));
                     } catch (Exception e) {
                         logger.error("Unhandled exception in handleInvoiceUpdate for payment request: {}",
                                 invoice != null ? invoice.getPaymentRequest() : "unknown", e);
@@ -135,5 +136,25 @@ public class LightningListener {
             shouldReconnect.set(false);
             subscribeToInvoices();
         }
+    }
+
+    private LightningInvoiceUpdate toDomain(Invoice invoice) {
+        return new LightningInvoiceUpdate(
+                invoice.getPaymentRequest(),
+                toDomainState(invoice.getState()),
+                invoice.getAmtPaidSat(),
+                invoice.getAddIndex(),
+                invoice.getSettleIndex()
+        );
+    }
+
+    private LightningInvoiceUpdate.State toDomainState(Invoice.InvoiceState state) {
+        return switch (state) {
+            case OPEN -> LightningInvoiceUpdate.State.OPEN;
+            case SETTLED -> LightningInvoiceUpdate.State.SETTLED;
+            case CANCELED -> LightningInvoiceUpdate.State.CANCELED;
+            case ACCEPTED -> LightningInvoiceUpdate.State.ACCEPTED;
+            case UNRECOGNIZED -> LightningInvoiceUpdate.State.UNKNOWN;
+        };
     }
 }

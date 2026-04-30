@@ -11,8 +11,11 @@ import com.aratiri.payments.application.event.PaymentInitiatedEvent;
 import com.aratiri.payments.application.port.out.*;
 import com.aratiri.payments.domain.DecodedInvoice;
 import com.aratiri.payments.domain.InternalLightningInvoice;
+import com.aratiri.payments.domain.LightningPayment;
+import com.aratiri.payments.domain.LightningPaymentStatus;
 import com.aratiri.payments.domain.OnChainFeeEstimate;
 import com.aratiri.payments.domain.PaymentAccount;
+import com.aratiri.payments.domain.exception.LightningNodeTransportException;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
@@ -21,8 +24,6 @@ import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 import com.aratiri.webhooks.application.WebhookEventService;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -82,7 +83,9 @@ class PaymentsAdapterTest {
         lightningInvoicePort,
         lightningInvoicePaymentCommand,
         onChainPaymentCommand,
-        webhookEventService
+        webhookEventService,
+        new PaymentFeePolicy(0, null, 0, null),
+        new ExistingPaymentPolicy()
     );
   }
 
@@ -248,8 +251,7 @@ class PaymentsAdapterTest {
     when(invoicesPort.decodeInvoice("lnbc1alreadypaid"))
         .thenReturn(new DecodedInvoice(PAYMENT_HASH, 1_000L, "paid invoice"));
 
-    lnrpc.Payment succeededPayment = mock(lnrpc.Payment.class);
-    when(succeededPayment.getStatus()).thenReturn(lnrpc.Payment.PaymentStatus.SUCCEEDED);
+    LightningPayment succeededPayment = lightningPayment(LightningPaymentStatus.SUCCEEDED);
     when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.of(succeededPayment));
 
     AratiriException ex = assertThrows(AratiriException.class,
@@ -272,8 +274,7 @@ class PaymentsAdapterTest {
     when(invoicesPort.decodeInvoice("lnbc1inflight"))
         .thenReturn(new DecodedInvoice(PAYMENT_HASH, 1_000L, "in-flight invoice"));
 
-    lnrpc.Payment inFlightPayment = mock(lnrpc.Payment.class);
-    when(inFlightPayment.getStatus()).thenReturn(lnrpc.Payment.PaymentStatus.IN_FLIGHT);
+    LightningPayment inFlightPayment = lightningPayment(LightningPaymentStatus.IN_FLIGHT);
     when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.of(inFlightPayment));
 
     AratiriException ex = assertThrows(AratiriException.class,
@@ -281,6 +282,33 @@ class PaymentsAdapterTest {
 
     assertEquals(409, ex.getStatus());
     verifyNoInteractions(transactionsPort);
+  }
+
+  @Test
+  void payLightningInvoice_nodePaymentFailed_allowsExternalPayment() {
+    PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
+    request.setInvoice("lnbc1failed");
+
+    when(lightningInvoicePaymentCommand.execute(anyString(), anyString(), same(request), any()))
+        .thenAnswer(invocation -> invocation.<java.util.function.Supplier<PaymentResponseDTO>>getArgument(3).get());
+    when(invoicesPort.decodeInvoice("lnbc1failed"))
+        .thenReturn(new DecodedInvoice(PAYMENT_HASH, 1_000L, "failed invoice"));
+    when(lightningNodePort.findPayment(PAYMENT_HASH))
+        .thenReturn(Optional.of(lightningPayment(LightningPaymentStatus.FAILED)));
+    when(lightningInvoicePort.findByPaymentHash(PAYMENT_HASH)).thenReturn(Optional.empty());
+    when(invoicesPort.existsSettledInvoice(PAYMENT_HASH)).thenReturn(false);
+    when(transactionsPort.createTransaction(any(CreateTransactionRequest.class))).thenReturn(
+        TransactionDTOResponse.builder()
+            .id("tx-after-failed")
+            .status(TransactionStatus.PENDING)
+            .type(TransactionType.LIGHTNING_DEBIT)
+            .build()
+    );
+
+    PaymentResponseDTO response = paymentsAdapter.payLightningInvoice(request, USER_ID, "idem-key");
+
+    assertEquals("tx-after-failed", response.getTransactionId());
+    verify(outboxWriter).publishPaymentInitiated(eq("tx-after-failed"), any());
   }
 
   // ── payLightningInvoice – internal invoice already settled → BAD_REQUEST ──
@@ -361,8 +389,7 @@ class PaymentsAdapterTest {
     when(invoicesPort.decodeInvoice("lnbc1nodealreadypaid"))
         .thenReturn(new DecodedInvoice(PAYMENT_HASH, 1_000L, "node paid"));
 
-    lnrpc.Payment succeededPayment = mock(lnrpc.Payment.class);
-    when(succeededPayment.getStatus()).thenReturn(lnrpc.Payment.PaymentStatus.SUCCEEDED);
+    LightningPayment succeededPayment = lightningPayment(LightningPaymentStatus.SUCCEEDED);
     when(lightningNodePort.findPayment(PAYMENT_HASH))
         .thenReturn(Optional.empty(), Optional.of(succeededPayment));
     when(lightningInvoicePort.findByPaymentHash(PAYMENT_HASH)).thenReturn(Optional.empty());
@@ -379,10 +406,10 @@ class PaymentsAdapterTest {
 
   @Test
   void checkPaymentStatusOnNode_found_returnsPayment() {
-    lnrpc.Payment payment = mock(lnrpc.Payment.class);
+    LightningPayment payment = lightningPayment(LightningPaymentStatus.SUCCEEDED);
     when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.of(payment));
 
-    Optional<lnrpc.Payment> result = paymentsAdapter.checkPaymentStatusOnNode(PAYMENT_HASH);
+    Optional<LightningPayment> result = paymentsAdapter.checkPaymentStatusOnNode(PAYMENT_HASH);
 
     assertTrue(result.isPresent());
     assertSame(payment, result.get());
@@ -391,9 +418,9 @@ class PaymentsAdapterTest {
   @Test
   void checkPaymentStatusOnNode_notFound_returnsEmpty() {
     when(lightningNodePort.findPayment(PAYMENT_HASH))
-        .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
+        .thenReturn(Optional.empty());
 
-    Optional<lnrpc.Payment> result = paymentsAdapter.checkPaymentStatusOnNode(PAYMENT_HASH);
+    Optional<LightningPayment> result = paymentsAdapter.checkPaymentStatusOnNode(PAYMENT_HASH);
 
     assertTrue(result.isEmpty());
   }
@@ -401,7 +428,7 @@ class PaymentsAdapterTest {
   @Test
   void checkPaymentStatusOnNode_grpcError_throwsException() {
     when(lightningNodePort.findPayment(PAYMENT_HASH))
-        .thenThrow(new StatusRuntimeException(Status.INTERNAL));
+        .thenThrow(new LightningNodeTransportException("node unavailable", new RuntimeException("transport")));
 
     AratiriException ex = assertThrows(AratiriException.class,
         () -> paymentsAdapter.checkPaymentStatusOnNode(PAYMENT_HASH));
@@ -527,5 +554,9 @@ class PaymentsAdapterTest {
 
     assertEquals(500, ex.getStatus());
     assertTrue(ex.getMessage().contains("Error estimating fee"));
+  }
+
+  private LightningPayment lightningPayment(LightningPaymentStatus status) {
+    return new LightningPayment(status, "FAILURE_REASON_NONE", 0L, 0L);
   }
 }

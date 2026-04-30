@@ -1,19 +1,37 @@
 package com.aratiri.payments.application.event;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
 import java.time.LocalDateTime;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class PaymentSentEvent {
-    private String userId;
-    private String transactionId;
-    private Long amount;
-    private String paymentHash;
-    private LocalDateTime timestamp;
-    private String memo;
+public record PaymentSentEvent(
+  String userId,
+  String transactionId,
+  Long amount,
+  String paymentHash,
+  LocalDateTime timestamp,
+  String memo
+) {
+
+  public String getUserId() {
+    return userId;
+  }
+
+  public String getTransactionId() {
+    return transactionId;
+  }
+
+  public Long getAmount() {
+    return amount;
+  }
+
+  public String getPaymentHash() {
+    return paymentHash;
+  }
+
+  public LocalDateTime getTimestamp() {
+    return timestamp;
+  }
+
+  public String getMemo() {
+    return memo;
+  }
 }

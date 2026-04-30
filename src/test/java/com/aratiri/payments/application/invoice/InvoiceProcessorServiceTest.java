@@ -6,7 +6,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
-import lnrpc.Invoice;
+import com.aratiri.payments.domain.LightningInvoiceUpdate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,13 +57,13 @@ class InvoiceProcessorServiceTest {
                 .createdAt(LocalDateTime.now())
                 .expiry(3600)
                 .build();
-        Invoice invoice = Invoice.newBuilder()
-                .setPaymentRequest("lnbc1settled")
-                .setState(Invoice.InvoiceState.SETTLED)
-                .setAmtPaidSat(2_500L)
-                .setAddIndex(10L)
-                .setSettleIndex(20L)
-                .build();
+        LightningInvoiceUpdate invoice = new LightningInvoiceUpdate(
+                "lnbc1settled",
+                LightningInvoiceUpdate.State.SETTLED,
+                2_500L,
+                10L,
+                20L
+        );
         when(lightningInvoiceRepository.findByPaymentRequest("lnbc1settled"))
                 .thenReturn(Optional.of(invoiceEntity));
         when(lightningInvoiceRepository.save(invoiceEntity)).thenReturn(invoiceEntity);

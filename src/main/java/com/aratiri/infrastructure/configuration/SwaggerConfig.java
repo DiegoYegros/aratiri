@@ -7,6 +7,7 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springdoc.core.customizers.OperationCustomizer;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,6 +15,7 @@ import java.lang.reflect.Parameter;
 import java.util.Arrays;
 
 @Configuration
+@ConditionalOnProperty(prefix = "aratiri.security.api-docs", name = "enabled", havingValue = "true")
 public class SwaggerConfig {
 
     private static final String BEARER_AUTH_SCHEME = "bearerAuth";

@@ -6,8 +6,8 @@ import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
+import com.aratiri.payments.domain.LightningInvoiceUpdate;
 import com.aratiri.shared.exception.AratiriException;
-import lnrpc.Invoice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -37,34 +37,34 @@ public class InvoiceProcessorService {
 
     @Transactional
     @Async
-    public void processInvoiceUpdate(Invoice invoice) {
-        if (invoice.getState().equals(Invoice.InvoiceState.OPEN)) {
+    public void processInvoiceUpdate(LightningInvoiceUpdate invoice) {
+        if (invoice.state() == LightningInvoiceUpdate.State.OPEN) {
             return;
         }
 
         Optional<LightningInvoiceEntity> optionalInvoiceEntity =
-                lightningInvoiceRepository.findByPaymentRequest(invoice.getPaymentRequest());
+                lightningInvoiceRepository.findByPaymentRequest(invoice.paymentRequest());
 
         if (optionalInvoiceEntity.isEmpty()) {
-            logger.debug("Invoice not found in database, skipping: {}", invoice.getPaymentRequest());
+            logger.debug("Invoice not found in database, skipping: {}", invoice.paymentRequest());
             return;
         }
 
         LightningInvoiceEntity invoiceEntity = optionalInvoiceEntity.get();
-        LightningInvoiceEntity.InvoiceState newState = mapInvoiceState(invoice.getState());
+        LightningInvoiceEntity.InvoiceState newState = mapInvoiceState(invoice.state());
 
         if (invoiceEntity.getInvoiceState().equals(newState)) {
             return;
         }
 
         logger.info("Invoice state changed from {} to {} for payment request: {}",
-                invoiceEntity.getInvoiceState(), newState, invoice.getPaymentRequest());
+                invoiceEntity.getInvoiceState(), newState, invoice.paymentRequest());
 
         invoiceEntity.setInvoiceState(newState);
         if (newState == LightningInvoiceEntity.InvoiceState.SETTLED) {
             invoiceEntity.setSettledAt(LocalDateTime.now());
-            invoiceEntity.setAmountPaidSats(invoice.getAmtPaidSat());
-            logger.info("Invoice settled for {} sats: {}", invoice.getAmtPaidSat(), invoice.getPaymentRequest());
+            invoiceEntity.setAmountPaidSats(invoice.amountPaidSat());
+            logger.info("Invoice settled for {} sats: {}", invoice.amountPaidSat(), invoice.paymentRequest());
 
             lightningInvoiceRepository.save(invoiceEntity);
 
@@ -82,8 +82,8 @@ public class InvoiceProcessorService {
             lightningInvoiceRepository.save(invoiceEntity);
         }
         InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton").orElse(InvoiceSubscriptionState.builder().id("singleton").build());
-        state.setAddIndex(invoice.getAddIndex());
-        state.setSettleIndex(invoice.getSettleIndex());
+        state.setAddIndex(invoice.addIndex());
+        state.setSettleIndex(invoice.settleIndex());
         invoiceSubscriptionStateRepository.save(state);
     }
 
@@ -95,14 +95,14 @@ public class InvoiceProcessorService {
         }
     }
 
-    private LightningInvoiceEntity.InvoiceState mapInvoiceState(Invoice.InvoiceState grpcState) {
-        return switch (grpcState) {
+    private LightningInvoiceEntity.InvoiceState mapInvoiceState(LightningInvoiceUpdate.State invoiceState) {
+        return switch (invoiceState) {
             case OPEN -> LightningInvoiceEntity.InvoiceState.OPEN;
             case SETTLED -> LightningInvoiceEntity.InvoiceState.SETTLED;
             case CANCELED -> LightningInvoiceEntity.InvoiceState.CANCELED;
             case ACCEPTED -> LightningInvoiceEntity.InvoiceState.ACCEPTED;
             default -> {
-                logger.warn("Unknown invoice state: {}, defaulting to OPEN", grpcState);
+                logger.warn("Unknown invoice state: {}, defaulting to OPEN", invoiceState);
                 yield LightningInvoiceEntity.InvoiceState.OPEN;
             }
         };

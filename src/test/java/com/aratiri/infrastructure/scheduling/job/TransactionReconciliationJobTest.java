@@ -5,9 +5,9 @@ import com.aratiri.admin.domain.NodeSettings;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.payments.application.port.in.PaymentsPort;
+import com.aratiri.payments.domain.LightningPayment;
+import com.aratiri.payments.domain.LightningPaymentStatus;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
-import lnrpc.Payment;
-import lnrpc.PaymentFailureReason;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -80,9 +80,7 @@ class TransactionReconciliationJobTest {
         tx.setUserId("user-1");
         tx.setReferenceId("deadbeef");
 
-        Payment payment = Payment.newBuilder()
-                .setStatus(Payment.PaymentStatus.SUCCEEDED)
-                .build();
+        LightningPayment payment = lightningPayment(LightningPaymentStatus.SUCCEEDED);
 
         when(nodeSettingsPort.loadSettings())
                 .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
@@ -103,10 +101,7 @@ class TransactionReconciliationJobTest {
         tx.setUserId("user-1");
         tx.setReferenceId("deadbeef");
 
-        Payment payment = Payment.newBuilder()
-                .setStatus(Payment.PaymentStatus.FAILED)
-                .setFailureReason(PaymentFailureReason.FAILURE_REASON_NONE)
-                .build();
+        LightningPayment payment = lightningPayment(LightningPaymentStatus.FAILED);
 
         when(nodeSettingsPort.loadSettings())
                 .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
@@ -162,5 +157,9 @@ class TransactionReconciliationJobTest {
         assertDoesNotThrow(() -> job.reconcilePendingPayments());
 
         verify(transactionsService).failTransaction(eq("tx-2"), anyString());
+    }
+
+    private LightningPayment lightningPayment(LightningPaymentStatus status) {
+        return new LightningPayment(status, "FAILURE_REASON_NONE", 0, 0);
     }
 }

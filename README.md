@@ -149,7 +149,8 @@ Incoming Lightning and on-chain credits come from LND streams.
 | `/v1/admin/webhook-deliveries` | Webhook delivery inspection and manual retry. |
 | `/v1/notifications/subscribe` | WebSocket notification stream using a JWT in the query string. |
 
-OpenAPI is generated at `/swagger-ui.html` when the application is running.
+OpenAPI is generated at `/swagger-ui.html` only when API docs are explicitly enabled with `ARATIRI_SECURITY_API_DOCS_ENABLED=true`.
+The H2 console is only permitted in `dev`, `development`, or `test` profiles unless `aratiri.security.dev-endpoints.h2-console-enabled=true` is set explicitly.
 
 ## Webhook Model
 

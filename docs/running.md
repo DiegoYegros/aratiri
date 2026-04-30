@@ -87,8 +87,9 @@ The backend listens on `http://localhost:2100` by default. The Compose file also
 ## Useful URLs
 
 - API base URL: `http://localhost:2100`
-- Swagger UI: `http://localhost:2100/swagger-ui.html`
-- OpenAPI JSON: `http://localhost:2100/v3/api-docs`
+- Swagger UI: `http://localhost:2100/swagger-ui.html` when `ARATIRI_SECURITY_API_DOCS_ENABLED=true`
+- OpenAPI JSON: `http://localhost:2100/v3/api-docs` when `ARATIRI_SECURITY_API_DOCS_ENABLED=true`
+- H2 console: permitted only in `dev`, `development`, or `test` profiles unless `aratiri.security.dev-endpoints.h2-console-enabled=true`
 - LNURL metadata example: `http://localhost:2100/.well-known/lnurlp/{alias}`
 - WebSocket notifications: `ws://localhost:2100/v1/notifications/subscribe?token={jwt}`
 
@@ -100,7 +101,7 @@ Run the repository-required verification command after code changes:
 ./gradlew clean build
 ```
 
-The build runs unit and integration tests, SonarLint checks, and `verifyProtoClassesInBootJar`. Integration tests use Testcontainers for infrastructure where needed.
+The build runs unit and integration tests, SonarLint checks, SpotBugs/FindSecBugs analysis, JaCoCo coverage verification, and `verifyProtoClassesInBootJar`. Integration tests use Testcontainers for infrastructure where needed.
 
 ## Postman
 

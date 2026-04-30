@@ -1,15 +1,25 @@
 package com.aratiri.transactions.application.event;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+public record OnChainTransactionReceivedEvent(
+  String userId,
+  long amount,
+  String txHash,
+  long outputIndex
+) {
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class OnChainTransactionReceivedEvent {
-    private String userId;
-    private long amount;
-    private String txHash;
-    private long outputIndex;
+  public String getUserId() {
+    return userId;
+  }
+
+  public long getAmount() {
+    return amount;
+  }
+
+  public String getTxHash() {
+    return txHash;
+  }
+
+  public long getOutputIndex() {
+    return outputIndex;
+  }
 }

@@ -1,6 +1,5 @@
 package com.aratiri.infrastructure.nodeoperations;
 
-import com.aratiri.infrastructure.configuration.NodeOperationProperties;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
@@ -10,11 +9,12 @@ import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.port.out.InvoicesPort;
 import com.aratiri.payments.application.port.out.LightningNodePort;
 import com.aratiri.payments.domain.DecodedInvoice;
+import com.aratiri.payments.domain.LightningPayment;
+import com.aratiri.payments.domain.LightningPaymentStatus;
+import com.aratiri.payments.domain.exception.LightningNodeTransportException;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.webhooks.application.NodeOperationUnknownOutcomeFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
-import io.grpc.StatusRuntimeException;
-import lnrpc.Payment;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,10 +31,10 @@ import java.util.Optional;
 public class NodeOperationService {
 
     private final NodeOperationsRepository nodeOperationsRepository;
-    private final NodeOperationProperties nodeOperationProperties;
     private final LightningNodePort lightningNodePort;
     private final InvoicesPort invoicesPort;
     private final NodeOperationState stateManager;
+    private final NodeOperationRetryPolicy retryPolicy;
     private final NodeOperationClaimer claimer;
     private final WebhookEventService webhookEventService;
 
@@ -132,17 +132,16 @@ public class NodeOperationService {
             if (!inspection.completed()) {
                 return;
             }
-            Optional<Payment> existingPayment = inspection.payment();
+            Optional<LightningPayment> existingPayment = inspection.payment();
             if (existingPayment.isPresent()) {
                 handleExistingPayment(op, existingPayment.get());
                 return;
             }
         }
 
-        int maxAttempts = nodeOperationProperties.getLightningMaxAttempts();
-        if (op.getAttemptCount() > maxAttempts) {
+        if (retryPolicy.shouldFailLightningBeforeSend(op)) {
             stateManager.failTransaction(op.getTransactionId(), "Max attempts reached");
-            stateManager.markFailed(op, "Max lightning attempts (" + maxAttempts + ") reached");
+            stateManager.markFailed(op, retryPolicy.lightningMaxAttemptsFailureMessage());
             return;
         }
 
@@ -152,7 +151,7 @@ public class NodeOperationService {
     private PaymentInspection findPaymentForRetry(NodeOperationEntity op, String paymentHash) {
         try {
             return new PaymentInspection(lightningNodePort.findPayment(paymentHash), true);
-        } catch (StatusRuntimeException e) {
+        } catch (LightningNodeTransportException e) {
             handleRetryableLightningError(op, "Transport error inspecting payment state", e);
             return new PaymentInspection(Optional.empty(), false);
         } catch (Exception e) {
@@ -161,29 +160,29 @@ public class NodeOperationService {
         }
     }
 
-    private void handleExistingPayment(NodeOperationEntity op, Payment payment) {
-        if (payment.getStatus() == Payment.PaymentStatus.SUCCEEDED) {
+    private void handleExistingPayment(NodeOperationEntity op, LightningPayment payment) {
+        if (payment.status() == LightningPaymentStatus.SUCCEEDED) {
             stateManager.recordFeeIfPresent(op.getTransactionId(), payment);
             stateManager.confirmTransaction(op.getTransactionId(), op.getUserId());
             stateManager.markSucceeded(op);
-        } else if (payment.getStatus() == Payment.PaymentStatus.IN_FLIGHT) {
+        } else if (payment.status() == LightningPaymentStatus.IN_FLIGHT) {
             log.info("Payment {} is IN_FLIGHT on LND, scheduling operation retry", op.getReferenceId());
             stateManager.markRetryable(op, "LND payment is IN_FLIGHT");
-        } else if (payment.getStatus() == Payment.PaymentStatus.FAILED) {
-            String reason = payment.getFailureReason().toString();
+        } else if (payment.status() == LightningPaymentStatus.FAILED) {
+            String reason = payment.failureReason();
             stateManager.failTransaction(op.getTransactionId(), reason);
             stateManager.markFailed(op, "LND reported payment failure: " + reason);
         } else {
-            handleUnknownLightningOutcome(op, "LND payment outcome is unknown: " + payment.getStatus());
+            handleUnknownLightningOutcome(op, "LND payment outcome is unknown: " + payment.status());
         }
     }
 
     private void executeSendPayment(NodeOperationEntity op) {
         PayInvoiceRequestDTO request = normalizeInvoice(paymentRequestFromPayload(op));
-        Payment finalPayment;
+        Optional<LightningPayment> finalPayment;
         try {
             finalPayment = lightningNodePort.executeLightningPayment(request, defaultFeeLimitSat, defaultTimeoutSeconds);
-        } catch (StatusRuntimeException e) {
+        } catch (LightningNodeTransportException e) {
             handleRetryableLightningError(op, "Transport error sending payment", e);
             return;
         } catch (Exception e) {
@@ -191,58 +190,59 @@ public class NodeOperationService {
             return;
         }
 
-        if (finalPayment == null) {
+        if (finalPayment.isEmpty()) {
             handleUnknownLightningOutcome(op, "LND payment returned no terminal result");
             return;
         }
 
-        if (finalPayment.getStatus() == Payment.PaymentStatus.SUCCEEDED) {
-            stateManager.recordFeeIfPresent(op.getTransactionId(), finalPayment);
+        LightningPayment payment = finalPayment.get();
+        if (payment.status() == LightningPaymentStatus.SUCCEEDED) {
+            stateManager.recordFeeIfPresent(op.getTransactionId(), payment);
             stateManager.confirmTransaction(op.getTransactionId(), op.getUserId());
             stateManager.markSucceeded(op);
-        } else if (finalPayment.getStatus() == Payment.PaymentStatus.IN_FLIGHT) {
+        } else if (payment.status() == LightningPaymentStatus.IN_FLIGHT) {
             stateManager.markRetryable(op, "LND payment is IN_FLIGHT");
-        } else if (finalPayment.getStatus() == Payment.PaymentStatus.FAILED) {
-            String reason = finalPayment.getFailureReason().toString();
+        } else if (payment.status() == LightningPaymentStatus.FAILED) {
+            String reason = payment.failureReason();
             stateManager.failTransaction(op.getTransactionId(), reason);
             stateManager.markFailed(op, "LND payment failure: " + reason);
         } else {
-            handleUnknownLightningOutcome(op, "LND payment outcome is unknown: " + finalPayment.getStatus());
+            handleUnknownLightningOutcome(op, "LND payment outcome is unknown: " + payment.status());
         }
     }
 
     private void handleUnknownLightningOutcome(NodeOperationEntity op, String message) {
-        int maxAttempts = nodeOperationProperties.getLightningMaxAttempts();
-        if (op.getAttemptCount() >= maxAttempts) {
-            markUnknownOutcome(op, message + " after max attempts");
-        } else {
-            stateManager.markRetryable(op, message);
-        }
+        applyRetryDecision(op, retryPolicy.classifyAmbiguousLightningOutcome(op, message));
     }
 
     private void handleRetryableLightningError(NodeOperationEntity op, String prefix, Exception e) {
-        int maxAttempts = nodeOperationProperties.getLightningMaxAttempts();
         String message = prefix + ": " + e.getMessage();
-        if (op.getAttemptCount() >= maxAttempts) {
+        NodeOperationRetryDecision decision = retryPolicy.classifyAmbiguousLightningOutcome(op, message);
+        if (decision.unknownOutcome()) {
             log.warn("{} for lightning operation id={} after max attempts", prefix, op.getId(), e);
-            markUnknownOutcome(op, message + " after max attempts");
         } else {
             log.warn("{} for lightning operation id={}, scheduling retry", prefix, op.getId(), e);
-            stateManager.markRetryable(op, message);
+        }
+        applyRetryDecision(op, decision);
+    }
+
+    private void applyRetryDecision(NodeOperationEntity op, NodeOperationRetryDecision decision) {
+        if (decision.unknownOutcome()) {
+            markUnknownOutcome(op, decision.message());
+        } else {
+            stateManager.markRetryable(op, decision.message());
         }
     }
 
     void executeOnChain(NodeOperationEntity op) {
-        int maxAttempts = nodeOperationProperties.getOnchainMaxAttempts();
-
         if (hasBroadcastId(op)) {
             stateManager.confirmTransaction(op.getTransactionId(), op.getUserId());
             stateManager.markSucceeded(op);
             return;
         }
 
-        if (op.getAttemptCount() > maxAttempts) {
-            markUnknownOutcome(op, "Max on-chain attempts (" + maxAttempts + ") reached without a recorded broadcast transaction id");
+        if (retryPolicy.shouldStopOnChainBeforeSend(op)) {
+            markUnknownOutcome(op, retryPolicy.onChainMaxAttemptsUnknownOutcomeMessage());
             return;
         }
 
@@ -370,6 +370,6 @@ public class NodeOperationService {
         void handle(NodeOperationEntity operation);
     }
 
-    private record PaymentInspection(Optional<Payment> payment, boolean completed) {
+    private record PaymentInspection(Optional<LightningPayment> payment, boolean completed) {
     }
 }

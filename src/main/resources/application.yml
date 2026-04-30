@@ -28,7 +28,6 @@ spring:
       ddl-auto: ${SPRING_JPA_DDL_AUTO:validate}
     show-sql: false
     database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
-
   mail:
     port: ${ARATIRI_MAIL_PORT:587}
     username: ${EMAIL_USERNAME}
@@ -58,6 +57,11 @@ spring:
     baseline-on-migrate: true
     schemas: ${SPRING_FLYWAY_SCHEMAS:aratiri}
     default-schema: ${SPRING_FLYWAY_DEFAULT_SCHEMA:aratiri}
+springdoc:
+  api-docs:
+    enabled: ${aratiri.security.api-docs.enabled:false}
+  swagger-ui:
+    enabled: ${aratiri.security.api-docs.enabled:false}
 grpc:
   client:
     lnd:
@@ -99,6 +103,8 @@ aratiri:
       currencies: ${ARATIRI_ACCOUNTS_FIAT_CURRENCIES:usd,pyg,ars,eur}
   security:
     default-principal-claim: ${ARATIRI_SECURITY_DEFAULT_PRINCIPAL_CLAIM:email}
+    api-docs:
+      enabled: ${ARATIRI_SECURITY_API_DOCS_ENABLED:false}
     token-exchange:
       enabled: ${ARATIRI_TOKEN_EXCHANGE_ENABLED:false}
       client-id: ${ARATIRI_TOKEN_EXCHANGE_CLIENT_ID:}

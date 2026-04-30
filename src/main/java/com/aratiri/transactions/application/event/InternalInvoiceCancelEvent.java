@@ -1,12 +1,8 @@
 package com.aratiri.transactions.application.event;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+public record InternalInvoiceCancelEvent(String paymentHash) {
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class InternalInvoiceCancelEvent {
-    private String paymentHash;
+  public String getPaymentHash() {
+    return paymentHash;
+  }
 }

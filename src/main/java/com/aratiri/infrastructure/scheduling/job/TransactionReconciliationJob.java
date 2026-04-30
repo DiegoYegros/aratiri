@@ -5,8 +5,8 @@ import com.aratiri.admin.domain.NodeSettings;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.payments.application.port.in.PaymentsPort;
+import com.aratiri.payments.domain.LightningPayment;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
-import lnrpc.Payment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -69,21 +69,21 @@ public class TransactionReconciliationJob {
             return;
         }
         logger.info("Reconciling transaction ID: {}, Payment Hash: {}", transaction.getId(), paymentHash);
-        Optional<Payment> paymentStatusOpt = paymentsPort.checkPaymentStatusOnNode(paymentHash);
+        Optional<LightningPayment> paymentStatusOpt = paymentsPort.checkPaymentStatusOnNode(paymentHash);
         if (paymentStatusOpt.isEmpty()) {
             String failureReason = String.format("Payment status for paymentHash: %s not found", paymentHash);
             logger.warn("Payment with hash {} not found on LND node.", paymentHash);
             transactionsService.failTransaction(transaction.getId(), failureReason);
             return;
         }
-        Payment payment = paymentStatusOpt.get();
-        switch (payment.getStatus()) {
+        LightningPayment payment = paymentStatusOpt.get();
+        switch (payment.status()) {
             case SUCCEEDED:
                 logger.info("Transaction {} SUCCEEDED on LND. Confirming in db.", transaction.getId());
                 transactionsService.confirmTransaction(transaction.getId(), transaction.getUserId());
                 break;
             case FAILED:
-                String failureReason = payment.getFailureReason().toString();
+                String failureReason = payment.failureReason();
                 logger.warn("Transaction {} FAILED on LND. Reason: {}. Failing in db.", transaction.getId(), failureReason);
                 transactionsService.failTransaction(transaction.getId(), failureReason);
                 break;
@@ -91,7 +91,7 @@ public class TransactionReconciliationJob {
                 logger.info("Transaction {} is still IN_FLIGHT on LND. Will check again later.", transaction.getId());
                 break;
             default:
-                logger.warn("Unknown status for transaction {}: {}", transaction.getId(), payment.getStatus());
+                logger.warn("Unknown status for transaction {}: {}", transaction.getId(), payment.status());
                 break;
         }
     }

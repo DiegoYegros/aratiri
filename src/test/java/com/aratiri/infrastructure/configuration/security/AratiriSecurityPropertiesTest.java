@@ -181,6 +181,34 @@ class AratiriSecurityPropertiesTest {
     }
 
     @Test
+    void devEndpoints_defaultsToProfileControlledH2Console() {
+        AratiriSecurityProperties properties = new AratiriSecurityProperties();
+        assertNotNull(properties.getDevEndpoints());
+        assertNull(properties.getDevEndpoints().getH2ConsoleEnabled());
+    }
+
+    @Test
+    void devEndpoints_setH2ConsoleEnabled() {
+        AratiriSecurityProperties properties = new AratiriSecurityProperties();
+        properties.getDevEndpoints().setH2ConsoleEnabled(true);
+        assertTrue(properties.getDevEndpoints().getH2ConsoleEnabled());
+    }
+
+    @Test
+    void apiDocs_defaultsDisabled() {
+        AratiriSecurityProperties properties = new AratiriSecurityProperties();
+        assertNotNull(properties.getApiDocs());
+        assertFalse(properties.getApiDocs().isEnabled());
+    }
+
+    @Test
+    void apiDocs_setEnabled() {
+        AratiriSecurityProperties properties = new AratiriSecurityProperties();
+        properties.getApiDocs().setEnabled(true);
+        assertTrue(properties.getApiDocs().isEnabled());
+    }
+
+    @Test
     void defaultPrincipalClaim_defaultValue() {
         AratiriSecurityProperties props = new AratiriSecurityProperties();
         assertEquals("email", props.getDefaultPrincipalClaim());

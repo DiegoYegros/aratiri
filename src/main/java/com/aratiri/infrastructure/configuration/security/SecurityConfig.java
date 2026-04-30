@@ -6,6 +6,8 @@ import com.aratiri.infrastructure.configuration.AratiriProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -34,6 +36,32 @@ import java.util.List;
 @EnableConfigurationProperties(AratiriSecurityProperties.class)
 public class SecurityConfig {
 
+    private static final String[] PUBLIC_ENDPOINTS = {
+            "/v1/auth/login",
+            "/v1/auth/register",
+            "/v1/auth/verify",
+            "/v1/auth/forgot-password",
+            "/v1/auth/reset-password",
+            "/v1/auth/refresh",
+            "/v1/auth/exchange",
+            "/.well-known/lnurlp/**",
+            "/lnurl/callback/**",
+            "/v1/auth/sso/google",
+            "/v1/notifications/subscribe"
+    };
+
+    private static final String[] H2_CONSOLE_ENDPOINTS = {
+            "/h2-console/**"
+    };
+
+    private static final String[] API_DOCS_ENDPOINTS = {
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/v3/api-docs/**",
+            "/swagger-resources/**",
+            "/webjars/**"
+    };
+
     private final AuthenticationEntryPoint authenticationEntryPoint;
     private final AratiriJwtAuthenticationConverter jwtAuthenticationConverter;
 
@@ -44,41 +72,46 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                  CorsConfigurationSource corsConfigurationSource,
+                                                  AratiriSecurityProperties securityProperties,
+                                                  Environment environment) {
+        boolean h2ConsolePermitted = isH2ConsolePermitted(securityProperties, environment);
+        List<String> permitAllEndpoints = new ArrayList<>(List.of(PUBLIC_ENDPOINTS));
+        if (h2ConsolePermitted) {
+            permitAllEndpoints.addAll(List.of(H2_CONSOLE_ENDPOINTS));
+        }
+        if (securityProperties.getApiDocs().isEnabled()) {
+            permitAllEndpoints.addAll(List.of(API_DOCS_ENDPOINTS));
+        }
+
         return http
                 // Stateless Bearer/JWT API: no browser session cookies for CSRF to target (see Spring stateless API guidance).
                 .csrf(AbstractHttpConfigurer::disable) // NOSONAR java:S4502
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/v1/auth/login",
-                                "/v1/auth/register",
-                                "/v1/auth/verify",
-                                "/v1/auth/forgot-password",
-                                "/v1/auth/reset-password",
-                                "/v1/auth/refresh",
-                                "/v1/auth/exchange",
-                                "/h2-console/**",
-                                "/.well-known/lnurlp/**",
-                                "/lnurl/callback/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**",
-                                "/v1/auth/sso/google",
-                                "/swagger-resources/**",
-                                "/webjars/**",
-                                "/v1/notifications/subscribe"
-                        ).permitAll()
+                        .requestMatchers(permitAllEndpoints.toArray(String[]::new)).permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .headers(headers -> headers
-                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::disable)
-                )
+                .headers(headers -> {
+                    if (h2ConsolePermitted) {
+                        headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable);
+                    }
+                })
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authenticationEntryPoint))
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
                 )
                 .build();
+    }
+
+    private boolean isH2ConsolePermitted(AratiriSecurityProperties securityProperties, Environment environment) {
+        Boolean explicitFlag = securityProperties.getDevEndpoints().getH2ConsoleEnabled();
+        if (explicitFlag != null) {
+            return explicitFlag;
+        }
+        return environment.acceptsProfiles(Profiles.of("dev", "development", "test"));
     }
 
     @Bean

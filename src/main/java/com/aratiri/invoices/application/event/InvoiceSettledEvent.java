@@ -1,16 +1,32 @@
 package com.aratiri.invoices.application.event;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-
 import java.time.LocalDateTime;
 
-@Data
-@AllArgsConstructor
-public class InvoiceSettledEvent {
-    private String userId;
-    private Long amount;
-    private String paymentHash;
-    private LocalDateTime timestamp;
-    private String memo;
+public record InvoiceSettledEvent(
+  String userId,
+  Long amount,
+  String paymentHash,
+  LocalDateTime timestamp,
+  String memo
+) {
+
+  public String getUserId() {
+    return userId;
+  }
+
+  public Long getAmount() {
+    return amount;
+  }
+
+  public String getPaymentHash() {
+    return paymentHash;
+  }
+
+  public LocalDateTime getTimestamp() {
+    return timestamp;
+  }
+
+  public String getMemo() {
+    return memo;
+  }
 }

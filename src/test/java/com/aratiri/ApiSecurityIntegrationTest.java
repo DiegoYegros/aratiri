@@ -6,10 +6,11 @@ import com.aratiri.accounts.application.port.out.LightningAddressPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.TestPropertySource;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-class ApiSecurityIntegrationTest extends AbstractIntegrationTest {
+abstract class AbstractApiSecurityIntegrationTest extends AbstractIntegrationTest {
 
     @MockitoBean
     private EmailNotificationPort emailNotificationPort;
@@ -19,6 +20,9 @@ class ApiSecurityIntegrationTest extends AbstractIntegrationTest {
 
     @MockitoBean
     private LightningAddressPort lightningAddressPort;
+}
+
+class ApiSecurityIntegrationTest extends AbstractApiSecurityIntegrationTest {
 
     @Test
     @DisplayName("Public auth endpoints accessible without authentication")
@@ -80,9 +84,23 @@ class ApiSecurityIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("LNURL public endpoints accessible without authentication")
-    void lnurl_public_endpoints_accessible() {
+    @DisplayName("Legitimate public endpoints keep intended access behavior")
+    void legitimate_public_endpoints_accessible() {
         webTestClient().get().uri("/.well-known/lnurlp/testalias")
+                .exchange()
+                .expectStatus().value(status -> {
+                    assertNotEquals(401, status);
+                    assertNotEquals(403, status);
+                });
+
+        webTestClient().get().uri("/lnurl/callback/testalias?amount=1000")
+                .exchange()
+                .expectStatus().value(status -> {
+                    assertNotEquals(401, status);
+                    assertNotEquals(403, status);
+                });
+
+        webTestClient().get().uri("/v1/notifications/subscribe")
                 .exchange()
                 .expectStatus().value(status -> {
                     assertNotEquals(401, status);
@@ -91,8 +109,39 @@ class ApiSecurityIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Swagger endpoints accessible without authentication")
-    void swagger_endpoints_accessible() {
+    @DisplayName("H2 console route is permitted in test profile")
+    void h2_console_permitted_in_test_profile() {
+        webTestClient().get().uri("/h2-console/")
+                .exchange()
+                .expectStatus().value(status -> {
+                    assertNotEquals(401, status);
+                    assertNotEquals(403, status);
+                });
+    }
+
+    @Test
+    @DisplayName("Swagger endpoints require authentication by default")
+    void swagger_endpoints_restricted_by_default() {
+        webTestClient().get().uri("/swagger-ui.html")
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        webTestClient().get().uri("/v3/api-docs")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+}
+
+@TestPropertySource(properties = {
+        "aratiri.security.api-docs.enabled=true",
+        "springdoc.api-docs.enabled=true",
+        "springdoc.swagger-ui.enabled=true"
+})
+class ApiSecurityDocsEnabledIntegrationTest extends AbstractApiSecurityIntegrationTest {
+
+    @Test
+    @DisplayName("Swagger endpoints accessible when API docs are explicitly enabled")
+    void swagger_endpoints_accessible_when_enabled() {
         webTestClient().get().uri("/swagger-ui.html")
                 .exchange()
                 .expectStatus().is3xxRedirection();
@@ -100,5 +149,17 @@ class ApiSecurityIntegrationTest extends AbstractIntegrationTest {
         webTestClient().get().uri("/v3/api-docs")
                 .exchange()
                 .expectStatus().isOk();
+    }
+}
+
+@TestPropertySource(properties = "aratiri.security.dev-endpoints.h2-console-enabled=false")
+class ApiSecurityDevEndpointsDisabledIntegrationTest extends AbstractApiSecurityIntegrationTest {
+
+    @Test
+    @DisplayName("H2 console route requires authentication when explicitly disabled")
+    void h2_console_restricted_when_disabled() {
+        webTestClient().get().uri("/h2-console/")
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 }

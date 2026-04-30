@@ -35,8 +35,7 @@ class InternalInvoiceCancelConsumerTest {
 
     @Test
     void handleInternalInvoiceCancel_cancelsInvoice() throws Exception {
-        InternalInvoiceCancelEvent event = new InternalInvoiceCancelEvent();
-        event.setPaymentHash("deadbeef");
+        InternalInvoiceCancelEvent event = new InternalInvoiceCancelEvent("deadbeef");
         String message = jsonMapper.writeValueAsString(event);
 
         when(invoicesBlockingStub.cancelInvoice(any(CancelInvoiceMsg.class)))
@@ -58,8 +57,7 @@ class InternalInvoiceCancelConsumerTest {
 
     @Test
     void handleInternalInvoiceCancel_throwsOnGrpcFailure() throws Exception {
-        InternalInvoiceCancelEvent event = new InternalInvoiceCancelEvent();
-        event.setPaymentHash("deadbeef");
+        InternalInvoiceCancelEvent event = new InternalInvoiceCancelEvent("deadbeef");
         String message = jsonMapper.writeValueAsString(event);
 
         when(invoicesBlockingStub.cancelInvoice(any(CancelInvoiceMsg.class)))

@@ -9,6 +9,9 @@ import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.port.out.InvoicesPort;
 import com.aratiri.payments.application.port.out.LightningNodePort;
 import com.aratiri.payments.domain.DecodedInvoice;
+import com.aratiri.payments.domain.LightningPayment;
+import com.aratiri.payments.domain.LightningPaymentStatus;
+import com.aratiri.payments.domain.exception.LightningNodeTransportException;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
@@ -16,10 +19,6 @@ import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import com.aratiri.webhooks.application.NodeOperationUnknownOutcomeFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-import lnrpc.Payment;
-import lnrpc.PaymentFailureReason;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -71,12 +70,13 @@ class NodeOperationServiceTest {
         nodeOperationProperties.setOnchainMaxAttempts(5);
 
         NodeOperationState stateManager = new NodeOperationState(nodeOperationsRepository, transactionsPort, nodeOperationProperties);
+        NodeOperationRetryPolicy retryPolicy = new NodeOperationRetryPolicy(nodeOperationProperties);
         service = new NodeOperationService(
                 nodeOperationsRepository,
-                nodeOperationProperties,
                 lightningNodePort,
                 invoicesPort,
                 stateManager,
+                retryPolicy,
                 claimer,
                 webhookEventService
         );
@@ -131,10 +131,7 @@ class NodeOperationServiceTest {
     @Test
     void lightning_existingSucceededPayment_settlesAndMarksSucceededWithoutSending() {
         NodeOperationEntity op = buildLightningOperation(NodeOperationStatus.IN_PROGRESS, 1);
-        Payment payment = Payment.newBuilder()
-                .setStatus(Payment.PaymentStatus.SUCCEEDED)
-                .setFeeSat(7)
-                .build();
+        LightningPayment payment = new LightningPayment(LightningPaymentStatus.SUCCEEDED, "FAILURE_REASON_NONE", 7, 0);
         when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.of(payment));
 
         service.executeLightning(op);
@@ -151,9 +148,7 @@ class NodeOperationServiceTest {
     void lightning_existingInFlightPayment_recordsRetryableStateWithoutSendingOrSettling() {
         NodeOperationEntity op = buildLightningOperation(NodeOperationStatus.IN_PROGRESS, 1);
         op.setLockedBy("worker");
-        Payment payment = Payment.newBuilder()
-                .setStatus(Payment.PaymentStatus.IN_FLIGHT)
-                .build();
+        LightningPayment payment = lightningPayment(LightningPaymentStatus.IN_FLIGHT);
         when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.of(payment));
 
         service.executeLightning(op);
@@ -170,10 +165,12 @@ class NodeOperationServiceTest {
     @Test
     void lightning_existingFailedPayment_failsTransactionAndOperation() {
         NodeOperationEntity op = buildLightningOperation(NodeOperationStatus.IN_PROGRESS, 1);
-        Payment payment = Payment.newBuilder()
-                .setStatus(Payment.PaymentStatus.FAILED)
-                .setFailureReason(PaymentFailureReason.FAILURE_REASON_NO_ROUTE)
-                .build();
+        LightningPayment payment = new LightningPayment(
+                LightningPaymentStatus.FAILED,
+                "FAILURE_REASON_NO_ROUTE",
+                0,
+                0
+        );
         when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.of(payment));
 
         service.executeLightning(op);
@@ -189,12 +186,9 @@ class NodeOperationServiceTest {
     @Test
     void lightning_noExistingPayment_sendSuccess_settlesThroughTransactionsPort() {
         NodeOperationEntity op = buildLightningOperation(NodeOperationStatus.IN_PROGRESS, 1);
-        Payment payment = Payment.newBuilder()
-                .setStatus(Payment.PaymentStatus.SUCCEEDED)
-                .setFeeMsat(1_250)
-                .build();
+        LightningPayment payment = new LightningPayment(LightningPaymentStatus.SUCCEEDED, "FAILURE_REASON_NONE", 0, 1_250);
         when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.empty());
-        when(lightningNodePort.executeLightningPayment(any(), eq(200), eq(200))).thenReturn(payment);
+        when(lightningNodePort.executeLightningPayment(any(), eq(200), eq(200))).thenReturn(Optional.of(payment));
 
         service.executeLightning(op);
 
@@ -221,7 +215,7 @@ class NodeOperationServiceTest {
     @Test
     void lightning_transportErrorBeforeMaxAttempts_recordsRetryWithoutSettlement() {
         NodeOperationEntity op = buildLightningOperation(NodeOperationStatus.IN_PROGRESS, 2);
-        StatusRuntimeException transport = new StatusRuntimeException(Status.UNAVAILABLE.withDescription("node down"));
+        LightningNodeTransportException transport = transportException();
         when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.empty());
         when(lightningNodePort.executeLightningPayment(any(), eq(200), eq(200))).thenThrow(transport);
 
@@ -238,7 +232,7 @@ class NodeOperationServiceTest {
     @Test
     void lightning_transportErrorInspectingExistingPayment_recordsRetryWithoutSending() {
         NodeOperationEntity op = buildLightningOperation(NodeOperationStatus.IN_PROGRESS, 2);
-        StatusRuntimeException transport = new StatusRuntimeException(Status.UNAVAILABLE.withDescription("node down"));
+        LightningNodeTransportException transport = transportException();
         when(lightningNodePort.findPayment(PAYMENT_HASH)).thenThrow(transport);
 
         service.executeLightning(op);
@@ -254,7 +248,7 @@ class NodeOperationServiceTest {
     @Test
     void lightning_transportErrorAtMaxAttempts_recordsUnknownOutcome() {
         NodeOperationEntity op = buildLightningOperation(NodeOperationStatus.IN_PROGRESS, 5);
-        StatusRuntimeException transport = new StatusRuntimeException(Status.UNAVAILABLE.withDescription("node down"));
+        LightningNodeTransportException transport = transportException();
         when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.empty());
         when(lightningNodePort.executeLightningPayment(any(), eq(200), eq(200))).thenThrow(transport);
 
@@ -279,11 +273,9 @@ class NodeOperationServiceTest {
     @Test
     void lightning_unknownSendOutcomeBeforeMaxAttempts_recordsRetryWithoutSettlement() {
         NodeOperationEntity op = buildLightningOperation(NodeOperationStatus.IN_PROGRESS, 2);
-        Payment payment = Payment.newBuilder()
-                .setStatus(Payment.PaymentStatus.INITIATED)
-                .build();
+        LightningPayment payment = lightningPayment(LightningPaymentStatus.INITIATED);
         when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.empty());
-        when(lightningNodePort.executeLightningPayment(any(), eq(200), eq(200))).thenReturn(payment);
+        when(lightningNodePort.executeLightningPayment(any(), eq(200), eq(200))).thenReturn(Optional.of(payment));
 
         service.executeLightning(op);
 
@@ -298,9 +290,7 @@ class NodeOperationServiceTest {
     @Test
     void lightning_unknownExistingPaymentAtMaxAttempts_recordsUnknownOutcome() {
         NodeOperationEntity op = buildLightningOperation(NodeOperationStatus.IN_PROGRESS, 5);
-        Payment payment = Payment.newBuilder()
-                .setStatus(Payment.PaymentStatus.INITIATED)
-                .build();
+        LightningPayment payment = lightningPayment(LightningPaymentStatus.INITIATED);
         when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.of(payment));
 
         service.executeLightning(op);
@@ -481,6 +471,14 @@ class NodeOperationServiceTest {
         request.setExternalReference("external-1");
         request.setMetadata("{\"order\":\"123\"}");
         return LightningPaymentOperation.fromPaymentRequest(TX_ID, USER_ID, request);
+    }
+
+    private LightningPayment lightningPayment(LightningPaymentStatus status) {
+        return new LightningPayment(status, "FAILURE_REASON_NONE", 0, 0);
+    }
+
+    private LightningNodeTransportException transportException() {
+        return new LightningNodeTransportException("node down", new RuntimeException("unavailable"));
     }
 
     private NodeOperationEntity buildOnChainOperation(NodeOperationStatus status, int attemptCount) {

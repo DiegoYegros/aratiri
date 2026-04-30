@@ -22,6 +22,8 @@ public class AratiriSecurityProperties {
     private List<TrustedIssuer> trustedIssuers = new ArrayList<>();
     private String defaultPrincipalClaim = "email";
     private TokenExchange tokenExchange = new TokenExchange();
+    private DevEndpoints devEndpoints = new DevEndpoints();
+    private ApiDocs apiDocs = new ApiDocs();
 
     public Optional<TrustedIssuer> resolveByIssuer(String issuer) {
         if (!StringUtils.hasText(issuer)) {
@@ -88,5 +90,17 @@ public class AratiriSecurityProperties {
         private String clientId;
         private String clientSecret;
 
+    }
+
+    @Setter
+    @Getter
+    public static class DevEndpoints {
+        private Boolean h2ConsoleEnabled;
+    }
+
+    @Setter
+    @Getter
+    public static class ApiDocs {
+        private boolean enabled = false;
     }
 }

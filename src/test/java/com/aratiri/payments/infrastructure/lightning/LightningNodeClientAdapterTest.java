@@ -2,7 +2,10 @@ package com.aratiri.payments.infrastructure.lightning;
 
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
+import com.aratiri.payments.domain.LightningPayment;
+import com.aratiri.payments.domain.LightningPaymentStatus;
 import com.aratiri.payments.domain.OnChainFeeEstimate;
+import com.aratiri.payments.domain.exception.LightningNodeTransportException;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lnrpc.*;
@@ -67,9 +70,51 @@ class LightningNodeClientAdapterTest {
 
         when(routerStub.sendPaymentV2(any(SendPaymentRequest.class))).thenReturn(iterator);
 
-        Payment result = adapter.executeLightningPayment(request, 5000, 30);
+        Optional<LightningPayment> result = adapter.executeLightningPayment(request, 5000, 30);
 
-        assertEquals(Payment.PaymentStatus.SUCCEEDED, result.getStatus());
+        assertTrue(result.isPresent());
+        assertEquals(LightningPaymentStatus.SUCCEEDED, result.get().status());
+    }
+
+    @Test
+    void executeLightningPayment_returnsFailedPayment() {
+        PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
+        request.setInvoice("lnbc1...");
+        Payment payment = Payment.newBuilder()
+                .setStatus(Payment.PaymentStatus.FAILED)
+                .setFailureReason(PaymentFailureReason.FAILURE_REASON_NO_ROUTE)
+                .build();
+        when(routerStub.sendPaymentV2(any(SendPaymentRequest.class))).thenReturn(java.util.List.of(payment).iterator());
+
+        Optional<LightningPayment> result = adapter.executeLightningPayment(request, 5000, 30);
+
+        assertTrue(result.isPresent());
+        assertEquals(LightningPaymentStatus.FAILED, result.get().status());
+        assertEquals("FAILURE_REASON_NO_ROUTE", result.get().failureReason());
+    }
+
+    @Test
+    void executeLightningPayment_returnsEmptyWhenNoTerminalPayment() {
+        PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
+        request.setInvoice("lnbc1...");
+        Payment payment = Payment.newBuilder()
+                .setStatus(Payment.PaymentStatus.IN_FLIGHT)
+                .build();
+        when(routerStub.sendPaymentV2(any(SendPaymentRequest.class))).thenReturn(java.util.List.of(payment).iterator());
+
+        Optional<LightningPayment> result = adapter.executeLightningPayment(request, 5000, 30);
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void executeLightningPayment_wrapsTransportError() {
+        PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
+        request.setInvoice("lnbc1...");
+        when(routerStub.sendPaymentV2(any(SendPaymentRequest.class)))
+                .thenThrow(new StatusRuntimeException(Status.UNAVAILABLE));
+
+        assertThrows(LightningNodeTransportException.class, () -> adapter.executeLightningPayment(request, 5000, 30));
     }
 
     @Test
@@ -98,10 +143,10 @@ class LightningNodeClientAdapterTest {
 
         when(routerStub.trackPaymentV2(any(TrackPaymentRequest.class))).thenReturn(iterator);
 
-        Optional<Payment> result = adapter.findPayment("deadbeef");
+        Optional<LightningPayment> result = adapter.findPayment("deadbeef");
 
         assertTrue(result.isPresent());
-        assertEquals(Payment.PaymentStatus.SUCCEEDED, result.get().getStatus());
+        assertEquals(LightningPaymentStatus.SUCCEEDED, result.get().status());
     }
 
     @Test
@@ -109,7 +154,7 @@ class LightningNodeClientAdapterTest {
         when(routerStub.trackPaymentV2(any(TrackPaymentRequest.class)))
                 .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
 
-        Optional<Payment> result = adapter.findPayment("deadbeef");
+        Optional<LightningPayment> result = adapter.findPayment("deadbeef");
 
         assertTrue(result.isEmpty());
     }
@@ -119,7 +164,7 @@ class LightningNodeClientAdapterTest {
         when(routerStub.trackPaymentV2(any(TrackPaymentRequest.class)))
                 .thenThrow(new StatusRuntimeException(Status.INTERNAL));
 
-        assertThrows(StatusRuntimeException.class, () -> adapter.findPayment("deadbeef"));
+        assertThrows(LightningNodeTransportException.class, () -> adapter.findPayment("deadbeef"));
     }
 
     @Test

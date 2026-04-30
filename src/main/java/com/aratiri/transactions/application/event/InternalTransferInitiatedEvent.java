@@ -1,16 +1,30 @@
 package com.aratiri.transactions.application.event;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+public record InternalTransferInitiatedEvent(
+  String transactionId,
+  String senderId,
+  String receiverId,
+  long amountSat,
+  String paymentHash
+) {
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class InternalTransferInitiatedEvent {
-    private String transactionId;
-    private String senderId;
-    private String receiverId;
-    private long amountSat;
-    private String paymentHash;
+  public String getTransactionId() {
+    return transactionId;
+  }
+
+  public String getSenderId() {
+    return senderId;
+  }
+
+  public String getReceiverId() {
+    return receiverId;
+  }
+
+  public long getAmountSat() {
+    return amountSat;
+  }
+
+  public String getPaymentHash() {
+    return paymentHash;
+  }
 }

@@ -16,26 +16,18 @@ import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 import com.aratiri.webhooks.application.PaymentWebhookFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-import lnrpc.Payment;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class PaymentsAdapter implements PaymentsPort {
-
-    private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountsPort accountsPort;
@@ -47,18 +39,8 @@ public class PaymentsAdapter implements PaymentsPort {
     private final LightningInvoicePaymentCommandService lightningInvoicePaymentCommand;
     private final OnChainPaymentCommandService onChainPaymentCommand;
     private final WebhookEventService webhookEventService;
-
-    @Value("${aratiri.payment.lightning.fee.fixed.sat:0}")
-    private long lightningFixedFeeSat;
-
-    @Value("${aratiri.payment.lightning.fee.percent:0}")
-    private BigDecimal lightningFeePercent;
-
-    @Value("${aratiri.payment.onchain.fee.fixed.sat:0}")
-    private long onChainFixedFeeSat;
-
-    @Value("${aratiri.payment.onchain.fee.percent:0}")
-    private BigDecimal onChainFeePercent;
+    private final PaymentFeePolicy paymentFeePolicy;
+    private final ExistingPaymentPolicy existingPaymentPolicy;
 
     @Override
     @Transactional
@@ -78,16 +60,11 @@ public class PaymentsAdapter implements PaymentsPort {
         DecodedInvoice decodedInvoice = invoicesPort.decodeInvoice(request.getInvoice());
         String paymentHash = decodedInvoice.paymentHash();
 
-        Optional<Payment> existingPayment = lightningNodePort.findPayment(paymentHash);
-        if (existingPayment.isPresent()) {
-            Payment.PaymentStatus status = existingPayment.get().getStatus();
-            if (status == Payment.PaymentStatus.SUCCEEDED || status == Payment.PaymentStatus.IN_FLIGHT) {
-                logger.warn("User {} attempted to pay an invoice that is already paid or in-flight on the node. PaymentHash: {}", userId, paymentHash);
-                throw new AratiriException(
-                        "Invoice payment is already in progress or has been settled.",
-                        HttpStatus.CONFLICT.value()
-                );
-            }
+        Optional<ExistingPaymentRejection> activeNodePayment =
+                existingPaymentPolicy.activeOrSettledNodePayment(findNodePaymentState(paymentHash));
+        if (activeNodePayment.isPresent()) {
+            logger.warn("User {} attempted to pay an invoice that is already paid or in-flight on the node. PaymentHash: {}", userId, paymentHash);
+            throw activeNodePayment.get().toException();
         }
 
         Optional<InternalLightningInvoice> internalInvoiceOpt = lightningInvoicePort.findByPaymentHash(paymentHash);
@@ -104,19 +81,22 @@ public class PaymentsAdapter implements PaymentsPort {
             DecodedInvoice decodedInvoice
     ) {
         boolean isSettledAratiriInvoice = invoicesPort.existsSettledInvoice(paymentHash);
-        if (isSettledAratiriInvoice) {
+        Optional<ExistingPaymentRejection> settledAratiriInvoice =
+                existingPaymentPolicy.settledAratiriInvoice(isSettledAratiriInvoice);
+        if (settledAratiriInvoice.isPresent()) {
             logger.warn("User {} attempted to pay an invoice that has already been successfully paid by another Aratiri user. PaymentHash: {}", userId, paymentHash);
-            throw new AratiriException("Invoice has already been paid", HttpStatus.BAD_REQUEST.value());
+            throw settledAratiriInvoice.get().toException();
         }
 
-        Optional<Payment> existingPayment = lightningNodePort.findPayment(paymentHash);
-        if (existingPayment.isPresent() && existingPayment.get().getStatus() == Payment.PaymentStatus.SUCCEEDED) {
+        Optional<ExistingPaymentRejection> settledNodePayment =
+                existingPaymentPolicy.settledExternalNodePayment(findNodePaymentState(paymentHash));
+        if (settledNodePayment.isPresent()) {
             logger.warn("User {} attempted to pay an invoice that has already been successfully paid by this node. PaymentHash: {}", userId, paymentHash);
-            throw new AratiriException("Invoice has already been paid", HttpStatus.BAD_REQUEST.value());
+            throw settledNodePayment.get().toException();
         }
 
         long amountSat = decodedInvoice.amountSatoshis();
-        long platformFeeSat = calculateLightningPlatformFee(amountSat);
+        long platformFeeSat = paymentFeePolicy.lightningPlatformFee(amountSat);
         long totalDebitSat = Math.addExact(amountSat, platformFeeSat);
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
                 .userId(userId)
@@ -205,14 +185,9 @@ public class PaymentsAdapter implements PaymentsPort {
     }
 
     @Override
-    public Optional<Payment> checkPaymentStatusOnNode(String paymentHash) {
+    public Optional<LightningPayment> checkPaymentStatusOnNode(String paymentHash) {
         try {
             return lightningNodePort.findPayment(paymentHash);
-        } catch (StatusRuntimeException e) {
-            if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
-                return Optional.empty();
-            }
-            throw new AratiriException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         } catch (Exception e) {
             throw new AratiriException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
@@ -287,7 +262,7 @@ public class PaymentsAdapter implements PaymentsPort {
             responseDTO.setFeeSat(estimate.feeSat());
             responseDTO.setSatPerVbyte(estimate.satPerVbyte());
             long amountSat = normalizedRequest.getSatsAmount();
-            long platformFeeSat = calculateOnChainPlatformFee(amountSat);
+            long platformFeeSat = paymentFeePolicy.onChainPlatformFee(amountSat);
             responseDTO.setPlatformFeeSat(platformFeeSat);
             responseDTO.setTotalFeeSat(Math.addExact(estimate.feeSat(), platformFeeSat));
             return responseDTO;
@@ -296,33 +271,8 @@ public class PaymentsAdapter implements PaymentsPort {
         }
     }
 
-    private long calculateLightningPlatformFee(long amountSat) {
-        return calculateFee(amountSat, lightningFixedFeeSat, lightningFeePercent);
-    }
-
-    private long calculateOnChainPlatformFee(long amountSat) {
-        return calculateFee(amountSat, onChainFixedFeeSat, onChainFeePercent);
-    }
-
-    private long calculateFee(long amountSat, long fixedFeeSat, BigDecimal percentageFee) {
-        BigDecimal effectivePercentage = percentageFee != null ? percentageFee : BigDecimal.ZERO;
-        long percentageFeeSat = 0L;
-        try {
-            if (effectivePercentage.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal fee = effectivePercentage
-                        .multiply(BigDecimal.valueOf(amountSat))
-                        .divide(ONE_HUNDRED, 0, RoundingMode.CEILING);
-                percentageFeeSat = fee.longValueExact();
-            }
-            long fee = Math.addExact(fixedFeeSat, percentageFeeSat);
-            logger.info("Calculated fee: {}", fee);
-            return fee;
-        } catch (ArithmeticException _) {
-            throw new AratiriException(
-                    "Configured payment fees exceed supported limits.",
-                    HttpStatus.INTERNAL_SERVER_ERROR.value()
-            );
-        }
+    private Optional<LightningPaymentStatus> findNodePaymentState(String paymentHash) {
+        return lightningNodePort.findPayment(paymentHash).map(LightningPayment::status);
     }
 
     private void publishPaymentInitiated(String transactionId, PaymentInitiatedEvent eventPayload) {
