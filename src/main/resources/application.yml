@@ -29,6 +29,7 @@ spring:
     show-sql: false
     database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
   mail:
+    host: ${ARATIRI_MAIL_HOST:smtp.gmail.com}
     port: ${ARATIRI_MAIL_PORT:587}
     username: ${EMAIL_USERNAME}
     password: ${EMAIL_PASSWORD}
