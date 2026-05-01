@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface OutboxEventRepository extends JpaRepository<OutboxEventEntity, UUID> {
+    boolean existsByAggregateTypeAndAggregateIdAndEventType(String aggregateType, String aggregateId, String eventType);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT e

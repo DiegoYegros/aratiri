@@ -2,6 +2,7 @@ package com.aratiri.infrastructure.persistence.jpa.repository;
 
 import com.aratiri.admin.application.dto.TransactionStatsDTO;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
+import com.aratiri.transactions.application.dto.TransactionType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -40,6 +41,12 @@ public interface TransactionsRepository extends JpaRepository<TransactionEntity,
     boolean existsByReferenceId(String referenceId);
 
     Optional<TransactionEntity> findFirstByReferenceIdOrderByCreatedAtDesc(String referenceId);
+
+    Optional<TransactionEntity> findFirstByUserIdAndReferenceIdAndTypeOrderByCreatedAtDesc(
+            String userId,
+            String referenceId,
+            TransactionType type
+    );
 
     @Query("SELECT t FROM TransactionEntity t WHERE t.type = com.aratiri.transactions.application.dto.TransactionType.LIGHTNING_DEBIT " +
             "AND t.referenceId IS NOT NULL " +

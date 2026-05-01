@@ -63,12 +63,12 @@ public class OutboxWriterService implements OutboxWriter {
 
     @Override
     public void publishInternalTransferCompleted(String transactionId, InternalTransferCompletedEvent eventPayload) {
-        publish(INTERNAL_TRANSFER_AGGREGATE_TYPE, transactionId, KafkaTopics.INTERNAL_TRANSFER_COMPLETED, eventPayload);
+        publishOnce(INTERNAL_TRANSFER_AGGREGATE_TYPE, transactionId, KafkaTopics.INTERNAL_TRANSFER_COMPLETED, eventPayload);
     }
 
     @Override
     public void publishInternalInvoiceCancel(String paymentHash, InternalInvoiceCancelEvent eventPayload) {
-        publish(INTERNAL_INVOICE_CANCEL_AGGREGATE_TYPE, paymentHash, KafkaTopics.INTERNAL_INVOICE_CANCEL, eventPayload);
+        publishOnce(INTERNAL_INVOICE_CANCEL_AGGREGATE_TYPE, paymentHash, KafkaTopics.INTERNAL_INVOICE_CANCEL, eventPayload);
     }
 
     private void publish(String aggregateType, String aggregateId, KafkaTopics topic, Object eventPayload) {
@@ -83,6 +83,13 @@ public class OutboxWriterService implements OutboxWriter {
         } catch (Exception e) {
             throw new AratiriException("Failed to create outbox event.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
         }
+    }
+
+    private void publishOnce(String aggregateType, String aggregateId, KafkaTopics topic, Object eventPayload) {
+        if (outboxEventRepository.existsByAggregateTypeAndAggregateIdAndEventType(aggregateType, aggregateId, topic.getCode())) {
+            return;
+        }
+        publish(aggregateType, aggregateId, topic, eventPayload);
     }
 
     private void publish(CommittedEvent committedEvent) {

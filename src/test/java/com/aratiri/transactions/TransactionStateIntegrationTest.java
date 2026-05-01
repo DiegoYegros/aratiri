@@ -337,7 +337,7 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
                 .currency(TransactionCurrency.BTC)
                 .type(TransactionType.LIGHTNING_DEBIT)
                 .status(TransactionStatus.PENDING)
-                .description("Internal transfer to: " + otherUserId)
+                .description("Local Lightning transfer to: " + otherUserId)
                 .referenceId(paymentHash)
                 .build());
 
@@ -382,6 +382,7 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
         assertEquals(LightningInvoiceEntity.InvoiceState.SETTLED, invoice.getInvoiceState());
         assertEquals(amountSat, invoice.getAmountPaidSats());
         assertNotNull(invoice.getSettledAt());
+        LocalDateTime firstSettledAt = invoice.getSettledAt();
 
         assertEquals(2, transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(senderDebit.getId()).size());
         assertEquals(2, transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(receiverCredit.getId()).size());
@@ -397,6 +398,61 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
                         && event.getAggregateId().equals(paymentHash)
                         && event.getPayload().contains(paymentHash)
         ));
+        assertEquals(0, countOutboxEvents(outboxEvents, KafkaTopics.PAYMENT_SENT.getCode(), senderDebit.getId()));
+
+        assertRetriedInternalTransferDoesNotDuplicateSettlement(senderDebit, receiverCredit, paymentHash, amountSat, firstSettledAt);
+    }
+
+    private void assertRetriedInternalTransferDoesNotDuplicateSettlement(
+            TransactionDTOResponse senderDebit,
+            TransactionEntity receiverCredit,
+            String paymentHash,
+            long amountSat,
+            LocalDateTime firstSettledAt
+    ) {
+        transactionsPort.processInternalTransfer(new InternalTransferInitiatedEvent(
+                senderDebit.getId(),
+                userId,
+                otherUserId,
+                amountSat,
+                paymentHash
+        ));
+
+        assertEquals(1, transactionsRepository.findAll().stream()
+                .filter(tx -> tx.getUserId().equals(otherUserId))
+                .filter(tx -> tx.getType() == TransactionType.LIGHTNING_CREDIT)
+                .filter(tx -> paymentHash.equals(tx.getReferenceId()))
+                .count());
+        assertEquals(2, transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(senderDebit.getId()).size());
+        assertEquals(2, transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(receiverCredit.getId()).size());
+        assertEquals(2L, countLedgerEntries(senderDebit.getId(), receiverCredit.getId()));
+        assertEquals(7_500L, latestBalanceForUser(userId));
+        assertEquals(2_500L, latestBalanceForUser(otherUserId));
+
+        LightningInvoiceEntity retriedInvoice = lightningInvoiceRepository.findByPaymentHash(paymentHash).orElseThrow();
+        assertEquals(firstSettledAt, retriedInvoice.getSettledAt());
+
+        List<OutboxEventEntity> retriedOutboxEvents = outboxEventRepository.findAll();
+        assertEquals(1, countOutboxEvents(retriedOutboxEvents, KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode(), senderDebit.getId()));
+        assertEquals(1, countOutboxEvents(retriedOutboxEvents, KafkaTopics.INTERNAL_INVOICE_CANCEL.getCode(), paymentHash));
+        assertEquals(0, countOutboxEvents(retriedOutboxEvents, KafkaTopics.PAYMENT_SENT.getCode(), senderDebit.getId()));
+    }
+
+    private long countOutboxEvents(List<OutboxEventEntity> events, String eventType, String aggregateId) {
+        return events.stream()
+                .filter(event -> event.getEventType().equals(eventType))
+                .filter(event -> event.getAggregateId().equals(aggregateId))
+                .count();
+    }
+
+    private long countLedgerEntries(String senderTransactionId, String receiverTransactionId) {
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM aratiri.account_entries
+                WHERE transaction_id IN (?, ?)
+                """, Long.class, senderTransactionId, receiverTransactionId);
+        assertNotNull(count);
+        return count;
     }
 
     private long latestBalanceForUser(String accountUserId) {

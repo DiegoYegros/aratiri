@@ -480,6 +480,11 @@ class TransactionSettlementServiceTest {
     TransactionEntity senderTx = pendingTx(TX_ID, senderId, amount, TransactionType.LIGHTNING_DEBIT);
     senderTx.setReferenceId(paymentHash);
     when(transactionsRepository.findById(TX_ID)).thenReturn(Optional.of(senderTx));
+    when(transactionsRepository.findFirstByUserIdAndReferenceIdAndTypeOrderByCreatedAtDesc(
+        receiverId,
+        paymentHash,
+        TransactionType.LIGHTNING_CREDIT
+    )).thenReturn(Optional.empty());
 
     TransactionEntity receiverTx = new TransactionEntity();
     receiverTx.setId("tx-receiver");

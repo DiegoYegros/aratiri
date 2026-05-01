@@ -19,8 +19,8 @@ import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
 import com.aratiri.webhooks.application.InvoiceSettledWebhookFacts;
 import com.aratiri.webhooks.application.OnChainDepositWebhookFacts;
-import com.aratiri.webhooks.application.WebhookEventService;
 import com.aratiri.webhooks.application.PaymentWebhookFacts;
+import com.aratiri.webhooks.application.WebhookEventService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -31,7 +31,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -52,7 +51,6 @@ public class TransactionSettlementService implements TransactionSettlementModule
             TransactionType.LIGHTNING_DEBIT,
             TransactionType.ONCHAIN_DEBIT
     );
-    private static final String INTERNAL_TRANSFER_PREFIX = "Internal transfer";
     private static final String FAILURE_ACTION = "failure";
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
@@ -187,8 +185,8 @@ public class TransactionSettlementService implements TransactionSettlementModule
         TransactionEntity senderTransaction = loadTransaction(settlement.transactionId(), "internal transfer settlement");
         requireInternalTransferDebit(senderTransaction, settlement);
 
-        TransactionState senderSettlement = settlePending(senderTransaction, false);
-        TransactionState receiverSettlement = createInternalTransferCredit(settlement);
+        TransactionState senderSettlement = settleInternalTransferDebit(senderTransaction);
+        TransactionState receiverSettlement = createOrReuseInternalTransferCredit(settlement);
         LightningInvoiceEntity invoice = settleInternalInvoice(settlement);
 
         publishInternalTransferCompleted(settlement, invoice, senderSettlement, receiverSettlement);
@@ -197,14 +195,14 @@ public class TransactionSettlementService implements TransactionSettlementModule
     }
 
     public TransactionState settlePending(TransactionEntity transaction) {
-        return settlePending(transaction, true);
+        return settlePending(transaction, CompletionEffects.STANDARD);
     }
 
     public TransactionState settleInternalTransferDebit(TransactionEntity transaction) {
-        return settlePending(transaction, false);
+        return settlePending(transaction, CompletionEffects.INTERNAL_TRANSFER_DEBIT);
     }
 
-    private TransactionState settlePending(TransactionEntity transaction, boolean createPaymentSucceededWebhook) {
+    private TransactionState settlePending(TransactionEntity transaction, CompletionEffects completionEffects) {
         String id = transaction.getId();
         TransactionState state = currentState(transaction);
         if (state.status() == TransactionStatus.COMPLETED) {
@@ -215,13 +213,13 @@ public class TransactionSettlementService implements TransactionSettlementModule
             throw new AratiriException(String.format("Transaction status [%s] is not valid for confirmation.", state.status()));
         }
         long newBalanceSat = postLedgerEntry(transaction);
-        appendStatusEvent(transaction, TransactionStatus.COMPLETED, newBalanceSat, null);
+        appendStatusEvent(transaction, TransactionStatus.COMPLETED, newBalanceSat, null, completionEffects);
         transaction.setCurrentStatus(STATUS_COMPLETED);
         transaction.setBalanceAfter(newBalanceSat);
         transaction.setCompletedAt(Instant.now());
         transactionsRepository.save(transaction);
         logger.info("Recorded COMPLETED event for transaction [{}]", id);
-        if (createPaymentSucceededWebhook) {
+        if (completionEffects.createsPaymentSucceededWebhook()) {
             webhookEventService.createPaymentSucceededEvent(paymentWebhookFacts(transaction, TransactionStatus.COMPLETED, newBalanceSat, null));
         }
         return currentState(transaction);
@@ -437,6 +435,16 @@ public class TransactionSettlementService implements TransactionSettlementModule
     }
 
     private void appendStatusEvent(TransactionEntity transaction, TransactionStatus status, Long balanceAfter, String details) {
+        appendStatusEvent(transaction, status, balanceAfter, details, CompletionEffects.STANDARD);
+    }
+
+    private void appendStatusEvent(
+            TransactionEntity transaction,
+            TransactionStatus status,
+            Long balanceAfter,
+            String details,
+            CompletionEffects completionEffects
+    ) {
         TransactionEventEntity event = TransactionEventEntity.builder()
                 .transaction(transaction)
                 .eventType(TransactionEventType.STATUS_CHANGED)
@@ -445,19 +453,12 @@ public class TransactionSettlementService implements TransactionSettlementModule
                 .details(details)
                 .build();
         transactionEventRepository.save(event);
-        if (status == TransactionStatus.COMPLETED) {
+        if (status == TransactionStatus.COMPLETED && completionEffects.publishesPaymentSentFor(transaction)) {
             maybePublishPaymentSent(transaction);
         }
     }
 
     private void maybePublishPaymentSent(TransactionEntity transaction) {
-        if (!PAYMENT_SENT_TYPES.contains(transaction.getType())) {
-            return;
-        }
-        String description = transaction.getDescription();
-        if (description != null && description.toLowerCase(Locale.ROOT).startsWith(INTERNAL_TRANSFER_PREFIX.toLowerCase(Locale.ROOT))) {
-            return;
-        }
         try {
             PaymentSentEvent eventPayload = new PaymentSentEvent(
                     transaction.getUserId(),
@@ -471,6 +472,21 @@ public class TransactionSettlementService implements TransactionSettlementModule
         } catch (Exception e) {
             logger.error("Failed to create outbox event for PaymentSentEvent", e);
         }
+    }
+
+    private TransactionState createOrReuseInternalTransferCredit(InternalTransferSettlement settlement) {
+        return transactionsRepository.findFirstByUserIdAndReferenceIdAndTypeOrderByCreatedAtDesc(
+                        settlement.receiverId(),
+                        settlement.paymentHash(),
+                        TransactionType.LIGHTNING_CREDIT
+                )
+                .map(existingCredit -> settleExistingInternalTransferCredit(existingCredit, settlement))
+                .orElseGet(() -> createInternalTransferCredit(settlement));
+    }
+
+    private TransactionState settleExistingInternalTransferCredit(TransactionEntity receiverCredit, InternalTransferSettlement settlement) {
+        requireInternalTransferCredit(receiverCredit, settlement);
+        return settlePending(receiverCredit);
     }
 
     private TransactionState createInternalTransferCredit(InternalTransferSettlement settlement) {
@@ -488,9 +504,37 @@ public class TransactionSettlementService implements TransactionSettlementModule
         return createAndSettleTransaction(creditRequest);
     }
 
+    private void requireInternalTransferCredit(TransactionEntity transaction, InternalTransferSettlement settlement) {
+        if (transaction.getType() != TransactionType.LIGHTNING_CREDIT) {
+            throw new AratiriException(String.format(
+                    "Transaction type [%s] is not valid for internal transfer receiver settlement.",
+                    transaction.getType()
+            ));
+        }
+        if (!settlement.receiverId().equals(transaction.getUserId())) {
+            throw new AratiriException(String.format("Transaction [%s] does not correspond to internal transfer receiver.", transaction.getId()));
+        }
+        if (transaction.getCurrentAmount() != settlement.amountSat()) {
+            throw new AratiriException(String.format("Transaction [%s] amount does not match internal transfer amount.", transaction.getId()));
+        }
+        if (!settlement.paymentHash().equals(transaction.getReferenceId())) {
+            throw new AratiriException(String.format("Transaction [%s] reference does not match internal transfer payment hash.", transaction.getId()));
+        }
+    }
+
     private LightningInvoiceEntity settleInternalInvoice(InternalTransferSettlement settlement) {
         LightningInvoiceEntity invoice = lightningInvoiceRepository.findByPaymentHash(settlement.paymentHash())
                 .orElseThrow(() -> new AratiriException("Internal invoice not found for payment hash."));
+
+        if (!settlement.receiverId().equals(invoice.getUserId())) {
+            throw new AratiriException("Internal invoice does not correspond to transfer receiver.");
+        }
+        if (invoice.getInvoiceState() == LightningInvoiceEntity.InvoiceState.SETTLED) {
+            if (invoice.getAmountPaidSats() != settlement.amountSat()) {
+                throw new AratiriException("Internal invoice settlement amount does not match transfer amount.");
+            }
+            return invoice;
+        }
 
         LocalDateTime settledAt = LocalDateTime.now();
         invoice.setInvoiceState(LightningInvoiceEntity.InvoiceState.SETTLED);
@@ -530,6 +574,19 @@ public class TransactionSettlementService implements TransactionSettlementModule
             outboxWriter.publishInternalInvoiceCancel(settlement.paymentHash(), cancelEvent);
         } catch (Exception e) {
             logger.error("Failed to create outbox event for InternalInvoiceCancelEvent", e);
+        }
+    }
+
+    private enum CompletionEffects {
+        STANDARD,
+        INTERNAL_TRANSFER_DEBIT;
+
+        boolean createsPaymentSucceededWebhook() {
+            return this == STANDARD;
+        }
+
+        boolean publishesPaymentSentFor(TransactionEntity transaction) {
+            return this == STANDARD && PAYMENT_SENT_TYPES.contains(transaction.getType());
         }
     }
 }
