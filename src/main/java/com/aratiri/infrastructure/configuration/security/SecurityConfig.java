@@ -77,20 +77,25 @@ public class SecurityConfig {
                                                   AratiriSecurityProperties securityProperties,
                                                   Environment environment) {
         boolean h2ConsolePermitted = isH2ConsolePermitted(securityProperties, environment);
-        List<String> permitAllEndpoints = new ArrayList<>(List.of(PUBLIC_ENDPOINTS));
-        if (h2ConsolePermitted) {
-            permitAllEndpoints.addAll(List.of(H2_CONSOLE_ENDPOINTS));
-        }
-        if (securityProperties.getApiDocs().isEnabled()) {
-            permitAllEndpoints.addAll(List.of(API_DOCS_ENDPOINTS));
-        }
+        boolean apiDocsEnabled = securityProperties.getApiDocs().isEnabled();
 
         return http
                 // Stateless Bearer/JWT API: no browser session cookies for CSRF to target (see Spring stateless API guidance).
                 .csrf(AbstractHttpConfigurer::disable) // NOSONAR java:S4502
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(permitAllEndpoints.toArray(String[]::new)).permitAll()
-                        .anyRequest().authenticated()
+                .authorizeHttpRequests(auth -> {
+                    if (h2ConsolePermitted) {
+                        auth.requestMatchers(H2_CONSOLE_ENDPOINTS).permitAll();
+                    } else {
+                        auth.requestMatchers(H2_CONSOLE_ENDPOINTS).denyAll();
+                    }
+                    if (apiDocsEnabled) {
+                        auth.requestMatchers(API_DOCS_ENDPOINTS).permitAll();
+                    } else {
+                        auth.requestMatchers(API_DOCS_ENDPOINTS).denyAll();
+                    }
+                    auth.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                            .anyRequest().authenticated();
+                }
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> {

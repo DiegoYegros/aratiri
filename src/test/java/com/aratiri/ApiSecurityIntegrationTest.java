@@ -1,16 +1,24 @@
 package com.aratiri;
 
-import com.aratiri.auth.application.port.out.EmailNotificationPort;
 import com.aratiri.accounts.application.port.out.CurrencyConversionPort;
 import com.aratiri.accounts.application.port.out.LightningAddressPort;
+import com.aratiri.auth.application.port.out.EmailNotificationPort;
+import com.aratiri.auth.domain.AuthProvider;
+import com.aratiri.auth.domain.Role;
+import com.aratiri.auth.infrastructure.jwt.JwtUtil;
+import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
+import com.aratiri.infrastructure.persistence.jpa.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.TestPropertySource;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 abstract class AbstractApiSecurityIntegrationTest extends AbstractIntegrationTest {
+
+    private static final String SECURITY_TEST_EMAIL = "security-test@example.com";
 
     @MockitoBean
     private EmailNotificationPort emailNotificationPort;
@@ -20,6 +28,26 @@ abstract class AbstractApiSecurityIntegrationTest extends AbstractIntegrationTes
 
     @MockitoBean
     private LightningAddressPort lightningAddressPort;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    protected String registeredUserAuthorizationHeader() {
+        userRepository.findByEmail(SECURITY_TEST_EMAIL)
+                .orElseGet(() -> {
+                    UserEntity user = new UserEntity();
+                    user.setName("Security Test");
+                    user.setEmail(SECURITY_TEST_EMAIL);
+                    user.setAuthProvider(AuthProvider.LOCAL);
+                    user.setRole(Role.USER);
+                    return userRepository.save(user);
+                });
+
+        return "Bearer " + jwtUtil.generateToken(SECURITY_TEST_EMAIL);
+    }
 }
 
 class ApiSecurityIntegrationTest extends AbstractApiSecurityIntegrationTest {
@@ -120,7 +148,7 @@ class ApiSecurityIntegrationTest extends AbstractApiSecurityIntegrationTest {
     }
 
     @Test
-    @DisplayName("Swagger endpoints require authentication by default")
+    @DisplayName("Swagger endpoints are blocked by default")
     void swagger_endpoints_restricted_by_default() {
         webTestClient().get().uri("/swagger-ui.html")
                 .exchange()
@@ -129,6 +157,18 @@ class ApiSecurityIntegrationTest extends AbstractApiSecurityIntegrationTest {
         webTestClient().get().uri("/v3/api-docs")
                 .exchange()
                 .expectStatus().isUnauthorized();
+
+        String authorization = registeredUserAuthorizationHeader();
+
+        webTestClient().get().uri("/swagger-ui.html")
+                .header("Authorization", authorization)
+                .exchange()
+                .expectStatus().isForbidden();
+
+        webTestClient().get().uri("/v3/api-docs")
+                .header("Authorization", authorization)
+                .exchange()
+                .expectStatus().isForbidden();
     }
 }
 
@@ -156,10 +196,15 @@ class ApiSecurityDocsEnabledIntegrationTest extends AbstractApiSecurityIntegrati
 class ApiSecurityDevEndpointsDisabledIntegrationTest extends AbstractApiSecurityIntegrationTest {
 
     @Test
-    @DisplayName("H2 console route requires authentication when explicitly disabled")
+    @DisplayName("H2 console route is blocked when explicitly disabled")
     void h2_console_restricted_when_disabled() {
         webTestClient().get().uri("/h2-console/")
                 .exchange()
                 .expectStatus().isUnauthorized();
+
+        webTestClient().get().uri("/h2-console/")
+                .header("Authorization", registeredUserAuthorizationHeader())
+                .exchange()
+                .expectStatus().isForbidden();
     }
 }
