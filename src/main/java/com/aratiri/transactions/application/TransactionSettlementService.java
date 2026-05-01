@@ -1,14 +1,15 @@
 package com.aratiri.transactions.application;
 
 import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
-import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
-import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
+import com.aratiri.invoices.application.InternalInvoiceSettlementFacts;
+import com.aratiri.invoices.application.SettleInternalInvoiceCommand;
+import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.payments.application.event.PaymentSentEvent;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
@@ -59,7 +60,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
     private final AccountLedgerService accountLedgerService;
     private final OutboxWriter outboxWriter;
     private final WebhookEventService webhookEventService;
-    private final LightningInvoiceRepository lightningInvoiceRepository;
+    private final InvoiceSettlementPort invoiceSettlementPort;
 
     public TransactionSettlementService(
             TransactionsRepository transactionsRepository,
@@ -67,14 +68,14 @@ public class TransactionSettlementService implements TransactionSettlementModule
             AccountLedgerService accountLedgerService,
             OutboxWriter outboxWriter,
             WebhookEventService webhookEventService,
-            LightningInvoiceRepository lightningInvoiceRepository
+            InvoiceSettlementPort invoiceSettlementPort
     ) {
         this.transactionsRepository = transactionsRepository;
         this.transactionEventRepository = transactionEventRepository;
         this.accountLedgerService = accountLedgerService;
         this.outboxWriter = outboxWriter;
         this.webhookEventService = webhookEventService;
-        this.lightningInvoiceRepository = lightningInvoiceRepository;
+        this.invoiceSettlementPort = invoiceSettlementPort;
     }
 
     public TransactionState createTransaction(CreateTransactionRequest request) {
@@ -187,7 +188,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
 
         TransactionState senderSettlement = settleInternalTransferDebit(senderTransaction);
         TransactionState receiverSettlement = createOrReuseInternalTransferCredit(settlement);
-        LightningInvoiceEntity invoice = settleInternalInvoice(settlement);
+        InternalInvoiceSettlementFacts invoice = settleInternalInvoice(settlement);
 
         publishInternalTransferCompleted(settlement, invoice, senderSettlement, receiverSettlement);
         publishInternalInvoiceCancel(settlement);
@@ -522,30 +523,17 @@ public class TransactionSettlementService implements TransactionSettlementModule
         }
     }
 
-    private LightningInvoiceEntity settleInternalInvoice(InternalTransferSettlement settlement) {
-        LightningInvoiceEntity invoice = lightningInvoiceRepository.findByPaymentHash(settlement.paymentHash())
-                .orElseThrow(() -> new AratiriException("Internal invoice not found for payment hash."));
-
-        if (!settlement.receiverId().equals(invoice.getUserId())) {
-            throw new AratiriException("Internal invoice does not correspond to transfer receiver.");
-        }
-        if (invoice.getInvoiceState() == LightningInvoiceEntity.InvoiceState.SETTLED) {
-            if (invoice.getAmountPaidSats() != settlement.amountSat()) {
-                throw new AratiriException("Internal invoice settlement amount does not match transfer amount.");
-            }
-            return invoice;
-        }
-
-        LocalDateTime settledAt = LocalDateTime.now();
-        invoice.setInvoiceState(LightningInvoiceEntity.InvoiceState.SETTLED);
-        invoice.setAmountPaidSats(settlement.amountSat());
-        invoice.setSettledAt(settledAt);
-        return lightningInvoiceRepository.save(invoice);
+    private InternalInvoiceSettlementFacts settleInternalInvoice(InternalTransferSettlement settlement) {
+        return invoiceSettlementPort.settleInternalInvoice(new SettleInternalInvoiceCommand(
+                settlement.receiverId(),
+                settlement.paymentHash(),
+                settlement.amountSat()
+        ));
     }
 
     private void publishInternalTransferCompleted(
             InternalTransferSettlement settlement,
-            LightningInvoiceEntity invoice,
+            InternalInvoiceSettlementFacts invoice,
             TransactionState senderSettlement,
             TransactionState receiverSettlement
     ) {
@@ -558,7 +546,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
                 settlement.amountSat(),
                 settlement.paymentHash(),
                 LocalDateTime.now(),
-                invoice.getMemo()
+                invoice.memo()
         );
         try {
             outboxWriter.publishInternalTransferCompleted(settlement.transactionId(), completedEvent);

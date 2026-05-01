@@ -25,6 +25,18 @@ public class LightningInvoiceRepositoryAdapter implements LightningInvoicePersis
     }
 
     @Override
+    public Optional<LightningInvoice> findByPaymentHash(String paymentHash) {
+        return lightningInvoiceRepository.findByPaymentHash(paymentHash)
+                .map(this::mapToDomain);
+    }
+
+    @Override
+    public Optional<LightningInvoice> findByPaymentRequest(String paymentRequest) {
+        return lightningInvoiceRepository.findByPaymentRequest(paymentRequest)
+                .map(this::mapToDomain);
+    }
+
+    @Override
     public Optional<LightningInvoice> findSettledByPaymentHash(String paymentHash) {
         return lightningInvoiceRepository
                 .findByPaymentHashAndInvoiceState(paymentHash, LightningInvoiceEntity.InvoiceState.SETTLED)

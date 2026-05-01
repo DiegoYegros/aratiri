@@ -1,9 +1,9 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
 import com.aratiri.infrastructure.messaging.KafkaTopicNames;
-import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
-import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
+import com.aratiri.invoices.application.InvoiceSettlementFacts;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
+import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.InvoiceCreditSettlement;
 import com.aratiri.transactions.application.TransactionSettlementModule;
@@ -27,7 +27,7 @@ import tools.jackson.databind.json.JsonMapper;
 public class InvoiceSettledConsumer {
 
     private final TransactionSettlementModule transactionSettlementModule;
-    private final LightningInvoiceRepository lightningInvoiceRepository;
+    private final InvoiceSettlementPort invoiceSettlementPort;
     private final JsonMapper jsonMapper;
 
     @KafkaListener(topics = KafkaTopicNames.INVOICE_SETTLED, groupId = "invoice-listener-group")
@@ -50,21 +50,15 @@ public class InvoiceSettledConsumer {
             long amountInSats = event.getAmount();
             log.info("Processing invoice settlement for user: {}, amount: {} sats, paymentRequest: {}",
                     event.getUserId(), amountInSats, event.getPaymentHash());
-            LightningInvoiceEntity invoice = lightningInvoiceRepository.findByPaymentHash(event.getPaymentHash())
-                    .orElse(null);
-            String description = invoice != null && invoice.getMemo() != null
-                    ? invoice.getMemo()
-                    : String.format("Payment received for invoice (hash: %s...)", event.getPaymentHash().substring(0, 10));
-            String externalReference = invoice != null ? invoice.getExternalReference() : null;
-            String metadata = invoice != null ? invoice.getMetadata() : null;
+            InvoiceSettlementFacts settlementFacts = invoiceSettlementPort.settlementFacts(event.getPaymentHash());
 
             InvoiceCreditSettlement settlement = new InvoiceCreditSettlement(
                     event.getUserId(),
                     amountInSats,
-                    event.getPaymentHash(),
-                    description,
-                    externalReference,
-                    metadata
+                    settlementFacts.paymentHash(),
+                    settlementFacts.description(),
+                    settlementFacts.externalReference(),
+                    settlementFacts.metadata()
             );
             transactionSettlementModule.settleInvoiceCredit(settlement);
             log.info("Successfully processed invoice settlement for user: {}", event.getUserId());

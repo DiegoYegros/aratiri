@@ -4,10 +4,10 @@ import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
-import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
+import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.webhooks.application.WebhookEventService;
@@ -35,7 +35,7 @@ class TransactionsAdapterTest {
     private TransactionEventRepository transactionEventRepository;
 
     @Mock
-    private LightningInvoiceRepository lightningInvoiceRepository;
+    private InvoiceSettlementPort invoiceSettlementPort;
 
     @Mock
     private OutboxWriter outboxWriter;
@@ -60,7 +60,7 @@ class TransactionsAdapterTest {
                 accountLedgerService,
                 outboxWriter,
                 webhookEventService,
-                lightningInvoiceRepository
+                invoiceSettlementPort
         );
         transactionsAdapter = new TransactionsAdapter(
                 transactionsRepository,

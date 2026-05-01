@@ -1,8 +1,8 @@
 package com.aratiri.infrastructure.messaging.consumer;
 
-import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
-import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
+import com.aratiri.invoices.application.InvoiceSettlementFacts;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
+import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.transactions.application.InvoiceCreditSettlement;
 import com.aratiri.transactions.application.TransactionSettlementModule;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,7 +15,6 @@ import org.springframework.kafka.support.Acknowledgment;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
@@ -28,7 +27,7 @@ class InvoiceSettledConsumerTest {
     private TransactionSettlementModule transactionSettlementModule;
 
     @Mock
-    private LightningInvoiceRepository lightningInvoiceRepository;
+    private InvoiceSettlementPort invoiceSettlementPort;
 
     @Mock
     private JsonMapper jsonMapper;
@@ -40,7 +39,7 @@ class InvoiceSettledConsumerTest {
 
     @BeforeEach
     void setUp() {
-        consumer = new InvoiceSettledConsumer(transactionSettlementModule, lightningInvoiceRepository, jsonMapper);
+        consumer = new InvoiceSettledConsumer(transactionSettlementModule, invoiceSettlementPort, jsonMapper);
     }
 
     @Test
@@ -53,15 +52,16 @@ class InvoiceSettledConsumerTest {
                 LocalDateTime.now(),
                 "event memo"
         );
-        LightningInvoiceEntity invoice = LightningInvoiceEntity.builder()
-                .memo("Invoice memo")
-                .externalReference("external-invoice-ref")
-                .metadata("{\"order_id\":\"1001\"}")
-                .build();
 
         when(jsonMapper.readValue(message, InvoiceSettledEvent.class)).thenReturn(event);
-        when(lightningInvoiceRepository.findByPaymentHash("payment-hash-1234567890"))
-                .thenReturn(Optional.of(invoice));
+        when(invoiceSettlementPort.settlementFacts("payment-hash-1234567890"))
+                .thenReturn(new InvoiceSettlementFacts(
+                        "payment-hash-1234567890",
+                        "Invoice memo",
+                        "Invoice memo",
+                        "external-invoice-ref",
+                        "{\"order_id\":\"1001\"}"
+                ));
 
         consumer.handleInvoiceSettled(message, "invoice.settled", 0, 10L, acknowledgment);
 
@@ -73,6 +73,7 @@ class InvoiceSettledConsumerTest {
         assertEquals("Invoice memo", captor.getValue().description());
         assertEquals("external-invoice-ref", captor.getValue().externalReference());
         assertEquals("{\"order_id\":\"1001\"}", captor.getValue().metadata());
+        verify(invoiceSettlementPort).settlementFacts("payment-hash-1234567890");
         verify(acknowledgment).acknowledge();
     }
 }

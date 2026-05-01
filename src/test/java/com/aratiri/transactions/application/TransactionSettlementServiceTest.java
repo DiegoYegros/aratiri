@@ -1,24 +1,28 @@
 package com.aratiri.transactions.application;
 
 import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
-import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
-import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
+import com.aratiri.invoices.application.InternalInvoiceSettlementFacts;
+import com.aratiri.invoices.application.SettleInternalInvoiceCommand;
+import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.transactions.application.dto.*;
+import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
 import com.aratiri.webhooks.application.WebhookEventService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,7 +49,7 @@ class TransactionSettlementServiceTest {
   private WebhookEventService webhookEventService;
 
   @Mock
-  private LightningInvoiceRepository lightningInvoiceRepository;
+  private InvoiceSettlementPort invoiceSettlementPort;
 
   private TransactionSettlementService service;
 
@@ -60,7 +64,7 @@ class TransactionSettlementServiceTest {
         accountLedgerService,
         outboxWriter,
         webhookEventService,
-        lightningInvoiceRepository
+        invoiceSettlementPort
     );
   }
 
@@ -499,15 +503,16 @@ class TransactionSettlementServiceTest {
     when(accountLedgerService.appendLightningDebitSettlement(senderTx)).thenReturn(8000L);
     when(accountLedgerService.appendLightningCreditSettlement(any(TransactionEntity.class))).thenReturn(12000L);
 
-    LightningInvoiceEntity invoice = LightningInvoiceEntity.builder()
-        .id("inv-1")
-        .userId(receiverId)
-        .paymentHash(paymentHash)
-        .invoiceState(LightningInvoiceEntity.InvoiceState.OPEN)
-        .memo("test memo")
-        .build();
-    when(lightningInvoiceRepository.findByPaymentHash(paymentHash)).thenReturn(Optional.of(invoice));
-    when(lightningInvoiceRepository.save(any(LightningInvoiceEntity.class))).thenReturn(invoice);
+    SettleInternalInvoiceCommand settleInvoiceCommand =
+        new SettleInternalInvoiceCommand(receiverId, paymentHash, amount);
+    when(invoiceSettlementPort.settleInternalInvoice(settleInvoiceCommand))
+        .thenReturn(new InternalInvoiceSettlementFacts(
+            paymentHash,
+            receiverId,
+            amount,
+            LocalDateTime.now(),
+            "test memo"
+        ));
 
     when(transactionsRepository.save(any(TransactionEntity.class)))
         .thenReturn(senderTx, receiverTx);
@@ -530,10 +535,12 @@ class TransactionSettlementServiceTest {
 
     verify(accountLedgerService).appendLightningDebitSettlement(senderTx);
     verify(accountLedgerService).appendLightningCreditSettlement(any(TransactionEntity.class));
-    verify(outboxWriter).publishInternalTransferCompleted(eq(TX_ID), any());
+    ArgumentCaptor<InternalTransferCompletedEvent> eventCaptor =
+        ArgumentCaptor.forClass(InternalTransferCompletedEvent.class);
+    verify(outboxWriter).publishInternalTransferCompleted(eq(TX_ID), eventCaptor.capture());
     verify(outboxWriter).publishInternalInvoiceCancel(eq(paymentHash), any());
-    assertEquals(LightningInvoiceEntity.InvoiceState.SETTLED, invoice.getInvoiceState());
-    assertEquals(amount, invoice.getAmountPaidSats());
+    verify(invoiceSettlementPort).settleInternalInvoice(settleInvoiceCommand);
+    assertEquals("test memo", eventCaptor.getValue().getMemo());
   }
 
   @Test

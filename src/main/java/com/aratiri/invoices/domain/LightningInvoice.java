@@ -57,6 +57,25 @@ public record LightningInvoice(
         );
     }
 
+    public LightningInvoice settle(long newAmountPaidSats, LocalDateTime newSettledAt) {
+        return new LightningInvoice(
+                id,
+                userId,
+                paymentHash,
+                preimage,
+                paymentRequest,
+                InvoiceState.SETTLED,
+                amountSats,
+                createdAt,
+                expiry,
+                newAmountPaidSats,
+                newSettledAt,
+                memo,
+                externalReference,
+                metadata
+        );
+    }
+
     public enum InvoiceState {
         OPEN,
         ACCEPTED,
