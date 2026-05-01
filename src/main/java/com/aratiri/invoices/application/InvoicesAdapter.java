@@ -19,9 +19,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -118,7 +120,7 @@ public class InvoicesAdapter implements InvoicesPort {
 
     private String normalizePaymentRequest(String paymentRequest) {
         String cleanPaymentRequest = paymentRequest;
-        if (cleanPaymentRequest.toLowerCase().startsWith("lightning:")) {
+        if (cleanPaymentRequest.toLowerCase(Locale.ROOT).startsWith("lightning:")) {
             cleanPaymentRequest = cleanPaymentRequest.substring(10);
         }
         return cleanPaymentRequest;
@@ -127,7 +129,7 @@ public class InvoicesAdapter implements InvoicesPort {
     private DecodedInvoicetDTO mapToDto(DecodedLightningInvoice decoded) {
         String paymentAddressBase64 = decoded.paymentAddress() == null
                 ? ""
-                : Base64.getEncoder().encodeToString(decoded.paymentAddress().getBytes());
+                : Base64.getEncoder().encodeToString(decoded.paymentAddress().getBytes(StandardCharsets.UTF_8));
         return DecodedInvoicetDTO.builder()
                 .blindedPaths(new ArrayList<>(decoded.blindedPaths()))
                 .description(decoded.description())

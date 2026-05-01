@@ -23,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -304,7 +305,7 @@ public class PaymentsAdapter implements PaymentsPort {
 
     private OnChainPaymentDTOs.SendOnChainRequestDTO normalizeOnChainRequest(OnChainPaymentDTOs.SendOnChainRequestDTO request) {
         OnChainPaymentDTOs.SendOnChainRequestDTO normalized = new OnChainPaymentDTOs.SendOnChainRequestDTO();
-        if (request.getAddress() != null && request.getAddress().toLowerCase().startsWith("bitcoin:")) {
+        if (request.getAddress() != null && request.getAddress().toLowerCase(Locale.ROOT).startsWith("bitcoin:")) {
             normalized.setAddress(request.getAddress().substring(8));
         } else {
             normalized.setAddress(request.getAddress());
@@ -319,7 +320,7 @@ public class PaymentsAdapter implements PaymentsPort {
 
     private OnChainPaymentDTOs.EstimateFeeRequestDTO normalizeFeeRequest(OnChainPaymentDTOs.EstimateFeeRequestDTO request) {
         OnChainPaymentDTOs.EstimateFeeRequestDTO normalized = new OnChainPaymentDTOs.EstimateFeeRequestDTO();
-        if (request.getAddress() != null && request.getAddress().toLowerCase().startsWith("bitcoin:")) {
+        if (request.getAddress() != null && request.getAddress().toLowerCase(Locale.ROOT).startsWith("bitcoin:")) {
             normalized.setAddress(request.getAddress().substring(8));
         } else {
             normalized.setAddress(request.getAddress());

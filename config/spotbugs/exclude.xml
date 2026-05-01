@@ -27,9 +27,5 @@
         <Class name="~com\.aratiri\..*"/>
         <Bug pattern="DM_CONVERT_CASE,DM_DEFAULT_ENCODING,FORMAT_STRING_MANIPULATION,IMPROPER_UNICODE,NM_CONFUSING"/>
     </Match>
-    <Match>
-        <!-- Existing flow-control and configuration-path warnings require domain review before changing runtime behavior. -->
-        <Class name="~com\.aratiri\..*"/>
-        <Bug pattern="CT_CONSTRUCTOR_THROW,NP_LOAD_OF_KNOWN_NULL_VALUE,PATH_TRAVERSAL_IN,REC_CATCH_EXCEPTION,THROWS_METHOD_THROWS_RUNTIMEEXCEPTION,UNSAFE_HASH_EQUALS,UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR,DMI_RANDOM_USED_ONLY_ONCE"/>
-    </Match>
+
 </FindBugsFilter>
