@@ -206,7 +206,7 @@ Aratiri expects:
 - optional Nostr relay and NIP-05/LUD16 lookups,
 - external BTC price APIs with fallback pricing.
 
-Generated LND protobuf classes are built from `src/main/proto` and packaged into the Spring Boot jar. The Gradle build includes a verification task to ensure the generated `lnrpc`, `routerrpc`, and `invoicesrpc` classes are present in the boot jar.
+Generated LND protobuf classes are built from `src/main/proto` and packaged into the Spring Boot jar. The checked-in proto sources target LND `v0.18.5-beta`, declared as `lndProtoVersion` in `gradle.properties` and repeated in each proto file header. The Gradle `check` lifecycle runs `verifyLndProtoSources` to fail on version-header or checksum drift, and `verifyProtoClassesInBootJar` to ensure the generated `lnrpc`, `routerrpc`, and `invoicesrpc` classes are present in the boot jar.
 
 ## License
 

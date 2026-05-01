@@ -198,10 +198,6 @@ tasks.named('sonarlintTest') {
     }
 }
 
-tasks.named('check') {
-    dependsOn(tasks.named('sonarlintMain'), tasks.named('sonarlintTest'), tasks.named('verifyProtoClassesInBootJar'), tasks.named('jacocoTestCoverageVerification'), tasks.named('spotbugsMain'))
-}
-
 def jacocoExcludes = [
     'lnrpc/**',
     'routerrpc/**',
@@ -243,6 +239,57 @@ tasks.named('jar') {
     enabled = false
 }
 
+def lndProtoChecksums = [
+        'invoices.proto' : '6732770300d3111a1ab129ef75ea750131b2f841646547a3aef2a4b8d34e79f7',
+        'lightning.proto': 'f39b53b23763087aef23bdc75250f9f0e76f3cf89ef531ce91301baec4380e6b',
+        'router.proto'   : 'b4a3cc4043acf928dc9d6d81e5cdc5cdcde534991b8b330a918c4416b20a9be7',
+]
+
+tasks.register('verifyLndProtoSources') {
+    group = 'verification'
+    description = 'Verifies checked-in LND proto files match the declared LND version and checksums'
+
+    inputs.property('lndProtoVersion', providers.gradleProperty('lndProtoVersion'))
+    inputs.files(lndProtoChecksums.keySet().collect { fileName ->
+        layout.projectDirectory.file("src/main/proto/${fileName}")
+    })
+
+    doLast {
+        def declaredVersion = providers.gradleProperty('lndProtoVersion').get()
+        def expectedSourceHeader = "// Source: LND ${declaredVersion} (github.com/lightningnetwork/lnd)".toString()
+        def immutableHeaderTokens = ['DO NOT MODIFY', 'synced from upstream release']
+
+        lndProtoChecksums.each { fileName, expectedChecksum ->
+            def protoFile = layout.projectDirectory.file("src/main/proto/${fileName}").asFile
+            if (!protoFile.isFile()) {
+                throw new GradleException("Missing LND proto source file: ${protoFile}")
+            }
+
+            def leadingLines = protoFile.readLines('UTF-8').take(5)
+            if (!leadingLines.contains(expectedSourceHeader)) {
+                throw new GradleException(
+                        "${fileName} does not declare the configured LND proto version ${declaredVersion}"
+                )
+            }
+            if (!leadingLines.any { line -> immutableHeaderTokens.every { token -> line.contains(token) } }) {
+                throw new GradleException("${fileName} is missing the upstream source warning header")
+            }
+
+            def actualChecksum = java.security.MessageDigest.getInstance('SHA-256')
+                    .digest(protoFile.bytes)
+                    .collect { String.format('%02x', it & 0xff) }
+                    .join()
+            if (actualChecksum != expectedChecksum) {
+                throw new GradleException(
+                        "${fileName} checksum mismatch for ${declaredVersion}. " +
+                                "Expected ${expectedChecksum}, got ${actualChecksum}. " +
+                                'Sync from the declared LND release and update lndProtoChecksums together.'
+                )
+            }
+        }
+    }
+}
+
 tasks.register('verifyProtoClassesInBootJar') {
     group = 'verification'
     description = 'Verifies proto-generated classes are packaged in the boot jar'
@@ -265,4 +312,15 @@ tasks.register('verifyProtoClassesInBootJar') {
             )
         }
     }
+}
+
+tasks.named('check') {
+    dependsOn(
+            tasks.named('sonarlintMain'),
+            tasks.named('sonarlintTest'),
+            tasks.named('verifyLndProtoSources'),
+            tasks.named('verifyProtoClassesInBootJar'),
+            tasks.named('jacocoTestCoverageVerification'),
+            tasks.named('spotbugsMain')
+    )
 }
