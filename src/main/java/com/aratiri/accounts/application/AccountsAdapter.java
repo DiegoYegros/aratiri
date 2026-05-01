@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Locale;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
@@ -140,7 +141,7 @@ public class AccountsAdapter implements AccountsPort {
                                     entry -> amountInBtc.multiply(entry.getValue())
                             ));
                     AccountTransactionType accountTransactionType;
-                    if (t.getType() == TransactionType.ONCHAIN_CREDIT || t.getType().name().toLowerCase().contains("credit")) {
+                    if (t.getType() == TransactionType.ONCHAIN_CREDIT || t.getType().name().toLowerCase(Locale.ROOT).contains("credit")) {
                         accountTransactionType = AccountTransactionType.CREDIT;
                     } else {
                         accountTransactionType = AccountTransactionType.DEBIT;

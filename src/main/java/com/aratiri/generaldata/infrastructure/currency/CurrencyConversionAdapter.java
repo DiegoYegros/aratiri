@@ -65,7 +65,7 @@ public class CurrencyConversionAdapter implements CurrencyConversionPort {
         String currencyCode = currency.toUpperCase(Locale.ROOT);
         String apiUrl = String.format(
                 aratiriProperties.getCoingeckoMarketChartApiUrlTemplate(),
-                currency.toLowerCase(),
+                currency.toLowerCase(Locale.ROOT),
                 range.coingeckoDays()
         );
         logger.info("Fetching BTC price history in {} for range {} from CoinGecko...", currencyCode, range.code());
@@ -131,7 +131,7 @@ public class CurrencyConversionAdapter implements CurrencyConversionPort {
                 return null;
             }
             Map<String, Object> btcRates = jsonMapper.convertValue(btcRatesObj, new TypeReference<Map<String, Object>>() {});
-            String targetCurrency = currency.toLowerCase();
+            String targetCurrency = currency.toLowerCase(Locale.ROOT);
             if (!btcRates.containsKey(targetCurrency)) {
                 logger.warn("Currency {} not found in fallback API", currencyCode);
                 return null;
@@ -176,7 +176,7 @@ public class CurrencyConversionAdapter implements CurrencyConversionPort {
     private BigDecimal getFromCoinGecko(String currency) {
         String currencyCode = currency.toUpperCase(Locale.ROOT);
         String targetCurrency = currency.toLowerCase(Locale.ROOT);
-        String apiUrl = String.format(aratiriProperties.getCoingeckoApiUrlTemplate(), currency.toLowerCase());
+        String apiUrl = String.format(aratiriProperties.getCoingeckoApiUrlTemplate(), currency.toLowerCase(Locale.ROOT));
         try {
             String jsonResponse = restTemplate.getForObject(apiUrl, String.class);
             Map<String, Map<String, Double>> response = jsonMapper.readValue(jsonResponse, new TypeReference<>() {
