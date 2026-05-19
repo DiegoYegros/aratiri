@@ -26,7 +26,7 @@ Required env vars: `JWT_SECRET`, `ARATIRI_BASE_URL`, `SPRING_DATASOURCE_URL`, `S
 ```
 ./gradlew clean build              # compile, test, sonarlint, spotbugs, jacoco, verifyProto (use this before every commit)
 ./gradlew bootRun                  # run the app locally (needs infrastructure up)
-./gradlew test                     # unit + integration tests only (Testcontainers spins up DB/kafka)
+./gradlew test                     # integration/behavioural tests only (Testcontainers spins up DB/kafka)
 ./gradlew sonarlintMain            # static analysis (main)
 ./gradlew spotbugsMain             # bug pattern detection (main)
 ./gradlew jacocoTestReport         # coverage report (build/reports/jacoco/)
@@ -118,6 +118,7 @@ Aratiri is a modular monolith with ports-and-adapters (hexagonal) architecture (
 - JPA entities use `@Getter` and `@Setter` — **never `@Data`**. Fields `id`, `createdAt`, `updatedAt` must have no setter.
 - Use `@Builder` on entities for test construction only.
 - Lombok is `compileOnly` with `annotationProcessor`.
+- Follow red/green/refactor TDD: write one failing behavioural integration test for observable behavior, make the minimal change to pass, then refactor while tests are green.
 - Tests mirror the main package structure. Integration tests extend `AbstractIntegrationTest`.
 - Use `2-space` indentation for `.java` files.
 - Import order: Java standard library → third-party → `com.aratiri` — no strict enforcement beyond `spotless` which is not configured; follow surrounding convention.
