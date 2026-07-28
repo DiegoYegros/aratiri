@@ -1,5 +1,6 @@
 package com.aratiri.payments.infrastructure.lightning;
 
+import com.aratiri.infrastructure.grpc.GrpcDeadlines;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.port.out.LightningNodePort;
@@ -18,6 +19,7 @@ import routerrpc.TrackPaymentRequest;
 
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class LightningNodeClientAdapter implements LightningNodePort {
@@ -35,14 +37,18 @@ public class LightningNodeClientAdapter implements LightningNodePort {
 
     @Override
     public Optional<LightningPayment> executeLightningPayment(PayInvoiceRequestDTO request, int defaultFeeLimitSat, int defaultTimeoutSeconds) {
+        int timeoutSeconds = request.getTimeoutSeconds() != null ? request.getTimeoutSeconds() : defaultTimeoutSeconds;
         SendPaymentRequest grpcRequest = SendPaymentRequest.newBuilder()
                 .setPaymentRequest(request.getInvoice())
                 .setFeeLimitSat(request.getFeeLimitSat() != null ? request.getFeeLimitSat() : defaultFeeLimitSat)
-                .setTimeoutSeconds(request.getTimeoutSeconds() != null ? request.getTimeoutSeconds() : defaultTimeoutSeconds)
+                .setTimeoutSeconds(timeoutSeconds)
                 .setAllowSelfPayment(false)
                 .build();
         try {
-            Iterator<Payment> paymentStream = routerStub.sendPaymentV2(grpcRequest);
+            // Worker thread: bound the terminal-state wait to the payment timeout plus a small buffer.
+            Iterator<Payment> paymentStream = routerStub
+                    .withDeadlineAfter(timeoutSeconds + 15L, TimeUnit.SECONDS)
+                    .sendPaymentV2(grpcRequest);
             while (paymentStream.hasNext()) {
                 Payment payment = paymentStream.next();
                 if (payment.getStatus() == Payment.PaymentStatus.SUCCEEDED ||
@@ -58,12 +64,16 @@ public class LightningNodeClientAdapter implements LightningNodePort {
 
     @Override
     public Optional<LightningPayment> findPayment(String paymentHash) {
+        TrackPaymentRequest request = TrackPaymentRequest.newBuilder()
+                .setPaymentHash(ByteString.fromHex(paymentHash))
+                // Request in-flight updates so LND immediately reports the payment's current state.
+                .setNoInflightUpdates(false)
+                .build();
         try {
-            TrackPaymentRequest request = TrackPaymentRequest.newBuilder()
-                    .setPaymentHash(ByteString.fromHex(paymentHash))
-                    .setNoInflightUpdates(true)
-                    .build();
-            Iterator<Payment> response = routerStub.trackPaymentV2(request);
+            Iterator<Payment> response = routerStub
+                    .withDeadlineAfter(GrpcDeadlines.LOOKUP.toMillis(), TimeUnit.MILLISECONDS)
+                    .trackPaymentV2(request);
+            // Only the first update is consumed; the bounded stream auto-cancels at the deadline.
             if (response.hasNext()) {
                 return Optional.of(toDomain(response.next()));
             }
@@ -86,7 +96,9 @@ public class LightningNodeClientAdapter implements LightningNodePort {
         } else if (request.getTargetConf() != null) {
             grpcRequestBuilder.setTargetConf(request.getTargetConf());
         }
-        SendCoinsResponse response = lightningStub.sendCoins(grpcRequestBuilder.build());
+        SendCoinsResponse response = lightningStub
+                .withDeadlineAfter(GrpcDeadlines.ONCHAIN_SEND.toMillis(), TimeUnit.MILLISECONDS)
+                .sendCoins(grpcRequestBuilder.build());
         return response.getTxid();
     }
 
@@ -99,7 +111,9 @@ public class LightningNodeClientAdapter implements LightningNodePort {
         } else {
             grpcRequestBuilder.setTargetConf(1);
         }
-        EstimateFeeResponse response = lightningStub.estimateFee(grpcRequestBuilder.build());
+        EstimateFeeResponse response = lightningStub
+                .withDeadlineAfter(GrpcDeadlines.FEE_ESTIMATE.toMillis(), TimeUnit.MILLISECONDS)
+                .estimateFee(grpcRequestBuilder.build());
         return new OnChainFeeEstimate(response.getFeeSat(), response.getSatPerVbyte());
     }
 

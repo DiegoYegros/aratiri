@@ -77,12 +77,10 @@ public class LnurlAdapter implements LnurlApplicationPort {
 
     @Override
     public Object lnurlCallback(String alias, long amount, String comment) {
-        boolean exists = accountsPort.existsByAlias(alias);
-        if (!exists) {
-            throw new AratiriException("Alias does not match any account.", HttpStatus.NOT_FOUND.value());
-        }
         long satoshis = amount / 1000;
         String memo = comment != null ? comment : "No description";
+        // generateInvoice resolves the alias in one query and throws the same 404 as the
+        // metadata endpoint when the alias is unknown.
         GenerateInvoiceDTO generateInvoiceDTO = invoicesPort.generateInvoice(alias, satoshis, memo, null, null);
         String bolt11 = generateInvoiceDTO.getPaymentRequest();
         return Map.of(

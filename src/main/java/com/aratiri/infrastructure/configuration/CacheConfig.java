@@ -18,7 +18,8 @@ public class CacheConfig {
         SimpleCacheManager cacheManager = new SimpleCacheManager();
         cacheManager.setCaches(List.of(
                 buildCache("btcPriceCurrent", Duration.ofSeconds(aratiriProperties.getBtcPriceCurrentCacheTtlSeconds()), 1),
-                buildCache("btcPriceHistory", Duration.ofSeconds(aratiriProperties.getBtcPriceHistoryCacheTtlSeconds()), 128)
+                buildCache("btcPriceHistory", Duration.ofSeconds(aratiriProperties.getBtcPriceHistoryCacheTtlSeconds()), 128),
+                buildCache("bolt11Decode", Duration.ofHours(24), 10_000)
         ));
         return cacheManager;
     }

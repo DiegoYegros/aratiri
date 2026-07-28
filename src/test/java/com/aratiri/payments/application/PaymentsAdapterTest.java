@@ -122,6 +122,7 @@ class PaymentsAdapterTest {
     assertEquals(USER_ID, event.getUserId());
     assertEquals("tx-123", event.getTransactionId());
     assertEquals(request, event.getPayRequest());
+    verify(lightningNodePort, times(1)).findPayment(PAYMENT_HASH);
     verify(webhookEventService).createPaymentAcceptedEvent(argThat(facts ->
         facts.transactionId().equals("tx-123")
             && facts.userId().equals(USER_ID)
@@ -187,7 +188,6 @@ class PaymentsAdapterTest {
         .thenAnswer(invocation -> invocation.<java.util.function.Supplier<PaymentResponseDTO>>getArgument(3).get());
     when(invoicesPort.decodeInvoice("lnbc1internal"))
         .thenReturn(new DecodedInvoice("internal-payment-hash", 1_500L, "internal invoice"));
-    when(lightningNodePort.findPayment("internal-payment-hash")).thenReturn(Optional.empty());
     when(lightningInvoicePort.findByPaymentHash("internal-payment-hash"))
         .thenReturn(Optional.of(new InternalLightningInvoice("receiver-123", InternalLightningInvoice.InvoiceState.PENDING)));
     when(transactionsPort.createTransaction(any(CreateTransactionRequest.class))).thenReturn(
@@ -209,6 +209,8 @@ class PaymentsAdapterTest {
     assertEquals("receiver-123", event.getReceiverId());
     assertEquals(1_500L, event.getAmountSat());
     assertEquals("internal-payment-hash", event.getPaymentHash());
+    // Internal transfers must not touch the node at all.
+    verify(lightningNodePort, never()).findPayment(anyString());
   }
 
   // ── payLightningInvoiceInternal ──
@@ -322,7 +324,6 @@ class PaymentsAdapterTest {
         .thenAnswer(invocation -> invocation.<java.util.function.Supplier<PaymentResponseDTO>>getArgument(3).get());
     when(invoicesPort.decodeInvoice("lnbc1settled"))
         .thenReturn(new DecodedInvoice(PAYMENT_HASH, 1_000L, "settled internal"));
-    when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.empty());
     when(lightningInvoicePort.findByPaymentHash(PAYMENT_HASH))
         .thenReturn(Optional.of(new InternalLightningInvoice("receiver-123", InternalLightningInvoice.InvoiceState.SETTLED)));
 
@@ -344,7 +345,6 @@ class PaymentsAdapterTest {
         .thenAnswer(invocation -> invocation.<java.util.function.Supplier<PaymentResponseDTO>>getArgument(3).get());
     when(invoicesPort.decodeInvoice("lnbc1self"))
         .thenReturn(new DecodedInvoice(PAYMENT_HASH, 1_000L, "self payment"));
-    when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.empty());
     when(lightningInvoicePort.findByPaymentHash(PAYMENT_HASH))
         .thenReturn(Optional.of(new InternalLightningInvoice(USER_ID, InternalLightningInvoice.InvoiceState.PENDING)));
 
@@ -377,29 +377,33 @@ class PaymentsAdapterTest {
     assertTrue(ex.getMessage().contains("already been paid"));
   }
 
-  // ── payLightningInvoice – external payment already succeeded on node (second check) → BAD_REQUEST ──
+  // ── payLightningInvoice – node state is fetched exactly once per external payment ──
 
   @Test
-  void payLightningInvoice_externalPaymentAlreadySucceededOnNode_throwsBadRequest() {
+  void payLightningInvoice_fetchesNodePaymentStateExactlyOnce() {
     PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
-    request.setInvoice("lnbc1nodealreadypaid");
+    request.setInvoice("lnbc1singlelookup");
 
     when(lightningInvoicePaymentCommand.execute(anyString(), anyString(), same(request), any()))
         .thenAnswer(invocation -> invocation.<java.util.function.Supplier<PaymentResponseDTO>>getArgument(3).get());
-    when(invoicesPort.decodeInvoice("lnbc1nodealreadypaid"))
-        .thenReturn(new DecodedInvoice(PAYMENT_HASH, 1_000L, "node paid"));
-
-    LightningPayment succeededPayment = lightningPayment(LightningPaymentStatus.SUCCEEDED);
+    when(invoicesPort.decodeInvoice("lnbc1singlelookup"))
+        .thenReturn(new DecodedInvoice(PAYMENT_HASH, 1_000L, "single lookup"));
     when(lightningNodePort.findPayment(PAYMENT_HASH))
-        .thenReturn(Optional.empty(), Optional.of(succeededPayment));
+        .thenReturn(Optional.of(lightningPayment(LightningPaymentStatus.FAILED)));
     when(lightningInvoicePort.findByPaymentHash(PAYMENT_HASH)).thenReturn(Optional.empty());
     when(invoicesPort.existsSettledInvoice(PAYMENT_HASH)).thenReturn(false);
+    when(transactionsPort.createTransaction(any(CreateTransactionRequest.class))).thenReturn(
+        TransactionDTOResponse.builder()
+            .id("tx-single-lookup")
+            .status(TransactionStatus.PENDING)
+            .type(TransactionType.LIGHTNING_DEBIT)
+            .build()
+    );
 
-    AratiriException ex = assertThrows(AratiriException.class,
-        () -> paymentsAdapter.payLightningInvoice(request, USER_ID, "idem-key"));
+    PaymentResponseDTO response = paymentsAdapter.payLightningInvoice(request, USER_ID, "idem-key");
 
-    assertEquals(400, ex.getStatus());
-    assertTrue(ex.getMessage().contains("already been paid"));
+    assertEquals("tx-single-lookup", response.getTransactionId());
+    verify(lightningNodePort, times(1)).findPayment(PAYMENT_HASH);
   }
 
   // ── checkPaymentStatusOnNode ──

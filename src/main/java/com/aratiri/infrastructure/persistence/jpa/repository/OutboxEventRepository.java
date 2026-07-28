@@ -3,6 +3,7 @@ package com.aratiri.infrastructure.persistence.jpa.repository;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxPublishStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -27,6 +28,7 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEventEntity, 
             """)
     List<OutboxEventEntity> findPublishableEvents(
             @Param("now") Instant now,
-            @Param("statuses") Collection<OutboxPublishStatus> statuses
+            @Param("statuses") Collection<OutboxPublishStatus> statuses,
+            Pageable pageable
     );
 }

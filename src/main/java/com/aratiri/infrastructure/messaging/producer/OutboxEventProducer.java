@@ -18,10 +18,10 @@ public class OutboxEventProducer {
     private final Logger logger = LoggerFactory.getLogger(OutboxEventProducer.class);
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    public void sendEvent(KafkaTopics topic, String payload) {
+    public void sendEvent(KafkaTopics topic, String key, String payload) {
         try {
-            kafkaTemplate.send(topic.getCode(), payload).get(10, TimeUnit.SECONDS);
-            logger.info("Successfully sent event from outbox to Kafka topic: {}", topic.getCode());
+            kafkaTemplate.send(topic.getCode(), key, payload).get(10, TimeUnit.SECONDS);
+            logger.debug("Successfully sent event from outbox to Kafka topic: {}", topic.getCode());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while sending event from outbox to Kafka topic: " + topic.getCode(), e);

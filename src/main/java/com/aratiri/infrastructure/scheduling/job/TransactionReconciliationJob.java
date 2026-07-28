@@ -9,6 +9,8 @@ import com.aratiri.payments.domain.LightningPayment;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +26,9 @@ public class TransactionReconciliationJob {
     private final NodeSettingsPort nodeSettingsPort;
     private final PaymentsPort paymentsPort;
     private final TransactionsPort transactionsService;
+
+    @Value("${aratiri.reconciliation.batch-size:100}")
+    private int batchSize;
 
     public TransactionReconciliationJob(
             TransactionsRepository transactionsRepository,
@@ -42,7 +47,8 @@ public class TransactionReconciliationJob {
         NodeSettings settings = nodeSettingsPort.loadSettings();
         long minAgeMs = Math.max(0L, settings.transactionReconciliationMinAgeMs());
         Instant reconciliationThreshold = Instant.now().minusMillis(minAgeMs);
-        List<TransactionEntity> pendingTransactions = transactionsRepository.findPendingTransactionsOlderThan(reconciliationThreshold);
+        List<TransactionEntity> pendingTransactions = transactionsRepository.findPendingTransactionsOlderThan(
+                reconciliationThreshold, PageRequest.of(0, batchSize));
         if (pendingTransactions.isEmpty()) {
             logger.debug("No pending transactions to reconcile.");
             return;

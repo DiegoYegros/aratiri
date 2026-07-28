@@ -94,7 +94,6 @@ class LnurlAdapterTest {
     @Test
     void lnurlCallback_generatesInvoice() {
         GenerateInvoiceDTO invoice = new GenerateInvoiceDTO("lnbc1...");
-        when(accountsPort.existsByAlias("testuser")).thenReturn(true);
         when(invoicesPort.generateInvoice(eq("testuser"), eq(5000L), eq("thanks"), isNull(), isNull()))
                 .thenReturn(invoice);
 
@@ -103,12 +102,13 @@ class LnurlAdapterTest {
         assertNotNull(result);
         assertTrue(result instanceof java.util.Map);
         assertEquals("lnbc1...", ((java.util.Map<?, ?>) result).get("pr"));
+        // The alias row must be fetched only once — inside generateInvoice, no existsByAlias pre-check.
+        verify(accountsPort, never()).existsByAlias(anyString());
     }
 
     @Test
     void lnurlCallback_usesDefaultMemoWhenCommentNull() {
         GenerateInvoiceDTO invoice = new GenerateInvoiceDTO("lnbc1...");
-        when(accountsPort.existsByAlias("testuser")).thenReturn(true);
         when(invoicesPort.generateInvoice(eq("testuser"), eq(1000L), eq("No description"), isNull(), isNull()))
                 .thenReturn(invoice);
 
@@ -119,9 +119,12 @@ class LnurlAdapterTest {
 
     @Test
     void lnurlCallback_throwsWhenAliasNotFound() {
-        when(accountsPort.existsByAlias("unknown")).thenReturn(false);
+        when(invoicesPort.generateInvoice(eq("unknown"), anyLong(), anyString(), isNull(), isNull()))
+                .thenThrow(new AratiriException("Account does not exist for given alias.", 404));
 
-        assertThrows(AratiriException.class, () -> adapter.lnurlCallback("unknown", 1000L, null));
+        AratiriException ex = assertThrows(AratiriException.class,
+                () -> adapter.lnurlCallback("unknown", 1000L, null));
+        assertEquals(404, ex.getStatus());
     }
 
     @Test

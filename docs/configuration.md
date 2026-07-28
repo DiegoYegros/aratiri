@@ -31,9 +31,14 @@ Connection pool tuning:
 | Variable | Default |
 | --- | --- |
 | `HIKARI_MAXIMUM_POOL_SIZE` | `20` |
+| `HIKARI_MINIMUM_IDLE` | `2` |
 | `HIKARI_IDLE_TIMEOUT` | `600000` |
 | `HIKARI_MAX_LIFETIME` | `1800000` |
 | `HIKARI_CONNECTION_TIMEOUT` | `30000` |
+
+On the single-vCPU production box, set `HIKARI_MAXIMUM_POOL_SIZE=10`: ~10 connections is the
+Hikari-recommended ceiling for one core; 20 only adds memory pressure. Tomcat request threads
+are capped by `TOMCAT_THREADS_MAX` (default `100`, Spring Boot default would be `200`).
 
 ## LND And gRPC
 

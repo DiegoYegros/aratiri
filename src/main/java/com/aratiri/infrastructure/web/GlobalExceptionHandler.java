@@ -2,6 +2,7 @@ package com.aratiri.infrastructure.web;
 
 import com.aratiri.shared.exception.AratiriException;
 import com.aratiri.shared.exception.ErrorResponse;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +68,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(StatusRuntimeException.class)
     public ResponseEntity<ErrorResponse> handleStatusRuntimeException(StatusRuntimeException ex) {
         logger.error("StatusRuntimeException occured: {}", ex.getMessage());
+        if (ex.getStatus().getCode() == Status.Code.DEADLINE_EXCEEDED) {
+            ErrorResponse errorResponse = new ErrorResponse("Upstream service timed out. Please retry.", HttpStatus.SERVICE_UNAVAILABLE.value());
+            return new ResponseEntity<>(errorResponse, HttpStatus.SERVICE_UNAVAILABLE);
+        }
         ErrorResponse errorResponse = new ErrorResponse("Error during grpc connection", HttpStatus.INTERNAL_SERVER_ERROR.value());
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }

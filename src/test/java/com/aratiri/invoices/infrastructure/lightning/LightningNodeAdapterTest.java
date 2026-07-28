@@ -16,9 +16,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,28 +34,34 @@ class LightningNodeAdapterTest {
 
     @BeforeEach
     void setUp() {
-        adapter = new LightningNodeAdapter(lightningStub);
+        lenient().when(lightningStub.withDeadlineAfter(anyLong(), any(TimeUnit.class))).thenReturn(lightningStub);
+        adapter = new LightningNodeAdapter(lightningStub, 3600L);
     }
 
     @Test
-    void createInvoice_returnsInvoiceCreation() {
+    void createInvoice_returnsInvoiceCreationWithoutRedundantDecode() {
         byte[] preimage = new byte[32];
         byte[] hash = new byte[32];
+        hash[31] = 1;
         String paymentRequest = "lnbc1...";
 
         when(lightningStub.addInvoice(any(Invoice.class)))
-                .thenReturn(AddInvoiceResponse.newBuilder().setPaymentRequest(paymentRequest).build());
-        when(lightningStub.decodePayReq(any(PayReqString.class)))
-                .thenReturn(PayReq.newBuilder()
-                        .setPaymentHash("hash")
-                        .setExpiry(3600L)
+                .thenReturn(AddInvoiceResponse.newBuilder()
+                        .setPaymentRequest(paymentRequest)
+                        .setRHash(ByteString.copyFrom(hash))
                         .build());
 
         LightningInvoiceCreation result = adapter.createInvoice(5000L, "test memo", preimage, hash);
 
         assertEquals(paymentRequest, result.paymentRequest());
-        assertEquals("hash", result.paymentHash());
+        assertEquals(java.util.HexFormat.of().formatHex(hash), result.paymentHash());
         assertEquals(3600L, result.expiry());
+        org.mockito.Mockito.verify(lightningStub, org.mockito.Mockito.never())
+                .decodePayReq(any(PayReqString.class));
+
+        org.mockito.ArgumentCaptor<Invoice> requestCaptor = org.mockito.ArgumentCaptor.forClass(Invoice.class);
+        org.mockito.Mockito.verify(lightningStub).addInvoice(requestCaptor.capture());
+        assertEquals(3600L, requestCaptor.getValue().getExpiry(), "expiry must be requested explicitly");
     }
 
     @Test

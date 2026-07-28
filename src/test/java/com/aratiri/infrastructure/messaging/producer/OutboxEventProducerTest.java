@@ -33,37 +33,37 @@ class OutboxEventProducerTest {
     @Test
     void sendEvent_sendsToKafka() {
         CompletableFuture<SendResult<String, String>> future = CompletableFuture.completedFuture(null);
-        when(kafkaTemplate.send(KafkaTopics.PAYMENT_INITIATED.getCode(), "payload"))
+        when(kafkaTemplate.send(KafkaTopics.PAYMENT_INITIATED.getCode(), "agg-1", "payload"))
                 .thenReturn(future);
 
-        assertDoesNotThrow(() -> producer.sendEvent(KafkaTopics.PAYMENT_INITIATED, "payload"));
+        assertDoesNotThrow(() -> producer.sendEvent(KafkaTopics.PAYMENT_INITIATED, "agg-1", "payload"));
     }
 
     @Test
     void sendEvent_throwsOnExecutionException() {
         CompletableFuture<SendResult<String, String>> failingFuture = CompletableFuture.failedFuture(new ExecutionException(new RuntimeException("kafka error")));
-        when(kafkaTemplate.send(anyString(), anyString())).thenReturn(failingFuture);
+        when(kafkaTemplate.send(anyString(), anyString(), anyString())).thenReturn(failingFuture);
 
         assertThrows(IllegalStateException.class,
-                () -> producer.sendEvent(KafkaTopics.PAYMENT_INITIATED, "payload"));
+                () -> producer.sendEvent(KafkaTopics.PAYMENT_INITIATED, "agg-1", "payload"));
     }
 
     @Test
     void sendEvent_throwsOnTimeoutException() {
         CompletableFuture<SendResult<String, String>> timeoutFuture = CompletableFuture.failedFuture(new TimeoutException("timeout"));
-        when(kafkaTemplate.send(anyString(), anyString())).thenReturn(timeoutFuture);
+        when(kafkaTemplate.send(anyString(), anyString(), anyString())).thenReturn(timeoutFuture);
 
         assertThrows(IllegalStateException.class,
-                () -> producer.sendEvent(KafkaTopics.PAYMENT_INITIATED, "payload"));
+                () -> producer.sendEvent(KafkaTopics.PAYMENT_INITIATED, "agg-1", "payload"));
     }
 
     @Test
     void sendEvent_throwsOnInterruptedException() {
         CompletableFuture<SendResult<String, String>> interruptedFuture = new CompletableFuture<>();
         interruptedFuture.completeExceptionally(new InterruptedException("interrupted"));
-        when(kafkaTemplate.send(anyString(), anyString())).thenReturn(interruptedFuture);
+        when(kafkaTemplate.send(anyString(), anyString(), anyString())).thenReturn(interruptedFuture);
 
         assertThrows(IllegalStateException.class,
-                () -> producer.sendEvent(KafkaTopics.PAYMENT_INITIATED, "payload"));
+                () -> producer.sendEvent(KafkaTopics.PAYMENT_INITIATED, "agg-1", "payload"));
     }
 }

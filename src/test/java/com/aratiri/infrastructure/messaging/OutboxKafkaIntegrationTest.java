@@ -21,6 +21,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -64,15 +65,19 @@ class OutboxKafkaIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private ConsumerFactory<String, String> consumerFactory;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     @DisplayName("Outbox event published to Kafka topic")
     void outbox_event_published_to_kafka() {
         String topic = KafkaTopics.PAYMENT_SENT.getCode();
+        String aggregateKey = "payment-aggregate-" + UUID.randomUUID();
         String payload = "{\"userId\":\"test-user\",\"amount\":1000}";
 
         try (Consumer<String, String> consumer = createConsumer(topic)) {
             ConsumerRecords<String, String> records = pollFromEndAfter(consumer, () ->
-                    outboxEventProducer.sendEvent(KafkaTopics.PAYMENT_SENT, payload)
+                    outboxEventProducer.sendEvent(KafkaTopics.PAYMENT_SENT, aggregateKey, payload)
             );
 
             assertFalse(records.isEmpty(), "Should have received at least one record");
@@ -81,11 +86,36 @@ class OutboxKafkaIntegrationTest extends AbstractIntegrationTest {
             for (ConsumerRecord<String, String> consumerRecord : records.records(topic)) {
                 if (payload.equals(consumerRecord.value())) {
                     payloadReceived = true;
+                    assertEquals(aggregateKey, consumerRecord.key(),
+                            "Kafka record key must be the outbox aggregateId for partition affinity");
                     break;
                 }
             }
             assertTrue(payloadReceived, "Should have received the event payload published by this test");
         }
+    }
+
+    @Test
+    @DisplayName("Outbox job drains a backlog larger than the batch size over multiple runs")
+    void outbox_job_drains_backlog_over_multiple_runs() {
+        int backlog = 205;
+        String marker = UUID.randomUUID().toString();
+        for (int i = 0; i < backlog; i++) {
+            outboxEventRepository.save(OutboxEventEntity.builder()
+                    .aggregateType("PAYMENT")
+                    .aggregateId("batch-" + marker + "-" + i)
+                    .eventType(KafkaTopics.PAYMENT_SENT.getCode())
+                    .payload("{\"batch\":\"" + marker + "\",\"i\":" + i + "}")
+                    .build());
+        }
+
+        outboxEventJob.processOutboxEvents();
+        outboxEventJob.processOutboxEvents();
+
+        Long unpublished = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM aratiri.outbox_events WHERE aggregate_id LIKE ? AND processed_at IS NULL",
+                Long.class, "batch-" + marker + "-%");
+        assertEquals(0L, unpublished, "two runs of the job must drain a 205-event backlog");
     }
 
     @Test

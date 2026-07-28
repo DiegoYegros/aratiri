@@ -7,6 +7,8 @@ import com.aratiri.infrastructure.persistence.jpa.entity.OutboxPublishStatus;
 import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,11 +28,14 @@ public class OutboxEventJob {
     private final OutboxEventRepository outboxEventRepository;
     private final OutboxEventProducer outboxEventProducer;
 
-    @Scheduled(fixedDelay = 1000)
+    @Value("${aratiri.outbox.batch-size:200}")
+    private int batchSize;
+
+    @Scheduled(fixedDelayString = "${aratiri.outbox.fixed-delay-ms:1000}")
     @Transactional
     public void processOutboxEvents() {
         List<OutboxEventEntity> pendingEvents =
-                outboxEventRepository.findPublishableEvents(Instant.now(), PUBLISHABLE_STATUSES);
+                outboxEventRepository.findPublishableEvents(Instant.now(), PUBLISHABLE_STATUSES, PageRequest.of(0, batchSize));
         if (pendingEvents.isEmpty()) {
             return;
         }
@@ -45,7 +50,7 @@ public class OutboxEventJob {
                     log.error("{}. Marked event ID {} as INVALID.", error, event.getId());
                     continue;
                 }
-                outboxEventProducer.sendEvent(topic.get(), event.getPayload());
+                outboxEventProducer.sendEvent(topic.get(), event.getAggregateId(), event.getPayload());
                 event.markPublished(Instant.now());
                 outboxEventRepository.save(event);
             } catch (Exception e) {

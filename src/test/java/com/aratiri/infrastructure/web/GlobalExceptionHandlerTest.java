@@ -104,6 +104,15 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleStatusRuntimeException_deadlineExceededMapsTo503() {
+        StatusRuntimeException ex = new StatusRuntimeException(Status.DEADLINE_EXCEEDED);
+        ResponseEntity<ErrorResponse> response = handler.handleStatusRuntimeException(ex);
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(503, response.getBody().getStatus());
+    }
+
+    @Test
     void handleNoResourceFoundException() {
         ResponseEntity<ErrorResponse> response = handler.handleNoResourceFoundException(
                 new NoResourceFoundException(HttpMethod.GET, "/notfound", "not found"));

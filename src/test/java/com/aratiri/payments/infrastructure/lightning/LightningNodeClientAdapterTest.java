@@ -20,9 +20,14 @@ import routerrpc.TrackPaymentRequest;
 
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,6 +43,8 @@ class LightningNodeClientAdapterTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(routerStub.withDeadlineAfter(anyLong(), any(TimeUnit.class))).thenReturn(routerStub);
+        lenient().when(lightningStub.withDeadlineAfter(anyLong(), any(TimeUnit.class))).thenReturn(lightningStub);
         adapter = new LightningNodeClientAdapter(routerStub, lightningStub);
     }
 
@@ -147,6 +154,42 @@ class LightningNodeClientAdapterTest {
 
         assertTrue(result.isPresent());
         assertEquals(LightningPaymentStatus.SUCCEEDED, result.get().status());
+    }
+
+    @Test
+    void findPayment_returnsInFlightFromFirstUpdateWithoutConsumingMore() {
+        Payment inFlight = Payment.newBuilder()
+                .setStatus(Payment.PaymentStatus.IN_FLIGHT)
+                .build();
+        AtomicBoolean consumedPastFirst = new AtomicBoolean(false);
+        Iterator<Payment> iterator = new Iterator<>() {
+            private boolean firstPending = true;
+
+            @Override
+            public boolean hasNext() {
+                if (!firstPending) {
+                    consumedPastFirst.set(true);
+                }
+                return firstPending;
+            }
+
+            @Override
+            public Payment next() {
+                firstPending = false;
+                return inFlight;
+            }
+        };
+        when(routerStub.trackPaymentV2(any(TrackPaymentRequest.class))).thenReturn(iterator);
+
+        Optional<LightningPayment> result = adapter.findPayment("deadbeef");
+
+        assertTrue(result.isPresent());
+        assertEquals(LightningPaymentStatus.IN_FLIGHT, result.get().status());
+        assertFalse(consumedPastFirst.get(), "findPayment must not block waiting for terminal updates");
+
+        org.mockito.ArgumentCaptor<TrackPaymentRequest> captor = org.mockito.ArgumentCaptor.forClass(TrackPaymentRequest.class);
+        verify(routerStub).trackPaymentV2(captor.capture());
+        assertFalse(captor.getValue().getNoInflightUpdates(), "must stream the current state immediately");
     }
 
     @Test

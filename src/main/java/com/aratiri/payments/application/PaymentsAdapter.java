@@ -60,25 +60,28 @@ public class PaymentsAdapter implements PaymentsPort {
         DecodedInvoice decodedInvoice = invoicesPort.decodeInvoice(request.getInvoice());
         String paymentHash = decodedInvoice.paymentHash();
 
-        Optional<ExistingPaymentRejection> activeNodePayment =
-                existingPaymentPolicy.activeOrSettledNodePayment(findNodePaymentState(paymentHash));
-        if (activeNodePayment.isPresent()) {
-            logger.warn("User {} attempted to pay an invoice that is already paid or in-flight on the node. PaymentHash: {}", userId, paymentHash);
-            throw activeNodePayment.get().toException();
-        }
-
         Optional<InternalLightningInvoice> internalInvoiceOpt = lightningInvoicePort.findByPaymentHash(paymentHash);
         if (internalInvoiceOpt.isPresent()) {
             return processInternalTransfer(request, userId, decodedInvoice, internalInvoiceOpt.get());
         }
-        return processExternalPayment(request, userId, paymentHash, decodedInvoice);
+
+        // External payment: one bounded node-state lookup reused by both policy checks.
+        Optional<LightningPaymentStatus> nodePaymentState = findNodePaymentState(paymentHash);
+        Optional<ExistingPaymentRejection> activeNodePayment =
+                existingPaymentPolicy.activeOrSettledNodePayment(nodePaymentState);
+        if (activeNodePayment.isPresent()) {
+            logger.warn("User {} attempted to pay an invoice that is already paid or in-flight on the node. PaymentHash: {}", userId, paymentHash);
+            throw activeNodePayment.get().toException();
+        }
+        return processExternalPayment(request, userId, paymentHash, decodedInvoice, nodePaymentState);
     }
 
     private PaymentResponseDTO processExternalPayment(
             PayInvoiceRequestDTO request,
             String userId,
             String paymentHash,
-            DecodedInvoice decodedInvoice
+            DecodedInvoice decodedInvoice,
+            Optional<LightningPaymentStatus> nodePaymentState
     ) {
         boolean isSettledAratiriInvoice = invoicesPort.existsSettledInvoice(paymentHash);
         Optional<ExistingPaymentRejection> settledAratiriInvoice =
@@ -89,7 +92,7 @@ public class PaymentsAdapter implements PaymentsPort {
         }
 
         Optional<ExistingPaymentRejection> settledNodePayment =
-                existingPaymentPolicy.settledExternalNodePayment(findNodePaymentState(paymentHash));
+                existingPaymentPolicy.settledExternalNodePayment(nodePaymentState);
         if (settledNodePayment.isPresent()) {
             logger.warn("User {} attempted to pay an invoice that has already been successfully paid by this node. PaymentHash: {}", userId, paymentHash);
             throw settledNodePayment.get().toException();

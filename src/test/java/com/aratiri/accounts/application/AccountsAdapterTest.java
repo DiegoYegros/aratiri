@@ -8,6 +8,7 @@ import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryType;
 import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.shared.qr.QrCodeService;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
@@ -49,6 +50,9 @@ class AccountsAdapterTest {
     @Mock
     private AccountLedgerService accountLedgerService;
 
+    @Mock
+    private QrCodeService qrCodeService;
+
     private AratiriProperties properties;
     private AccountsAdapter adapter;
 
@@ -61,6 +65,7 @@ class AccountsAdapterTest {
     void setUp() {
         properties = new AratiriProperties();
         properties.setAratiriBaseUrl("https://aratiri.example.com");
+        lenient().when(qrCodeService.getBase64(anyString())).thenAnswer(inv -> "qr:" + inv.getArgument(0));
         adapter = new AccountsAdapter(
                 accountPersistencePort,
                 loadUserPort,
@@ -68,7 +73,8 @@ class AccountsAdapterTest {
                 lightningAddressPort,
                 properties,
                 currencyConversionPort,
-                accountLedgerService
+                accountLedgerService,
+                qrCodeService
         );
     }
 

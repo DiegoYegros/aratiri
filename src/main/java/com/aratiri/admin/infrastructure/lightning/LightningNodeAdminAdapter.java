@@ -1,6 +1,7 @@
 package com.aratiri.admin.infrastructure.lightning;
 
 import com.aratiri.admin.application.dto.ChainDTO;
+import com.aratiri.infrastructure.grpc.GrpcDeadlines;
 import com.aratiri.admin.application.dto.NodeInfoResponseDTO;
 import com.aratiri.admin.application.dto.PeerDTO;
 import com.aratiri.admin.application.port.out.LightningNodeAdminPort;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class LightningNodeAdminAdapter implements LightningNodeAdminPort {
@@ -20,14 +22,18 @@ public class LightningNodeAdminAdapter implements LightningNodeAdminPort {
         this.lightningStub = lightningStub;
     }
 
+    private LightningGrpc.LightningBlockingStub deadlined() {
+        return lightningStub.withDeadlineAfter(GrpcDeadlines.ADMIN.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
     @Override
     public ListChannelsResponse listChannels() {
-        return lightningStub.listChannels(ListChannelsRequest.newBuilder().build());
+        return deadlined().listChannels(ListChannelsRequest.newBuilder().build());
     }
 
     @Override
     public PendingChannelsResponse listPendingChannels() {
-        return lightningStub.pendingChannels(PendingChannelsRequest.newBuilder().build());
+        return deadlined().pendingChannels(PendingChannelsRequest.newBuilder().build());
     }
 
     @Override
@@ -39,7 +45,7 @@ public class LightningNodeAdminAdapter implements LightningNodeAdminPort {
                 .setPushSat(pushSat)
                 .setPrivate(privateChannel)
                 .build();
-        return lightningStub.openChannelSync(openChannelRequest);
+        return deadlined().openChannelSync(openChannelRequest);
     }
 
     @Override
@@ -53,12 +59,12 @@ public class LightningNodeAdminAdapter implements LightningNodeAdminPort {
                 .setChannelPoint(channelPoint)
                 .setForce(force)
                 .build();
-        return lightningStub.closeChannel(closeChannelRequest).next();
+        return deadlined().closeChannel(closeChannelRequest).next();
     }
 
     @Override
     public ChannelGraph describeGraph() {
-        return lightningStub.describeGraph(ChannelGraphRequest.newBuilder().build());
+        return deadlined().describeGraph(ChannelGraphRequest.newBuilder().build());
     }
 
     @Override
@@ -66,23 +72,23 @@ public class LightningNodeAdminAdapter implements LightningNodeAdminPort {
         NodeMetricsRequest request = NodeMetricsRequest.newBuilder()
                 .addTypes(NodeMetricType.BETWEENNESS_CENTRALITY)
                 .build();
-        return lightningStub.getNodeMetrics(request);
+        return deadlined().getNodeMetrics(request);
     }
 
     @Override
     public NodeInfoResponseDTO getNodeInfo() {
-        GetInfoResponse info = lightningStub.getInfo(GetInfoRequest.newBuilder().build());
+        GetInfoResponse info = deadlined().getInfo(GetInfoRequest.newBuilder().build());
         return toNodeInfoResponseDTO(info);
     }
 
     @Override
     public ChannelBalanceResponse getChannelBalance() {
-        return lightningStub.channelBalance(ChannelBalanceRequest.newBuilder().build());
+        return deadlined().channelBalance(ChannelBalanceRequest.newBuilder().build());
     }
 
     @Override
     public WalletBalanceResponse getWalletBalance() {
-        return lightningStub.walletBalance(WalletBalanceRequest.newBuilder().build());
+        return deadlined().walletBalance(WalletBalanceRequest.newBuilder().build());
     }
 
     @Override
@@ -90,7 +96,7 @@ public class LightningNodeAdminAdapter implements LightningNodeAdminPort {
         NewAddressRequest request = NewAddressRequest.newBuilder()
                 .setType(type)
                 .build();
-        return lightningStub.newAddress(request).getAddress();
+        return deadlined().newAddress(request).getAddress();
     }
 
     @Override
@@ -98,12 +104,12 @@ public class LightningNodeAdminAdapter implements LightningNodeAdminPort {
         ConnectPeerRequest request = ConnectPeerRequest.newBuilder()
                 .setAddr(LightningAddress.newBuilder().setPubkey(pubkey).setHost(host).build())
                 .build();
-        lightningStub.connectPeer(request);
+        deadlined().connectPeer(request);
     }
 
     @Override
     public List<PeerDTO> listPeers() {
-        return lightningStub.listPeers(ListPeersRequest.newBuilder().build()).getPeersList().stream()
+        return deadlined().listPeers(ListPeersRequest.newBuilder().build()).getPeersList().stream()
                 .map(this::toPeerDTO)
                 .toList();
     }

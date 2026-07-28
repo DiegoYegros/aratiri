@@ -48,16 +48,17 @@ public interface TransactionsRepository extends JpaRepository<TransactionEntity,
             TransactionType type
     );
 
+    // current_status='PENDING' is equivalent to "has PENDING event and no terminal event":
+    // both are written atomically in TransactionSettlementService.recordStateChange.
     @Query("SELECT t FROM TransactionEntity t WHERE t.type = com.aratiri.transactions.application.dto.TransactionType.LIGHTNING_DEBIT " +
+            "AND t.currentStatus = 'PENDING' " +
             "AND t.referenceId IS NOT NULL " +
             "AND t.createdAt < :timestamp " +
-            "AND EXISTS (SELECT pending FROM TransactionEventEntity pending WHERE pending.transaction = t " +
-            "AND pending.eventType = com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType.STATUS_CHANGED " +
-            "AND pending.status = com.aratiri.transactions.application.dto.TransactionStatus.PENDING) " +
-            "AND NOT EXISTS (SELECT e FROM TransactionEventEntity e WHERE e.transaction = t " +
-            "AND e.eventType = com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType.STATUS_CHANGED " +
-            "AND e.status IN (com.aratiri.transactions.application.dto.TransactionStatus.COMPLETED, com.aratiri.transactions.application.dto.TransactionStatus.FAILED))")
-    List<TransactionEntity> findPendingTransactionsOlderThan(@Param("timestamp") Instant timestamp);
+            "ORDER BY t.createdAt ASC")
+    List<TransactionEntity> findPendingTransactionsOlderThan(
+            @Param("timestamp") Instant timestamp,
+            org.springframework.data.domain.Pageable pageable
+    );
 
     @Query("SELECT new com.aratiri.admin.application.dto.TransactionStatsDTO(" +
             "CAST(t.createdAt AS LocalDate), " +

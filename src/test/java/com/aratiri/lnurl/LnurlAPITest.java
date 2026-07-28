@@ -62,6 +62,16 @@ class LnurlAPITest {
     }
 
     @Test
+    void lnurlCallback_unknownAlias_propagatesNotFound() {
+        when(lnurlPort.lnurlCallback("ghost", 1000L, null))
+                .thenThrow(new AratiriException("Account does not exist for given alias.", HttpStatus.NOT_FOUND.value()));
+
+        AratiriException ex = assertThrows(AratiriException.class,
+                () -> api.lnurlCallback("ghost", 1000L, null));
+        assertEquals(404, ex.getStatus());
+    }
+
+    @Test
     void pay_returnsAccepted() {
         LnurlPayRequestDTO request = new LnurlPayRequestDTO();
         request.setCallback("https://example.com/callback");

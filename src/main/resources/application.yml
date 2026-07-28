@@ -1,9 +1,16 @@
 server:
   port: ${SERVER_PORT:2100}
+  tomcat:
+    threads:
+      max: ${TOMCAT_THREADS_MAX:100}
 
 spring:
   application:
     name: aratiri
+  task:
+    scheduling:
+      pool:
+        size: 4
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres_db:5432/aratiri_db}
     username: ${SPRING_DATASOURCE_USERNAME:aratiri_user}
@@ -11,6 +18,7 @@ spring:
     driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.postgresql.Driver}
     hikari:
       maximum-pool-size: ${HIKARI_MAXIMUM_POOL_SIZE:20}
+      minimum-idle: ${HIKARI_MINIMUM_IDLE:2}
       idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
       max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
       connection-timeout: ${HIKARI_CONNECTION_TIMEOUT:30000}
@@ -81,6 +89,13 @@ lnd:
 aratiri:
   base:
     url: ${ARATIRI_BASE_URL}
+  outbox:
+    batch-size: ${ARATIRI_OUTBOX_BATCH_SIZE:200}
+    fixed-delay-ms: ${ARATIRI_OUTBOX_FIXED_DELAY_MS:1000}
+  reconciliation:
+    batch-size: ${ARATIRI_RECONCILIATION_BATCH_SIZE:100}
+  invoices:
+    expiry-seconds: ${ARATIRI_INVOICES_EXPIRY_SECONDS:3600}
   cors:
     allowed:
       origins: ${ARATIRI_CORS_ALLOWED_ORIGINS}

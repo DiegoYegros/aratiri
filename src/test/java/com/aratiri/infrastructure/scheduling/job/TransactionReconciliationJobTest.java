@@ -43,13 +43,14 @@ class TransactionReconciliationJobTest {
     void setUp() {
         job = new TransactionReconciliationJob(
                 transactionsRepository, nodeSettingsPort, paymentsPort, transactionsService);
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "batchSize", 100);
     }
 
     @Test
     void reconcilePendingPayments_noPendingTransactions() {
         when(nodeSettingsPort.loadSettings())
                 .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any()))
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of());
 
         job.reconcilePendingPayments();
@@ -65,7 +66,7 @@ class TransactionReconciliationJobTest {
 
         when(nodeSettingsPort.loadSettings())
                 .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any()))
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(tx));
 
         job.reconcilePendingPayments();
@@ -84,7 +85,7 @@ class TransactionReconciliationJobTest {
 
         when(nodeSettingsPort.loadSettings())
                 .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any()))
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(tx));
         when(paymentsPort.checkPaymentStatusOnNode("deadbeef"))
                 .thenReturn(Optional.of(payment));
@@ -105,7 +106,7 @@ class TransactionReconciliationJobTest {
 
         when(nodeSettingsPort.loadSettings())
                 .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any()))
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(tx));
         when(paymentsPort.checkPaymentStatusOnNode("deadbeef"))
                 .thenReturn(Optional.of(payment));
@@ -124,7 +125,7 @@ class TransactionReconciliationJobTest {
 
         when(nodeSettingsPort.loadSettings())
                 .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any()))
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(tx));
         when(paymentsPort.checkPaymentStatusOnNode("deadbeef"))
                 .thenReturn(Optional.empty());
@@ -147,7 +148,7 @@ class TransactionReconciliationJobTest {
 
         when(nodeSettingsPort.loadSettings())
                 .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any()))
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(tx1, tx2));
         when(paymentsPort.checkPaymentStatusOnNode("hash1"))
                 .thenThrow(new RuntimeException("node error"));

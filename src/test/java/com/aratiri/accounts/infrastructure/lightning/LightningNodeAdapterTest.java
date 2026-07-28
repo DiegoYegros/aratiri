@@ -1,5 +1,7 @@
 package com.aratiri.accounts.infrastructure.lightning;
 
+import java.util.concurrent.TimeUnit;
+
 import lnrpc.LightningGrpc;
 import lnrpc.NewAddressRequest;
 import lnrpc.NewAddressResponse;
@@ -10,6 +12,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -20,6 +24,7 @@ class LightningNodeAdapterTest {
 
     @Test
     void generateTaprootAddress_returnsAddressFromLnd() {
+        when(lightningStub.withDeadlineAfter(anyLong(), eq(TimeUnit.MILLISECONDS))).thenReturn(lightningStub);
         when(lightningStub.newAddress(any(NewAddressRequest.class)))
                 .thenReturn(NewAddressResponse.newBuilder().setAddress("bc1qtest").build());
 

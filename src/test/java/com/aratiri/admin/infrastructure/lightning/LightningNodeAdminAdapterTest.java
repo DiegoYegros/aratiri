@@ -26,6 +26,7 @@ class LightningNodeAdminAdapterTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(lightningStub.withDeadlineAfter(anyLong(), any(java.util.concurrent.TimeUnit.class))).thenReturn(lightningStub);
         adapter = new LightningNodeAdminAdapter(lightningStub);
     }
 

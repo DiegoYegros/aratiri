@@ -6,12 +6,12 @@ import com.aratiri.accounts.application.port.out.*;
 import com.aratiri.accounts.domain.Account;
 import com.aratiri.accounts.domain.AccountUser;
 import com.aratiri.accounts.infrastructure.alias.AliasGenerator;
-import com.aratiri.accounts.infrastructure.qr.QrCodeUtil;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryType;
 import com.aratiri.shared.constants.BitcoinConstants;
 import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.shared.qr.QrCodeService;
 import com.aratiri.shared.util.Bech32Util;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.dto.TransactionStatus;
@@ -43,6 +43,7 @@ public class AccountsAdapter implements AccountsPort {
     private final AratiriProperties properties;
     private final CurrencyConversionPort currencyConversionPort;
     private final AccountLedgerService accountLedgerService;
+    private final QrCodeService qrCodeService;
 
     public AccountsAdapter(
             AccountPersistencePort accountPersistencePort,
@@ -51,7 +52,8 @@ public class AccountsAdapter implements AccountsPort {
             LightningAddressPort lightningAddressPort,
             AratiriProperties properties,
             CurrencyConversionPort currencyConversionPort,
-            AccountLedgerService accountLedgerService
+            AccountLedgerService accountLedgerService,
+            QrCodeService qrCodeService
     ) {
         this.accountPersistencePort = accountPersistencePort;
         this.loadUserPort = loadUserPort;
@@ -60,6 +62,7 @@ public class AccountsAdapter implements AccountsPort {
         this.properties = properties;
         this.currencyConversionPort = currencyConversionPort;
         this.accountLedgerService = accountLedgerService;
+        this.qrCodeService = qrCodeService;
     }
 
     @Override
@@ -183,8 +186,8 @@ public class AccountsAdapter implements AccountsPort {
     private AccountDTO buildAccountDTO(Account account) {
         String lnurl = buildLnurlForAlias(account.alias());
         String alias = buildAlias(account.alias());
-        String lnurlQrCode = QrCodeUtil.generateQrCodeBase64(lnurl);
-        String bitcoinAddressQrCode = QrCodeUtil.generateQrCodeBase64("bitcoin:" + account.bitcoinAddress());
+        String lnurlQrCode = qrCodeService.getBase64(lnurl);
+        String bitcoinAddressQrCode = qrCodeService.getBase64("bitcoin:" + account.bitcoinAddress());
         BigDecimal balanceInBtc = BitcoinConstants.satoshisToBtc(account.balance());
         Map<String, BigDecimal> btcPrices = currencyConversionPort.getCurrentBtcPrice();
         Map<String, BigDecimal> fiatEquivalents = btcPrices.entrySet().stream()
