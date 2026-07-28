@@ -15,6 +15,7 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.Locale;
 import java.util.Optional;
 
 @Component
@@ -57,7 +58,7 @@ public class AratiriJwtPrincipalService {
             throw new JwtException("Unable to resolve principal from token");
         }
 
-        String normalizedPrincipal = principal.trim().toLowerCase();
+        String normalizedPrincipal = principal.trim().toLowerCase(Locale.ROOT);
         Optional<AuthUser> existing = loadUserPort.findByEmail(normalizedPrincipal);
         if (existing.isPresent()) {
             AuthUser user = existing.get();

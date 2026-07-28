@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -351,7 +352,7 @@ public class NodeOperationService {
 
     private PayInvoiceRequestDTO normalizeInvoice(PayInvoiceRequestDTO request) {
         PayInvoiceRequestDTO normalized = new PayInvoiceRequestDTO();
-        if (request.getInvoice() != null && request.getInvoice().toLowerCase().startsWith("lightning:")) {
+        if (request.getInvoice() != null && request.getInvoice().toLowerCase(Locale.ROOT).startsWith("lightning:")) {
             normalized.setInvoice(request.getInvoice().substring(10));
         } else {
             normalized.setInvoice(request.getInvoice());

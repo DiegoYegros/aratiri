@@ -14,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -31,7 +33,7 @@ public class DecoderAdapter implements DecoderPort {
 
     @Override
     public DecodedResultDTO decode(String input) {
-        String workingInput = input.trim().toLowerCase();
+        String workingInput = input.trim().toLowerCase(Locale.ROOT);
 
         if (workingInput.startsWith("lnurl")) return decodeLnurl(workingInput);
         if (workingInput.startsWith("ln") || workingInput.startsWith("lightning:")) return decodeLightningInvoice(workingInput);
@@ -52,7 +54,7 @@ public class DecoderAdapter implements DecoderPort {
         try {
             logger.info("Decoding LNURL: {}", input);
             Bech32Util.Bech32Data decoded = Bech32Util.bech32Decode(input);
-            String decodedUrl = new String(Bech32Util.convertBits(decoded.data(), 5, 8, false));
+            String decodedUrl = new String(Bech32Util.convertBits(decoded.data(), 5, 8, false), StandardCharsets.UTF_8);
             logger.info("Decoded URL: {}", decodedUrl);
             LnurlpResponseDTO lnurlMetadata = decodedUrl.contains(aratiriProperties.getAratiriBaseUrl())
                     ? lnurlPort.getInternalMetadata(decodedUrl.substring(decodedUrl.lastIndexOf('/') + 1))

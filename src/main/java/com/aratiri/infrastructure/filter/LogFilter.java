@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Component
@@ -125,7 +126,7 @@ public class LogFilter extends OncePerRequestFilter {
     private void maskFields(ObjectNode node) {
         Iterator<Map.Entry<String, JsonNode>> fields = node.properties().iterator();
         fields.forEachRemaining(entry -> {
-            String fieldName = entry.getKey().toLowerCase();
+            String fieldName = entry.getKey().toLowerCase(Locale.ROOT);
             if (SENSITIVE_FIELDS.stream().anyMatch(fieldName::contains)) {
                 node.put(entry.getKey(), "[REDACTED]");
             } else if (entry.getValue().isObject()) {
