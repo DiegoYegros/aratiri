@@ -144,9 +144,9 @@ class GlobalExceptionHandlerTest {
     void handleAuthorizationDeniedException() {
         ResponseEntity<ErrorResponse> response = handler.handleAuthorizationDeniedException(
                 new AuthorizationDeniedException("access denied"));
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(400, response.getBody().getStatus());
+        assertEquals(403, response.getBody().getStatus());
     }
 
     @Test

@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -53,9 +54,12 @@ public class AccountsAPI {
     }
 
     @GetMapping("/account/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @Operation(
-            summary = "Get account by ID",
-            description = "Retrieves a specific Bitcoin Lightning and on-chain account by its unique identifier. "
+            summary = "Get account by ID (admin)",
+            description = "Administrative lookup of a Bitcoin Lightning and on-chain account by its unique identifier. "
+                    + "Restricted to ADMIN and SUPERADMIN. Authenticated users must use GET /v1/accounts/account "
+                    + "for their own account."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -65,16 +69,21 @@ public class AccountsAPI {
                             mediaType = "application/json",
                             schema = @Schema(implementation = AccountDTO.class)
                     )
-            )
+            ),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Caller lacks ADMIN or SUPERADMIN authority")
     })
     public ResponseEntity<AccountDTO> getAccountById(@PathVariable String id) {
         return ResponseEntity.ok(accountsPort.getAccount(id));
     }
 
     @GetMapping("/account/user/{userId}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @Operation(
-            summary = "Get account by user ID",
-            description = "Retrieves the Bitcoin Lightning and on-chain account associated with a specific user. "
+            summary = "Get account by user ID (admin)",
+            description = "Administrative lookup of the Bitcoin Lightning and on-chain account associated with a "
+                    + "specific user. Restricted to ADMIN and SUPERADMIN. Authenticated users must use "
+                    + "GET /v1/accounts/account for their own account."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -84,7 +93,9 @@ public class AccountsAPI {
                             mediaType = "application/json",
                             schema = @Schema(implementation = AccountDTO.class)
                     )
-            )
+            ),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Caller lacks ADMIN or SUPERADMIN authority")
     })
     public ResponseEntity<AccountDTO> getAccountByUserId(@PathVariable String userId) {
         return ResponseEntity.ok(accountsPort.getAccountByUserId(userId));
