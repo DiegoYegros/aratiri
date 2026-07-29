@@ -1,8 +1,5 @@
 package com.aratiri.infrastructure.filter;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,125 +9,65 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.util.ContentCachingRequestWrapper;
-import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Enumeration;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 @Component
 @Order(1)
 public class LogFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(LogFilter.class);
-    private static final List<String> SENSITIVE_FIELDS = Arrays.asList("password", "token", "accessToken", "refreshToken", "jwt");
-    public static final int CACHE_LIMIT = 100_000;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(request, CACHE_LIMIT);
-        ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(response);
         long startTime = System.currentTimeMillis();
-
-        filterChain.doFilter(requestWrapper, responseWrapper);
-
+        filterChain.doFilter(request, response);
         long timeTaken = System.currentTimeMillis() - startTime;
-        logRequest(requestWrapper);
-        logResponse(responseWrapper, timeTaken);
-        responseWrapper.copyBodyToResponse();
+        logRequest(request);
+        logResponse(response, timeTaken);
     }
 
-    private void logRequest(ContentCachingRequestWrapper request) {
+    private void logRequest(HttpServletRequest request) {
         if (log.isInfoEnabled()) {
             log.info(LogUtils.formatKeyValue("Method", request.getMethod()));
             log.info(LogUtils.formatKeyValue("URI", request.getRequestURI()));
         }
         if (log.isDebugEnabled()) {
-            log.debug(LogUtils.formatKeyValue("Query String", request.getQueryString()));
             log.debug(LogUtils.formatKeyValue("Content Type", request.getContentType()));
-        }
-        logHeaders(request);
-        String requestBody = getRequestBody(request);
-        if (!requestBody.isEmpty() && log.isInfoEnabled()) {
-            log.info(LogUtils.formatKeyValue("Request Body", maskSensitiveData(requestBody)));
+            logHeaderNames(request);
+            logQueryParameterNames(request);
         }
     }
 
-    private void logResponse(ContentCachingResponseWrapper response, long timeTaken) {
+    private void logResponse(HttpServletResponse response, long timeTaken) {
         if (log.isInfoEnabled()) {
             log.info(LogUtils.formatKeyValue("Status", response.getStatus()));
             log.info(LogUtils.formatKeyValue("Time Taken", timeTaken + " ms"));
         }
-        String responseBody = getResponseBody(response);
-        if (!responseBody.isEmpty() && log.isDebugEnabled()) {
-            log.debug(LogUtils.formatKeyValue("Response Body", maskSensitiveData(responseBody)));
-        }
     }
 
-    private void logHeaders(HttpServletRequest request) {
-        if (!log.isDebugEnabled()) {
+    private void logHeaderNames(HttpServletRequest request) {
+        Enumeration<String> headerNames = request.getHeaderNames();
+        if (headerNames == null || !headerNames.hasMoreElements()) {
             return;
         }
-        log.debug(LogUtils.formatKeyValue("Headers", ""));
-        Enumeration<String> headerNames = request.getHeaderNames();
-        while (headerNames.hasMoreElements()) {
-            String headerName = headerNames.nextElement();
-            log.debug(LogUtils.formatKeyValue("  " + headerName, request.getHeader(headerName)));
+        if (log.isDebugEnabled()) {
+            String names = String.join(", ", Collections.list(headerNames));
+            log.debug(LogUtils.formatKeyValue("Header Names", names));
         }
     }
 
-    private String getRequestBody(ContentCachingRequestWrapper request) {
-        byte[] content = request.getContentAsByteArray();
-        if (content.length > 0) {
-            try {
-                return new String(content, request.getCharacterEncoding());
-            } catch (UnsupportedEncodingException e) {
-                log.error("Could not read request body", e);
-            }
+    private void logQueryParameterNames(HttpServletRequest request) {
+        Enumeration<String> parameterNames = request.getParameterNames();
+        if (parameterNames == null || !parameterNames.hasMoreElements()) {
+            return;
         }
-        return "";
-    }
-
-    private String getResponseBody(ContentCachingResponseWrapper response) {
-        byte[] content = response.getContentAsByteArray();
-        if (content.length > 0) {
-            try {
-                return new String(content, response.getCharacterEncoding());
-            } catch (UnsupportedEncodingException e) {
-                log.error("Could not read response body", e);
-            }
+        if (log.isDebugEnabled()) {
+            String names = String.join(", ", Collections.list(parameterNames));
+            log.debug(LogUtils.formatKeyValue("Query Parameter Names", names));
         }
-        return "";
-    }
-
-    private String maskSensitiveData(String body) {
-        try {
-            JsonNode jsonNode = objectMapper.readTree(body);
-            if (jsonNode.isObject()) {
-                maskFields((ObjectNode) jsonNode);
-            }
-            return objectMapper.writeValueAsString(jsonNode);
-        } catch (IOException _) {
-            return "Not a JSON body, cannot mask.";
-        }
-    }
-
-    private void maskFields(ObjectNode node) {
-        Iterator<Map.Entry<String, JsonNode>> fields = node.properties().iterator();
-        fields.forEachRemaining(entry -> {
-            String fieldName = entry.getKey().toLowerCase();
-            if (SENSITIVE_FIELDS.stream().anyMatch(fieldName::contains)) {
-                node.put(entry.getKey(), "[REDACTED]");
-            } else if (entry.getValue().isObject()) {
-                maskFields((ObjectNode) entry.getValue());
-            }
-        });
     }
 }

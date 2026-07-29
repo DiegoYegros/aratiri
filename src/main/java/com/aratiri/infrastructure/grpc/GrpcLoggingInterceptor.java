@@ -1,7 +1,15 @@
 package com.aratiri.infrastructure.grpc;
 
 import com.aratiri.infrastructure.filter.LogUtils;
-import io.grpc.*;
+import io.grpc.CallOptions;
+import io.grpc.Channel;
+import io.grpc.ClientCall;
+import io.grpc.ClientInterceptor;
+import io.grpc.ForwardingClientCall;
+import io.grpc.ForwardingClientCallListener;
+import io.grpc.Metadata;
+import io.grpc.MethodDescriptor;
+import io.grpc.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,40 +30,17 @@ public class GrpcLoggingInterceptor implements ClientInterceptor {
 
             @Override
             public void start(Listener<S> responseListener, Metadata headers) {
-                if (log.isInfoEnabled()) {
-                    log.info(LogUtils.formatKeyValue("METADATA (HEADERS) SENT", ""));
-                    headers.keys().forEach(key -> log.info(LogUtils.formatKeyValue("  " + key, headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)))));
-                }
-
                 Listener<S> forwardingListener = new ForwardingClientCallListener.SimpleForwardingClientCallListener<>(responseListener) {
                     @Override
-                    public void onMessage(S message) {
-                        if (log.isDebugEnabled()) {
-                            log.debug(LogUtils.formatKeyValue("SERVER'S RESPONSE", "\n" + message));
-                        }
-                        super.onMessage(message);
-                    }
-
-                    @Override
                     public void onClose(Status status, Metadata trailers) {
-                        if (!status.isOk()) {
-                            log.debug(LogUtils.formatKeyValue("gRPC CALL CLOSED WITH ERROR", status));
-                        } else {
-                            log.debug(LogUtils.formatKeyValue("gRPC CALL STATUS", "SUCCESSFULLY CLOSED"));
+                        if (log.isInfoEnabled()) {
+                            log.info(LogUtils.formatKeyValue("gRPC CALL STATUS", status.getCode()));
                         }
                         super.onClose(status, trailers);
                     }
                 };
 
                 super.start(forwardingListener, headers);
-            }
-
-            @Override
-            public void sendMessage(Q message) {
-                if (log.isInfoEnabled()) {
-                    log.info(LogUtils.formatKeyValue("MESSAGE SENT TO SERVER", "\n" + message));
-                }
-                super.sendMessage(message);
             }
         };
     }
