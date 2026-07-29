@@ -116,11 +116,18 @@ These are Spring properties. Set them as environment variables with relaxed bind
 
 ## Webhooks
 
-Webhook delivery behavior is mostly code-defined:
-
 | Property / Variable | Default | Purpose |
 | --- | --- | --- |
 | `aratiri.webhooks.delivery.fixed-delay-ms` | `5000` | Delivery worker schedule. |
+| `aratiri.webhooks.destination.allow-http` | `false` | **Unsafe / lab-only.** When `true`, allows `http://` webhook URLs. Production must keep `false` (HTTPS only). |
+| `aratiri.webhooks.destination.allow-private-networks` | `false` | **Unsafe / lab-only.** When `true`, skips rejection of loopback, RFC1918, link-local, CGNAT, ULA, and other special ranges. Production must keep `false`. |
+| `aratiri.webhooks.destination.allowed-hosts` | empty | Optional allowlist of exact hosts or `*.suffix` wildcard suffixes (not regex). When non-empty, destinations outside the list are rejected. Compared after host normalization (IDN/punycode, case, trailing dots, optional IPv6 brackets). Malformed entries are ignored per request (fail closed for matching), not at startup. Narrows which names may be chosen; does **not** pin DNS or prevent rebinding of an allowlisted/compromised name. |
+
+Destination policy is enforced when admins create/update endpoints and again immediately before every outbound delivery. Invalid destinations are fail-closed: create/update returns HTTP 400 without persisting; delivery performs no HTTP send and enters the normal failure/retry path.
+
+Default policy permits ordinary public HTTPS webhooks and rejects internal/special destinations (loopback, RFC1918, link-local/cloud metadata, multicast, IPv6 ULA, IPv4-mapped/compatible private/special addresses, NAT64 `64:ff9b::/32`, 6to4 `2002::/16`, Teredo `2001:0::/32`, CGNAT `100.64.0.0/10`, documentation/benchmarking/reserved ranges, userinfo, fragments, zone/scope ids, non-absolute URIs, and ambiguous/alternative IP literals).
+
+**DNS rebinding residual:** Java `HttpClient` re-resolves the hostname at connect time and does not provide a portable way to pin the validated addresses while preserving TLS hostname verification/SNI. Send-time validation reduces the TOCTOU window but does not eliminate rebinding. A non-empty `allowed-hosts` list only restricts which names may be configured; it does not pin DNS and does not stop an allowlisted or compromised name from rebinding between validation and connect.
 
 Delivery requests include:
 

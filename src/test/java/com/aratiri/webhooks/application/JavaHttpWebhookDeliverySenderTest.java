@@ -1,18 +1,31 @@
 package com.aratiri.webhooks.application;
 
+import com.aratiri.infrastructure.configuration.WebhookDestinationProperties;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookDeliveryEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookDeliveryStatus;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointEntity;
+import com.aratiri.webhooks.application.destination.WebhookDestinationPolicy;
+import com.aratiri.webhooks.application.destination.WebhookHostResolver;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class JavaHttpWebhookDeliverySenderTest {
 
@@ -100,14 +113,14 @@ class JavaHttpWebhookDeliverySenderTest {
 
   @Test
   void constructor_createsHttpClient() {
-    JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender();
+    JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(labPolicy());
     assertNotNull(sender);
   }
 
   @Test
   void packagePrivateConstructor_acceptsCustomHttpClient() {
     HttpClient client = HttpClient.newHttpClient();
-    JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(client);
+    JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(client, labPolicy());
     assertNotNull(sender);
   }
 
@@ -131,7 +144,7 @@ class JavaHttpWebhookDeliverySenderTest {
       WebhookEndpointEntity endpoint = endpoint("http://localhost:" + port + "/");
       WebhookDeliveryEntity delivery = delivery("{\"test\":true}");
 
-      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender();
+      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(labPolicy());
       WebhookSendResult result = sender.send(delivery, endpoint);
 
       assertEquals(200, result.statusCode());
@@ -155,7 +168,7 @@ class JavaHttpWebhookDeliverySenderTest {
       WebhookEndpointEntity endpoint = endpoint("http://localhost:" + port + "/");
       WebhookDeliveryEntity delivery = delivery("{}");
 
-      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender();
+      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(labPolicy());
       WebhookSendResult result = sender.send(delivery, endpoint);
 
       assertEquals(201, result.statusCode());
@@ -178,7 +191,7 @@ class JavaHttpWebhookDeliverySenderTest {
       WebhookEndpointEntity endpoint = endpoint("http://localhost:" + port + "/");
       WebhookDeliveryEntity delivery = delivery("{}");
 
-      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender();
+      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(labPolicy());
       WebhookSendResult result = sender.send(delivery, endpoint);
 
       assertEquals(204, result.statusCode());
@@ -203,7 +216,7 @@ class JavaHttpWebhookDeliverySenderTest {
       WebhookEndpointEntity endpoint = endpoint("http://localhost:" + port + "/");
       WebhookDeliveryEntity delivery = delivery("{}");
 
-      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender();
+      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(labPolicy());
       WebhookSendResult result = sender.send(delivery, endpoint);
 
       assertEquals(404, result.statusCode());
@@ -229,7 +242,7 @@ class JavaHttpWebhookDeliverySenderTest {
       WebhookEndpointEntity endpoint = endpoint("http://localhost:" + port + "/");
       WebhookDeliveryEntity delivery = delivery("{}");
 
-      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender();
+      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(labPolicy());
       WebhookSendResult result = sender.send(delivery, endpoint);
 
       assertEquals(500, result.statusCode());
@@ -263,7 +276,7 @@ class JavaHttpWebhookDeliverySenderTest {
       WebhookEndpointEntity endpoint = endpoint("http://localhost:" + port + "/");
       WebhookDeliveryEntity delivery = delivery("{\"type\":\"test\"}");
 
-      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender();
+      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(labPolicy());
       WebhookSendResult result = sender.send(delivery, endpoint);
 
       assertEquals(204, result.statusCode());
@@ -298,7 +311,7 @@ class JavaHttpWebhookDeliverySenderTest {
           .nextAttemptAt(Instant.now())
           .build();
 
-      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender();
+      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(labPolicy());
       WebhookSendResult result = sender.send(delivery, endpoint);
 
       assertEquals(200, result.statusCode());
@@ -318,8 +331,74 @@ class JavaHttpWebhookDeliverySenderTest {
     WebhookEndpointEntity endpoint = endpoint("http://localhost:" + port + "/");
     WebhookDeliveryEntity delivery = delivery("{}");
 
-    JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender();
+    JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(labPolicy());
     assertThrows(IOException.class, () -> sender.send(delivery, endpoint));
+  }
+
+  @Test
+  void send_rejectsInvalidDestinationWithoutCallingHttpClient() throws Exception {
+    HttpClient httpClient = mock(HttpClient.class);
+    WebhookDestinationProperties properties = new WebhookDestinationProperties();
+    WebhookHostResolver resolver = host -> List.of(InetAddress.getByName("10.0.0.1"));
+    WebhookDestinationPolicy policy = new WebhookDestinationPolicy(properties, resolver);
+    JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(httpClient, policy);
+
+    WebhookEndpointEntity endpoint = endpoint("https://internal.example.com/webhook?token=secret");
+    WebhookDeliveryEntity delivery = delivery("{\"amount\":100}");
+
+    IOException ex = assertThrows(IOException.class, () -> sender.send(delivery, endpoint));
+    assertEquals("Webhook destination URL is not allowed", ex.getMessage());
+    verify(httpClient, never()).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+  }
+
+  @Test
+  void send_revalidatesChangedResolutionAndSkipsSend() throws Exception {
+    AtomicInteger resolves = new AtomicInteger();
+    HttpClient httpClient = mock(HttpClient.class);
+    WebhookDestinationProperties properties = new WebhookDestinationProperties();
+    WebhookHostResolver resolver = host -> {
+      resolves.incrementAndGet();
+      return List.of(InetAddress.getByName("127.0.0.1"));
+    };
+    WebhookDestinationPolicy policy = new WebhookDestinationPolicy(properties, resolver);
+    JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(httpClient, policy);
+
+    IOException ex = assertThrows(IOException.class,
+        () -> sender.send(delivery("{}"), endpoint("https://rebinding.example.com/hook")));
+    assertEquals("Webhook destination URL is not allowed", ex.getMessage());
+    assertEquals(1, resolves.get());
+    verify(httpClient, never()).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+  }
+
+  @Test
+  void send_validPublicDestinationStillSignsAndSends() throws Exception {
+    HttpClient httpClient = mock(HttpClient.class);
+    @SuppressWarnings("unchecked")
+    HttpResponse<String> response = mock(HttpResponse.class);
+    when(response.statusCode()).thenReturn(204);
+    when(response.body()).thenReturn("");
+    when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+    WebhookDestinationProperties properties = new WebhookDestinationProperties();
+    WebhookHostResolver resolver = host -> List.of(InetAddress.getByName("93.184.216.34"));
+    WebhookDestinationPolicy policy = new WebhookDestinationPolicy(properties, resolver);
+    JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(httpClient, policy);
+
+    WebhookSendResult result = sender.send(
+        delivery("{\"ok\":true}"),
+        endpoint("https://hooks.example.com/webhook"));
+
+    assertEquals(204, result.statusCode());
+    assertTrue(result.successful());
+    verify(httpClient).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+  }
+
+  private static WebhookDestinationPolicy labPolicy() {
+    WebhookDestinationProperties properties = new WebhookDestinationProperties();
+    properties.setAllowHttp(true);
+    properties.setAllowPrivateNetworks(true);
+    WebhookHostResolver resolver = host -> List.of(InetAddress.getByName(host));
+    return new WebhookDestinationPolicy(properties, resolver);
   }
 
   private WebhookEndpointEntity endpoint(String url) {

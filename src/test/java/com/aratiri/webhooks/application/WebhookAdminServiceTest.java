@@ -7,6 +7,8 @@ import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointSubscrip
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookDeliveryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEndpointRepository;
 import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.webhooks.application.destination.WebhookDestinationPolicy;
+import com.aratiri.webhooks.application.destination.WebhookDestinationRejectedException;
 import com.aratiri.webhooks.application.dto.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
 import java.util.*;
@@ -39,6 +42,9 @@ class WebhookAdminServiceTest {
   @Mock
   private WebhookDeliveryLifecycle webhookDeliveryLifecycle;
 
+  @Mock
+  private WebhookDestinationPolicy webhookDestinationPolicy;
+
   private WebhookAdminService webhookAdminService;
 
   @BeforeEach
@@ -47,7 +53,8 @@ class WebhookAdminServiceTest {
         webhookEndpointRepository,
         webhookDeliveryRepository,
         webhookEventService,
-        webhookDeliveryLifecycle
+        webhookDeliveryLifecycle,
+        webhookDestinationPolicy
     );
   }
 
@@ -70,9 +77,28 @@ class WebhookAdminServiceTest {
     assertNotNull(response.getId());
     assertNotNull(response.getSigningSecret());
     assertTrue(response.getSigningSecret().length() > 20);
+    verify(webhookDestinationPolicy).validate("https://example.com/webhook");
     ArgumentCaptor<WebhookEndpointEntity> captor = ArgumentCaptor.forClass(WebhookEndpointEntity.class);
     verify(webhookEndpointRepository).save(captor.capture());
     assertEquals(1, captor.getValue().getSubscriptions().size());
+  }
+
+  @Test
+  void createEndpoint_rejectsInvalidDestinationWithoutSaving() {
+    CreateWebhookEndpointRequestDTO request = new CreateWebhookEndpointRequestDTO();
+    request.setName("Bad");
+    request.setUrl("https://127.0.0.1/hook");
+    request.setEventTypes(Set.of("payment.succeeded"));
+    request.setEnabled(true);
+    doThrow(new WebhookDestinationRejectedException())
+        .when(webhookDestinationPolicy).validate("https://127.0.0.1/hook");
+
+    AratiriException ex = assertThrows(AratiriException.class,
+        () -> webhookAdminService.createEndpoint(request));
+
+    assertEquals(WebhookDestinationRejectedException.PUBLIC_MESSAGE, ex.getMessage());
+    assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
+    verify(webhookEndpointRepository, never()).save(any());
   }
 
   @Test
@@ -203,9 +229,37 @@ class WebhookAdminServiceTest {
     assertEquals("https://new.example.com", result.getUrl());
     assertEquals(Set.of("payment.succeeded", "invoice.created"), result.getEventTypes());
     assertFalse(result.getEnabled());
+    verify(webhookDestinationPolicy).validate("https://new.example.com");
     ArgumentCaptor<WebhookEndpointEntity> captor = ArgumentCaptor.forClass(WebhookEndpointEntity.class);
     verify(webhookEndpointRepository).save(captor.capture());
     assertEquals(2, captor.getValue().getSubscriptions().size());
+  }
+
+  @Test
+  void updateEndpoint_rejectsInvalidDestinationWithoutMutating() {
+    UUID id = UUID.randomUUID();
+    WebhookEndpointEntity existing = endpointEntity("Old Name", "https://old.example.com", Set.of("old.event"));
+    existing.setId(id);
+    String originalUrl = existing.getUrl();
+    String originalName = existing.getName();
+
+    UpdateWebhookEndpointRequestDTO request = new UpdateWebhookEndpointRequestDTO();
+    request.setName("New Name");
+    request.setUrl("http://localhost/hook");
+    request.setEventTypes(Set.of("payment.succeeded"));
+    request.setEnabled(false);
+    doThrow(new WebhookDestinationRejectedException())
+        .when(webhookDestinationPolicy).validate("http://localhost/hook");
+
+    AratiriException ex = assertThrows(AratiriException.class,
+        () -> webhookAdminService.updateEndpoint(id, request));
+
+    assertEquals(WebhookDestinationRejectedException.PUBLIC_MESSAGE, ex.getMessage());
+    assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
+    verify(webhookEndpointRepository, never()).findById(any());
+    verify(webhookEndpointRepository, never()).save(any());
+    assertEquals(originalUrl, existing.getUrl());
+    assertEquals(originalName, existing.getName());
   }
 
   @Test

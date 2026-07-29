@@ -7,6 +7,8 @@ import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointSubscrip
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookDeliveryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEndpointRepository;
 import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.webhooks.application.destination.WebhookDestinationPolicy;
+import com.aratiri.webhooks.application.destination.WebhookDestinationRejectedException;
 import com.aratiri.webhooks.application.dto.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,10 +33,12 @@ public class WebhookAdminService {
     private final WebhookDeliveryRepository webhookDeliveryRepository;
     private final WebhookEventService webhookEventService;
     private final WebhookDeliveryLifecycle webhookDeliveryLifecycle;
+    private final WebhookDestinationPolicy webhookDestinationPolicy;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Transactional
     public WebhookSecretResponseDTO createEndpoint(CreateWebhookEndpointRequestDTO request) {
+        validateDestinationOrThrow(request.getUrl());
         WebhookEndpointEntity endpoint = WebhookEndpointEntity.builder()
                 .name(request.getName())
                 .url(request.getUrl())
@@ -72,6 +76,7 @@ public class WebhookAdminService {
 
     @Transactional
     public WebhookEndpointResponseDTO updateEndpoint(UUID id, UpdateWebhookEndpointRequestDTO request) {
+        validateDestinationOrThrow(request.getUrl());
         WebhookEndpointEntity endpoint = findEndpointOrThrow(id);
         endpoint.setName(request.getName());
         endpoint.setUrl(request.getUrl());
@@ -152,6 +157,17 @@ public class WebhookAdminService {
         }
         webhookDeliveryLifecycle.resetForManualRetry(delivery);
         log.info("Manually retried webhook delivery id={}", id);
+    }
+
+    private void validateDestinationOrThrow(String url) {
+        try {
+            webhookDestinationPolicy.validate(url);
+        } catch (WebhookDestinationRejectedException e) {
+            throw new AratiriException(
+                    WebhookDestinationRejectedException.PUBLIC_MESSAGE,
+                    HttpStatus.BAD_REQUEST.value(),
+                    e);
+        }
     }
 
     private WebhookEndpointEntity findEndpointOrThrow(UUID id) {

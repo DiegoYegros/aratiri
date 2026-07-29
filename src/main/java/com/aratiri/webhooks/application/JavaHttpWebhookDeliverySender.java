@@ -2,6 +2,9 @@ package com.aratiri.webhooks.application;
 
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookDeliveryEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointEntity;
+import com.aratiri.webhooks.application.destination.WebhookDestinationPolicy;
+import com.aratiri.webhooks.application.destination.WebhookDestinationRejectedException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +23,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 
 @Component
+@Slf4j
 public class JavaHttpWebhookDeliverySender implements WebhookDeliverySender {
 
     private static final String USER_AGENT = "Aratiri-Webhooks/1.0";
@@ -28,22 +32,32 @@ public class JavaHttpWebhookDeliverySender implements WebhookDeliverySender {
     private static final long READ_TIMEOUT_SECONDS = 10;
 
     private final HttpClient httpClient;
+    private final WebhookDestinationPolicy destinationPolicy;
 
     @Autowired
-    public JavaHttpWebhookDeliverySender() {
+    public JavaHttpWebhookDeliverySender(WebhookDestinationPolicy destinationPolicy) {
         this(HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
                 .followRedirects(HttpClient.Redirect.NEVER)
-                .build());
+                .build(), destinationPolicy);
     }
 
-    JavaHttpWebhookDeliverySender(HttpClient httpClient) {
+    JavaHttpWebhookDeliverySender(HttpClient httpClient, WebhookDestinationPolicy destinationPolicy) {
         this.httpClient = httpClient;
+        this.destinationPolicy = destinationPolicy;
     }
 
     @Override
     public WebhookSendResult send(WebhookDeliveryEntity delivery, WebhookEndpointEntity endpoint)
             throws IOException, InterruptedException {
+        try {
+            destinationPolicy.validate(endpoint.getUrl());
+        } catch (WebhookDestinationRejectedException e) {
+            log.warn("Webhook destination rejected for endpointId={}, deliveryId={}",
+                    endpoint.getId(), delivery.getId());
+            throw new IOException(WebhookDestinationRejectedException.PUBLIC_MESSAGE, e);
+        }
+
         String payload = delivery.getPayload() != null ? delivery.getPayload() : "";
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
         String signature = generateSignature(endpoint.getSigningSecret(), timestamp, delivery.getEventId().toString(), payload);

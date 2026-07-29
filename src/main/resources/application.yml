@@ -117,6 +117,15 @@ aratiri:
   accounts:
     fiat:
       currencies: ${ARATIRI_ACCOUNTS_FIAT_CURRENCIES:usd,pyg,ars,eur}
+  webhooks:
+    delivery:
+      fixed-delay-ms: ${ARATIRI_WEBHOOKS_DELIVERY_FIXED_DELAY_MS:5000}
+    destination:
+      # Unsafe / lab-only. Keep false in production.
+      allow-http: ${ARATIRI_WEBHOOKS_DESTINATION_ALLOW_HTTP:false}
+      # Unsafe / lab-only. Keep false in production.
+      allow-private-networks: ${ARATIRI_WEBHOOKS_DESTINATION_ALLOW_PRIVATE_NETWORKS:false}
+      # Optional exact hosts or *.suffix wildcards (see docs/configuration.md). Default empty.
   security:
     default-principal-claim: ${ARATIRI_SECURITY_DEFAULT_PRINCIPAL_CLAIM:email}
     api-docs:
