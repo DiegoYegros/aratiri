@@ -1,9 +1,15 @@
 package com.aratiri;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -13,13 +19,12 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
-import java.time.Duration;
-
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 public abstract class AbstractIntegrationTest {
 
     private static final Object DB_CLEANUP_LOCK = new Object();
+    private static final Path TEST_MACAROON = createTestMacaroon();
 
     private static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
             DockerImageName.parse("postgres:16-alpine")
@@ -77,6 +82,7 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
+        registry.add("lnd.path.macaroon.admin", TEST_MACAROON::toString);
     }
 
     protected String baseUrl() {
@@ -92,5 +98,16 @@ public abstract class AbstractIntegrationTest {
                     .build();
         }
         return this.webTestClient;
+    }
+
+    private static Path createTestMacaroon() {
+        try {
+            Path macaroon = Files.createTempFile("aratiri-test-macaroon-", ".macaroon");
+            Files.writeString(macaroon, "00", StandardCharsets.US_ASCII);
+            macaroon.toFile().deleteOnExit();
+            return macaroon;
+        } catch (IOException e) {
+            throw new ExceptionInInitializerError(e);
+        }
     }
 }

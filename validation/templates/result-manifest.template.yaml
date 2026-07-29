@@ -1,0 +1,72 @@
+---
+schema_version: "1.0"
+manifest_id: "VAL-04-template-not-run"
+experiment:
+  val_id: "VAL-04"
+  title: "Load API template — replace before execution"
+  protocol_version: "0.1"
+  question_ids: ["PV-02"]
+traceability:
+  functional_requirements: ["RF-09", "RF-16"]
+  non_functional_requirements: ["RNF-PER-01", "RNF-PER-02"]
+  objective_ids: ["OE-4"]
+execution:
+  status: "NOT_RUN" # NOT_RUN | COMPLETED | INTERRUPTED | INVALIDATED
+  started_at: null
+  ended_at: null
+  timezone: "UTC"
+  operator: ""
+system_under_test:
+  git_commit: ""
+  working_tree_dirty: null
+  artifact_or_image_digest: ""
+  environment: "" # CI | regtest | testnet-smoke | staging
+  network: ""
+  topology: ""
+  non_secret_config_uri: ""
+safety:
+  synthetic_accounts_only: true
+  real_funds_used: false
+  real_pii_used: false
+  secrets_in_artifacts_reviewed: false
+method:
+  hypothesis: ""
+  frozen_criteria:
+    - metric: ""
+      comparator: ""
+      threshold: null
+      unit: ""
+      approved_at: null
+      approved_by: ""
+  sample_profile: ""
+  exclusions: []
+artifacts:
+  raw:
+    - uri: ""
+      sha256: ""
+      media_type: ""
+      description: ""
+  derived: []
+observations:
+  metrics:
+    - name: ""
+      value: null
+      unit: ""
+      population_or_endpoint: ""
+  incidents: []
+  deviations: []
+  limitations: []
+conclusion:
+  result: "NOT_RUN" # PASS | FAIL | INCONCLUSIVE | NOT_RUN
+  criterion_results:
+    - criterion: "Replace with a frozen criterion before execution"
+      result: "NOT_RUN"
+      evidence_uri: ""
+  interpretation: ""
+  negative_results_disclosed: true
+  follow_up_actions: []
+independent_review:
+  reviewer: ""
+  reviewed_at: null
+  decision: "PENDING" # APPROVED | CHANGES_REQUIRED | PENDING
+  comments: ""

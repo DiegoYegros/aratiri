@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aratiri PFGR validation result manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "experiment",
+    "traceability",
+    "execution",
+    "system_under_test",
+    "safety",
+    "method",
+    "artifacts",
+    "observations",
+    "conclusion",
+    "independent_review"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "manifest_id": { "type": "string", "minLength": 1 },
+    "experiment": {
+      "type": "object",
+      "required": ["val_id", "title", "protocol_version", "question_ids"],
+      "properties": {
+        "val_id": { "type": "string", "pattern": "^VAL-[0-9]{2}$" },
+        "title": { "type": "string" },
+        "protocol_version": { "type": "string" },
+        "question_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^PV-[0-9]{2}$" }
+        }
+      }
+    },
+    "traceability": {
+      "type": "object",
+      "required": ["functional_requirements", "non_functional_requirements"],
+      "properties": {
+        "functional_requirements": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^RF-[0-9]{2}$" }
+        },
+        "non_functional_requirements": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^RNF-[A-Z]+-[0-9]{2}$" }
+        },
+        "objective_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": ["status", "started_at", "ended_at", "timezone", "operator"],
+      "properties": {
+        "status": { "enum": ["NOT_RUN", "COMPLETED", "INTERRUPTED", "INVALIDATED"] },
+        "started_at": { "type": ["string", "null"], "format": "date-time" },
+        "ended_at": { "type": ["string", "null"], "format": "date-time" },
+        "timezone": { "type": "string" },
+        "operator": { "type": "string" }
+      }
+    },
+    "system_under_test": { "type": "object" },
+    "safety": {
+      "type": "object",
+      "required": ["synthetic_accounts_only", "real_funds_used", "real_pii_used"],
+      "properties": {
+        "synthetic_accounts_only": { "type": "boolean" },
+        "real_funds_used": { "const": false },
+        "real_pii_used": { "const": false },
+        "secrets_in_artifacts_reviewed": { "type": "boolean" }
+      }
+    },
+    "method": {
+      "type": "object",
+      "required": ["hypothesis", "frozen_criteria", "sample_profile", "exclusions"]
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["raw", "derived"],
+      "properties": {
+        "raw": { "$ref": "#/$defs/artifact_list" },
+        "derived": { "$ref": "#/$defs/artifact_list" }
+      }
+    },
+    "observations": {
+      "type": "object",
+      "required": ["metrics", "incidents", "deviations", "limitations"]
+    },
+    "conclusion": {
+      "type": "object",
+      "required": ["result", "criterion_results", "interpretation", "negative_results_disclosed"],
+      "properties": {
+        "result": { "enum": ["PASS", "FAIL", "INCONCLUSIVE", "NOT_RUN"] },
+        "criterion_results": { "type": "array" },
+        "interpretation": { "type": "string" },
+        "negative_results_disclosed": { "type": "boolean" },
+        "follow_up_actions": { "type": "array" }
+      }
+    },
+    "independent_review": {
+      "type": "object",
+      "required": ["reviewer", "reviewed_at", "decision", "comments"],
+      "properties": {
+        "reviewer": { "type": "string" },
+        "reviewed_at": { "type": ["string", "null"], "format": "date-time" },
+        "decision": { "enum": ["APPROVED", "CHANGES_REQUIRED", "PENDING"] },
+        "comments": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "artifact_list": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["uri", "sha256", "media_type", "description"],
+        "properties": {
+          "uri": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^$|^[a-fA-F0-9]{64}$" },
+          "media_type": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  }
+}

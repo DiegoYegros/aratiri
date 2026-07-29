@@ -1,0 +1,121 @@
+name: aratiri-regtest
+
+services:
+  bitcoin:
+    # Bitcoin Core 27.1, linux/amd64 manifest pinned for reproducible evidence.
+    image: bitcoin/bitcoin:27.1@sha256:de42bc7c635487387a83493a320a2f8707211947864d91e672c3d74622c76199
+    platform: linux/amd64
+    user: "0:0"
+    restart: unless-stopped
+    command:
+      - -regtest=1
+      - -server=1
+      - -txindex=1
+      - -fallbackfee=0.00001000
+      - -datadir=/bitcoin
+      - -rpcbind=0.0.0.0
+      - -rpcallowip=0.0.0.0/0
+      - -rpcuser=${BITCOIN_RPC_USER:?Run scripts/prepare.sh first}
+      - -rpcpassword=${BITCOIN_RPC_PASSWORD:?Run scripts/prepare.sh first}
+      - -zmqpubrawblock=tcp://0.0.0.0:28332
+      - -zmqpubrawtx=tcp://0.0.0.0:28333
+      - -printtoconsole=1
+    volumes:
+      - ./runtime/bitcoin:/bitcoin
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bitcoin-cli -regtest -rpcconnect=127.0.0.1
+          -rpcuser="$${BITCOIN_RPC_USER}"
+          -rpcpassword="$${BITCOIN_RPC_PASSWORD}"
+          getblockchaininfo >/dev/null
+      interval: 2s
+      timeout: 2s
+      retries: 60
+    environment:
+      BITCOIN_RPC_USER: ${BITCOIN_RPC_USER:?Run scripts/prepare.sh first}
+      BITCOIN_RPC_PASSWORD: ${BITCOIN_RPC_PASSWORD:?Run scripts/prepare.sh first}
+    networks:
+      - regtest
+
+  lnd-alice:
+    # This is the same LND release whose protobuf API is pinned by Aratiri.
+    image: lightninglabs/lnd:v0.18.5-beta@sha256:2b560c9beb559c57ab2f2da1dfed80d286cf11a6dc6e4354cab84aafba79b6f6
+    platform: linux/amd64
+    restart: unless-stopped
+    depends_on:
+      bitcoin:
+        condition: service_healthy
+    command:
+      - --lnddir=/root/.lnd
+      - --noseedbackup
+      - --nobootstrap
+      - --alias=aratiri-regtest-alice
+      - --listen=0.0.0.0:9735
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --externalip=lnd-alice:9735
+      - --tlsextradomain=localhost
+      - --tlsextradomain=lnd-alice
+      - --tlsextraip=127.0.0.1
+      - --accept-keysend
+      - --bitcoin.active
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoin:18443
+      - --bitcoind.rpcuser=${BITCOIN_RPC_USER:?Run scripts/prepare.sh first}
+      - --bitcoind.rpcpass=${BITCOIN_RPC_PASSWORD:?Run scripts/prepare.sh first}
+      - --bitcoind.zmqpubrawblock=tcp://bitcoin:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoin:28333
+      - --protocol.wumbo-channels
+      - --maxpendingchannels=10
+    ports:
+      - 127.0.0.1:${ALICE_GRPC_PORT:-11009}:10009
+      - 127.0.0.1:${ALICE_REST_PORT:-18081}:8080
+    volumes:
+      - ./runtime/lnd-alice:/root/.lnd
+    networks:
+      - regtest
+
+  lnd-bob:
+    image: lightninglabs/lnd:v0.18.5-beta@sha256:2b560c9beb559c57ab2f2da1dfed80d286cf11a6dc6e4354cab84aafba79b6f6
+    platform: linux/amd64
+    restart: unless-stopped
+    depends_on:
+      bitcoin:
+        condition: service_healthy
+    command:
+      - --lnddir=/root/.lnd
+      - --noseedbackup
+      - --nobootstrap
+      - --alias=aratiri-regtest-bob
+      - --listen=0.0.0.0:9735
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --externalip=lnd-bob:9735
+      - --tlsextradomain=localhost
+      - --tlsextradomain=lnd-bob
+      - --tlsextraip=127.0.0.1
+      - --accept-keysend
+      - --bitcoin.active
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoin:18443
+      - --bitcoind.rpcuser=${BITCOIN_RPC_USER:?Run scripts/prepare.sh first}
+      - --bitcoind.rpcpass=${BITCOIN_RPC_PASSWORD:?Run scripts/prepare.sh first}
+      - --bitcoind.zmqpubrawblock=tcp://bitcoin:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoin:28333
+      - --protocol.wumbo-channels
+      - --maxpendingchannels=10
+    ports:
+      - 127.0.0.1:${BOB_GRPC_PORT:-12009}:10009
+      - 127.0.0.1:${BOB_REST_PORT:-18082}:8080
+    volumes:
+      - ./runtime/lnd-bob:/root/.lnd
+    networks:
+      - regtest
+
+networks:
+  regtest:
+    internal: true

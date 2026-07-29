@@ -38,3 +38,6 @@ target/
 
 # Agents
 .claude
+
+# Generated PFGR validation evidence (preserve externally, never commit secrets/raw runs)
+validation/**/results/

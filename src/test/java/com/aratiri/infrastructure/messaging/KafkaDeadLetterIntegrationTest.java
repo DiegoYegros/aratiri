@@ -73,8 +73,8 @@ class KafkaDeadLetterIntegrationTest extends AbstractIntegrationTest {
             boolean poisonDeadLettered = false;
             while (!poisonDeadLettered && System.nanoTime() < deadline) {
                 ConsumerRecords<String, String> records = dltConsumer.poll(Duration.ofMillis(500));
-                for (ConsumerRecord<String, String> record : records.records(dltTopic)) {
-                    if (poisonPayload.equals(record.value())) {
+                for (ConsumerRecord<String, String> consumerRecord : records.records(dltTopic)) {
+                    if (poisonPayload.equals(consumerRecord.value())) {
                         poisonDeadLettered = true;
                         break;
                     }

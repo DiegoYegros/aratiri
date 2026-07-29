@@ -1,0 +1,5 @@
+val_id,pv_id,rf_ids,rnf_ids,raw_artifacts,criterion,current_result
+VAL-04,PV-02,"RF-09;RF-16","RNF-PER-01;RNF-PER-02","k6 raw JSON; summary; Prometheus/Kafka/DB","p95 <500 ms; throughput/error frozen before run",NOT_RUN
+VAL-06,PV-04,"RF-04;RF-05;RF-07;RF-08;RF-11;RF-13;RF-16","RNF-REL-03;RNF-REL-04","fault phases; logs; DB/Kafka/LND state","Explainable final state; no false success; approved RPO/RTO",NOT_RUN
+VAL-08,PV-05,"RF-01;RF-02;RF-05;RF-08;RF-11;RF-12","RNF-SEC-01;RNF-SEC-02;RNF-SEC-03;RNF-SEC-04;RNF-SEC-05;RNF-SEC-06","ZAP JSON/HTML; access logs; finding register","Zero unresolved critical/high or explicit acceptance",NOT_RUN
+VAL-09,PV-06,"RF-13;RF-16","RNF-REL-02;RNF-REL-03;RNF-REL-04;RNF-PER-02","soak samples/summary; Prometheus; container/DB/Kafka/logs","48 h; availability criterion; incidents reviewed",NOT_RUN

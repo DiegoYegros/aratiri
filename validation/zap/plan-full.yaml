@@ -1,0 +1,74 @@
+---
+env:
+  contexts:
+    - name: aratiri-staging
+      urls:
+        - "${ZAP_TARGET_URL}"
+      includePaths:
+        - "${ZAP_TARGET_URL}.*"
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+
+jobs:
+  - type: replacer
+    parameters:
+      deleteAllRules: true
+    rules:
+      - description: laboratory bearer authentication
+        enabled: true
+        matchType: REQ_HEADER
+        matchString: Authorization
+        replacementString: "${ZAP_AUTH_HEADER_VALUE}"
+
+  - type: passiveScan-config
+    parameters:
+      maxAlertsPerRule: 100
+      scanOnlyInScope: true
+
+  - type: requestor
+    requests:
+      - url: "${ZAP_TARGET_URL}/v1/auth/me"
+        method: GET
+      - url: "${ZAP_TARGET_URL}/v1/accounts/account"
+        method: GET
+      - url: "${ZAP_TARGET_URL}/v1/transactions?limit=1"
+        method: GET
+      - url: "${ZAP_TARGET_URL}/v1/admin/node-info"
+        method: GET
+
+  - type: spider
+    parameters:
+      context: aratiri-staging
+      maxDuration: 10
+      maxDepth: 5
+      maxChildren: 20
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 20
+
+  - type: activeScan
+    parameters:
+      context: aratiri-staging
+      maxRuleDurationInMins: 10
+      maxScanDurationInMins: 120
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 20
+
+  - type: report
+    parameters:
+      template: traditional-json
+      reportDir: /zap/wrk/results
+      reportFile: zap-report.json
+      reportTitle: Aratiri PFGR VAL-08 authenticated full scan
+
+  - type: report
+    parameters:
+      template: traditional-html
+      reportDir: /zap/wrk/results
+      reportFile: zap-report.html
+      reportTitle: Aratiri PFGR VAL-08 authenticated full scan

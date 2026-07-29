@@ -6,6 +6,7 @@ This README focuses on how the application works. Operational setup lives in:
 
 - [Running Aratiri](docs/running.md)
 - [Configuration Reference](docs/configuration.md)
+- [Deployment Topology and Service Extraction ADR](docs/adr/0006-deployment-topology-and-service-extraction.md)
 - [Trusted Issuer Local Testing](docs/trusted-issuers-local-testing.md)
 - [Postman Collection](postman/README.md)
 
