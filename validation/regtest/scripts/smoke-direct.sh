@@ -25,7 +25,8 @@ payment_hash="$(lncli lnd-alice decodepayreq "${invoice}" | jq -r '.payment_hash
 lncli lnd-bob payinvoice \
   --force \
   --fee_limit=100 \
-  --timeout=30 \
+  --timeout=30s \
+  --json \
   "${invoice}" >"${results_dir}/lightning-payment.json"
 jq -e '.status == "SUCCEEDED"' "${results_dir}/lightning-payment.json" >/dev/null \
   || fail "Direct Lightning payment did not reach SUCCEEDED"
@@ -39,7 +40,8 @@ lncli lnd-alice lookupinvoice "${payment_hash}" >"${results_dir}/lightning-invoi
 if lncli lnd-bob payinvoice \
   --force \
   --fee_limit=100 \
-  --timeout=10 \
+  --timeout=10s \
+  --json \
   "${invoice}" >"${results_dir}/lightning-duplicate.txt" 2>&1; then
   fail "LND unexpectedly accepted a duplicate terminal invoice payment"
 fi

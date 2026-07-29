@@ -8,7 +8,7 @@ This directory is a test-only Bitcoin/Lightning validation lab:
 - direct Lightning and on-chain smoke checks
 - a separate real-LND Aratiri smoke path
 
-The LND version deliberately matches the release represented by Aratiri's pinned protobuf API. The lab is isolated on an internal Docker network; only the two LND gRPC/REST endpoints bind to host loopback. It never uses real funds or personal data.
+The LND version deliberately matches the release represented by Aratiri's pinned protobuf API. Bitcoin Core and LND peer/ZMQ traffic stay on an internal Docker network (`regtest`) with no host ports. Alice and Bob also join a separate non-internal bridge (`regtest-host`) so their gRPC/REST endpoints can publish to host loopback (`127.0.0.1` only). That host-facing bridge gives LND an outbound route; for this test lab the residual is constrained by `--nobootstrap`, `--bitcoin.regtest`, digest-pinned images, and loopback-only publication — it is not total network isolation. Bitcoin is never published to the host. The lab never uses real funds or personal data.
 
 All node data, generated RPC credentials, macaroons, TLS material, and evidence are created under the gitignored `runtime/` directory. LND's `--noseedbackup` mode is designed only for test networks: it creates and auto-unlocks fresh wallets without printing or committing seed words. Never reuse this configuration on testnet or mainnet.
 

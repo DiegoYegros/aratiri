@@ -3,6 +3,7 @@ name: aratiri-regtest
 services:
   bitcoin:
     # Bitcoin Core 27.1, linux/amd64 manifest pinned for reproducible evidence.
+    # Bitcoin stays only on the internal regtest network: no host ports, no outbound bridge.
     image: bitcoin/bitcoin:27.1@sha256:de42bc7c635487387a83493a320a2f8707211947864d91e672c3d74622c76199
     platform: linux/amd64
     user: "0:0"
@@ -41,6 +42,8 @@ services:
 
   lnd-alice:
     # This is the same LND release whose protobuf API is pinned by Aratiri.
+    # Attached to internal regtest (bitcoind + peer) and non-internal regtest-host so
+    # loopback-published gRPC/REST ports actually bind for a host Aratiri process.
     image: lightninglabs/lnd:v0.18.5-beta@sha256:2b560c9beb559c57ab2f2da1dfed80d286cf11a6dc6e4354cab84aafba79b6f6
     platform: linux/amd64
     restart: unless-stopped
@@ -77,8 +80,10 @@ services:
       - ./runtime/lnd-alice:/root/.lnd
     networks:
       - regtest
+      - regtest-host
 
   lnd-bob:
+    # Same dual-network pattern as Alice: internal peer/bitcoind path plus host loopback publish.
     image: lightninglabs/lnd:v0.18.5-beta@sha256:2b560c9beb559c57ab2f2da1dfed80d286cf11a6dc6e4354cab84aafba79b6f6
     platform: linux/amd64
     restart: unless-stopped
@@ -115,7 +120,15 @@ services:
       - ./runtime/lnd-bob:/root/.lnd
     networks:
       - regtest
+      - regtest-host
 
 networks:
+  # Bitcoind + LND peer/ZMQ traffic only. No host publication from this network.
   regtest:
     internal: true
+  # Host-facing bridge for LND gRPC/REST publish only. Residual: LND containers gain an
+  # outbound route via this bridge; constrained for this lab by --nobootstrap,
+  # --bitcoin.regtest, digest-pinned images, and 127.0.0.1-only port publication.
+  # This is not total network isolation.
+  regtest-host:
+    driver: bridge

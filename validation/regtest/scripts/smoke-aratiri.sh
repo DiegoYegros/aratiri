@@ -101,7 +101,8 @@ lncli lnd-alice lookupinvoice "${credit_hash}" \
 lncli lnd-bob payinvoice \
   --force \
   --fee_limit=100 \
-  --timeout=30 \
+  --timeout=30s \
+  --json \
   "${credit_invoice}" >"${results_dir}/credit-payment-node.json"
 jq -e '.status == "SUCCEEDED"' "${results_dir}/credit-payment-node.json" >/dev/null \
   || prerequisite_error "Bob LND could not pay the Aratiri funding invoice"
