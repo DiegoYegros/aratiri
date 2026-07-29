@@ -1,0 +1,49 @@
+# Optional local LND (neutrino, no bitcoind). Testnet for TFG/dev.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.lnd.yml --profile db-only --profile kafka-only --profile lnd up -d db kafka lnd
+services:
+  lnd:
+    image: lightninglabs/lnd:v0.18.5-beta
+    container_name: aratiri_lnd
+    profiles:
+      - lnd
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:10009:10009"
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - lnd_data:/root/.lnd
+    environment:
+      NETWORK: testnet
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mkdir -p /root/.lnd
+        cat > /root/.lnd/lnd.conf <<'EOF'
+        [Application Options]
+        listen=0.0.0.0:9735
+        rpclisten=0.0.0.0:10009
+        restlisten=0.0.0.0:8080
+        tlsextradomain=localhost
+        tlsextraip=127.0.0.1
+        accept-keysend=true
+        accept-amp=true
+        allow-circular-route=true
+
+        [Bitcoin]
+        bitcoin.active=true
+        bitcoin.testnet=true
+        bitcoin.node=neutrino
+
+        [Neutrino]
+        neutrino.addpeer=faucet.lightning.community
+        neutrino.addpeer=btcd-testnet.lightning.computer
+        neutrino.addpeer=testnet.lncm.io:18333
+
+        [protocol]
+        protocol.wumbo-channels=true
+        EOF
+        exec lnd --configfile=/root/.lnd/lnd.conf
+volumes:
+  lnd_data:
