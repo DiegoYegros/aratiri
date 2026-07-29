@@ -73,20 +73,35 @@ class PasswordResetAdapterTest {
     }
 
     @Test
-    void initiatePasswordReset_throwsForFederatedUser() {
+    void initiatePasswordReset_noSideEffectsForFederatedUser() {
         AuthUser user = new AuthUser("user-1", "Test", "test@test.com", AuthProvider.GOOGLE, Role.USER);
         when(loadUserPort.findByEmail("test@test.com")).thenReturn(Optional.of(user));
-        PasswordResetRequestCommand command = new PasswordResetRequestCommand("test@test.com");
 
-        assertThrows(AratiriException.class, () -> adapter.initiatePasswordReset(command));
+        assertDoesNotThrow(() -> adapter.initiatePasswordReset(new PasswordResetRequestCommand("test@test.com")));
+
+        verify(passwordResetTokenPort, never()).save(any());
+        verify(emailNotificationPort, never()).sendPasswordResetEmail(anyString(), anyString());
     }
 
     @Test
-    void initiatePasswordReset_throwsWhenUserNotFound() {
-        when(loadUserPort.findByEmail("unknown@test.com")).thenReturn(Optional.empty());
-        PasswordResetRequestCommand command = new PasswordResetRequestCommand("unknown@test.com");
+    void initiatePasswordReset_noSideEffectsForExternalProvider() {
+        AuthUser user = new AuthUser("user-1", "Test", "test@test.com", AuthProvider.EXTERNAL, Role.USER);
+        when(loadUserPort.findByEmail("test@test.com")).thenReturn(Optional.of(user));
 
-        assertThrows(AratiriException.class, () -> adapter.initiatePasswordReset(command));
+        assertDoesNotThrow(() -> adapter.initiatePasswordReset(new PasswordResetRequestCommand("test@test.com")));
+
+        verify(passwordResetTokenPort, never()).save(any());
+        verify(emailNotificationPort, never()).sendPasswordResetEmail(anyString(), anyString());
+    }
+
+    @Test
+    void initiatePasswordReset_noSideEffectsWhenUserNotFound() {
+        when(loadUserPort.findByEmail("unknown@test.com")).thenReturn(Optional.empty());
+
+        assertDoesNotThrow(() -> adapter.initiatePasswordReset(new PasswordResetRequestCommand("unknown@test.com")));
+
+        verify(passwordResetTokenPort, never()).save(any());
+        verify(emailNotificationPort, never()).sendPasswordResetEmail(anyString(), anyString());
     }
 
     @Test

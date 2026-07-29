@@ -83,6 +83,27 @@ Trusted issuer/token exchange settings:
 
 For local trusted issuer testing, see [Trusted Issuer Local Testing](trusted-issuers-local-testing.md).
 
+### Public auth abuse controls
+
+`POST /v1/auth/forgot-password` returns the same `200` for well-formed emails whether the account is absent, local, or federated. A reset token/email is created only for an existing eligible `LOCAL` account. Equalizing status and message does **not** prove perfect timing indistinguishability.
+
+Sensitive public auth routes (`login`, `register`, `verify`, `forgot-password`, `reset-password`, `refresh`, `exchange`, `sso/google`) are additionally guarded by an in-process fixed-window rate limiter:
+
+| Variable / property | Default | Purpose |
+| --- | --- | --- |
+| `ARATIRI_SECURITY_AUTH_RATE_LIMIT_ENABLED` / `aratiri.security.auth-rate-limit.enabled` | `true` | Enables the servlet filter. Disable only when a trusted gateway/WAF already enforces equivalent limits, or for tightly controlled local testing. |
+| `ARATIRI_SECURITY_AUTH_RATE_LIMIT_REQUESTS_PER_WINDOW` / `aratiri.security.auth-rate-limit.requests-per-window` | `30` | Max allowed requests per key within one window. Must be `>= 1`. |
+| `ARATIRI_SECURITY_AUTH_RATE_LIMIT_WINDOW` / `aratiri.security.auth-rate-limit.window` | `1m` | Fixed window duration (Spring `Duration`). Supported range: **`1ms`–`1d` inclusive**. Sub-millisecond positives (which truncate to 0ms), zero/negative values, durations above 1 day, and values that overflow millisecond conversion fail startup. |
+| `ARATIRI_SECURITY_AUTH_RATE_LIMIT_MAXIMUM_KEYS` / `aratiri.security.auth-rate-limit.maximum-keys` | `100000` | Caffeine bound on distinct keys. Must be `>= 1`. |
+
+Operational limitations (honest):
+
+- Counters are **per JVM process**, reset on restart, and are **not** a distributed/global quota across replicas.
+- Keys use server-observed `HttpServletRequest#getRemoteAddr()` plus method/path. Raw `X-Forwarded-For` is **not** trusted; meaningful client IPs require a trusted proxy that rewrites the remote address.
+- This does **not** replace gateway/WAF rate limits, MFA, account lockout policy, or monitoring/alerting.
+- Exceeded requests receive `429` with `Retry-After` and the standard JSON `ErrorResponse` body, without invoking auth controllers.
+- The rate-limit servlet filter is ordered after the request `LogFilter` (`@Order(2)`). Spring Security's filter chain defaults to order `-100`, so Security may run first; for public auth routes that are `permitAll`, a 429 still short-circuits before controllers/auth services.
+
 ## Payments And Fees
 
 | Variable | Default | Purpose |

@@ -130,6 +130,14 @@ aratiri:
     default-principal-claim: ${ARATIRI_SECURITY_DEFAULT_PRINCIPAL_CLAIM:email}
     api-docs:
       enabled: ${ARATIRI_SECURITY_API_DOCS_ENABLED:false}
+    auth-rate-limit:
+      # Per-process only: not shared across instances, resets on restart, uses servlet remoteAddr
+      # (not raw X-Forwarded-For). Does not replace gateway/WAF limits, MFA, lockout, or monitoring.
+      # window must be in [1ms, 1d]; invalid values fail startup before serving traffic.
+      enabled: ${ARATIRI_SECURITY_AUTH_RATE_LIMIT_ENABLED:true}
+      requests-per-window: ${ARATIRI_SECURITY_AUTH_RATE_LIMIT_REQUESTS_PER_WINDOW:30}
+      window: ${ARATIRI_SECURITY_AUTH_RATE_LIMIT_WINDOW:1m}
+      maximum-keys: ${ARATIRI_SECURITY_AUTH_RATE_LIMIT_MAXIMUM_KEYS:100000}
     token-exchange:
       enabled: ${ARATIRI_TOKEN_EXCHANGE_ENABLED:false}
       client-id: ${ARATIRI_TOKEN_EXCHANGE_CLIENT_ID:}

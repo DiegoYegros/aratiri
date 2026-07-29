@@ -97,6 +97,11 @@ aratiri:
       currencies: usd,pyg,ars,eur
   security:
     default-principal-claim: email
+    auth-rate-limit:
+      enabled: true
+      requests-per-window: 10000
+      window: 1m
+      maximum-keys: 10000
     token-exchange:
       enabled: false
       client-id: test-client

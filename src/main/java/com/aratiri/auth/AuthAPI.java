@@ -142,12 +142,15 @@ public class AuthAPI {
     }
 
     @PostMapping("/forgot-password")
-    @Operation(summary = "Initiate password reset")
+    @Operation(
+            summary = "Initiate password reset",
+            description = "Accepts a valid email and always returns 200 when the request is well-formed. "
+                    + "A reset code is emailed only when an eligible local-password account exists for that address. "
+                    + "Unknown and federated accounts produce the same response without sending mail. "
+                    + "Equalized status/body does not imply perfect timing indistinguishability."
+    )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Password reset initiated successfully."),
-            @ApiResponse(responseCode = "404", description = "Not Found - User with this email not found.",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
+            @ApiResponse(responseCode = "200", description = "Request accepted. Identical whether or not a local reset email was sent.")
     })
     public ResponseEntity<Void> forgotPassword(@Valid @RequestBody PasswordResetDTOs.ForgotPasswordRequestDTO request) {
         passwordResetPort.initiatePasswordReset(new PasswordResetRequestCommand(request.getEmail()));

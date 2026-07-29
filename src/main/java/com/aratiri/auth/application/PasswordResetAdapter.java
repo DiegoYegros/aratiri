@@ -42,12 +42,18 @@ public class PasswordResetAdapter implements PasswordResetPort {
         this.clock = clock;
     }
 
+    /**
+     * Starts a password reset when an eligible LOCAL account exists.
+     * <p>
+     * Unknown and federated emails return successfully without side effects so HTTP
+     * status and body do not reveal account or provider existence. Equalizing the
+     * response contract does not guarantee perfect timing indistinguishability.
+     */
     @Override
     public void initiatePasswordReset(PasswordResetRequestCommand command) {
-        AuthUser user = loadUserPort.findByEmail(command.email())
-                .orElseThrow(() -> new AratiriException("User with this email not found.", HttpStatus.NOT_FOUND.value()));
-        if (user.provider() != AuthProvider.LOCAL) {
-            throw new AratiriException("This account is federated. Please log in using your identity provider.", HttpStatus.BAD_REQUEST.value());
+        AuthUser user = loadUserPort.findByEmail(command.email()).orElse(null);
+        if (user == null || user.provider() != AuthProvider.LOCAL) {
+            return;
         }
         String code = generateResetCode();
         PasswordResetToken token = new PasswordResetToken(

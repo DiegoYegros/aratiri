@@ -8,6 +8,8 @@ import com.aratiri.auth.application.dto.VerificationRequestDTO;
 import com.aratiri.auth.application.port.out.EmailNotificationPort;
 import com.aratiri.accounts.application.port.out.CurrencyConversionPort;
 import com.aratiri.accounts.application.port.out.LightningAddressPort;
+import com.aratiri.auth.domain.AuthProvider;
+import com.aratiri.auth.domain.Role;
 import com.aratiri.infrastructure.persistence.jpa.entity.PasswordResetData;
 import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.PasswordResetDataRepository;
@@ -25,6 +27,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AuthIntegrationTest extends AbstractIntegrationTest {
@@ -308,6 +312,49 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .bodyValue(createLoginRequest(email, originalPassword))
                 .exchange()
                 .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @DisplayName("Forgot-password returns identical 200 for unknown email without side effects")
+    void forgot_password_unknown_email_returns_ok_without_side_effects() {
+        com.aratiri.auth.application.dto.PasswordResetDTOs.ForgotPasswordRequestDTO forgotRequest =
+                new com.aratiri.auth.application.dto.PasswordResetDTOs.ForgotPasswordRequestDTO();
+        forgotRequest.setEmail("missing-user@example.com");
+
+        webTestClient().post().uri("/v1/auth/forgot-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(forgotRequest)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody().isEmpty();
+
+        assertTrue(passwordResetDataRepository.findAll().isEmpty());
+        verify(emailNotificationPort, never()).sendPasswordResetEmail(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Forgot-password returns identical 200 for federated account without side effects")
+    void forgot_password_federated_account_returns_ok_without_side_effects() {
+        UserEntity federated = new UserEntity();
+        federated.setName("Federated User");
+        federated.setEmail("federated-reset@example.com");
+        federated.setAuthProvider(AuthProvider.GOOGLE);
+        federated.setRole(Role.USER);
+        userRepository.save(federated);
+
+        com.aratiri.auth.application.dto.PasswordResetDTOs.ForgotPasswordRequestDTO forgotRequest =
+                new com.aratiri.auth.application.dto.PasswordResetDTOs.ForgotPasswordRequestDTO();
+        forgotRequest.setEmail("federated-reset@example.com");
+
+        webTestClient().post().uri("/v1/auth/forgot-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(forgotRequest)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody().isEmpty();
+
+        assertTrue(passwordResetDataRepository.findAll().isEmpty());
+        verify(emailNotificationPort, never()).sendPasswordResetEmail(anyString(), anyString());
     }
 
     @Test

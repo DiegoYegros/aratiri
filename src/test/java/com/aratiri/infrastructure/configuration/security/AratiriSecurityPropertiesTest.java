@@ -209,6 +209,59 @@ class AratiriSecurityPropertiesTest {
     }
 
     @Test
+    void authRateLimit_defaultsEnabledWithPositiveBounds() {
+        AratiriSecurityProperties properties = new AratiriSecurityProperties();
+        AratiriSecurityProperties.AuthRateLimit rateLimit = properties.getAuthRateLimit();
+        assertTrue(rateLimit.isEnabled());
+        assertEquals(30, rateLimit.getRequestsPerWindow());
+        assertEquals(java.time.Duration.ofMinutes(1), rateLimit.getWindow());
+        assertEquals(100_000L, rateLimit.getMaximumKeys());
+        assertDoesNotThrow(rateLimit::validate);
+    }
+
+    @Test
+    void authRateLimit_validateRejectsNonsensicalValues() {
+        AratiriSecurityProperties.AuthRateLimit rateLimit = new AratiriSecurityProperties.AuthRateLimit();
+        rateLimit.setRequestsPerWindow(0);
+        assertThrows(IllegalStateException.class, rateLimit::validate);
+
+        rateLimit = new AratiriSecurityProperties.AuthRateLimit();
+        rateLimit.setWindow(java.time.Duration.ZERO);
+        assertThrows(IllegalStateException.class, rateLimit::validate);
+
+        rateLimit = new AratiriSecurityProperties.AuthRateLimit();
+        rateLimit.setMaximumKeys(0);
+        assertThrows(IllegalStateException.class, rateLimit::validate);
+    }
+
+    @Test
+    void authRateLimit_validateRejectsSubMillisecondAndHugeWindows() {
+        AratiriSecurityProperties.AuthRateLimit subMillis = new AratiriSecurityProperties.AuthRateLimit();
+        subMillis.setWindow(java.time.Duration.ofNanos(500_000));
+        assertThrows(IllegalStateException.class, subMillis::validate);
+        assertThrows(IllegalStateException.class, subMillis::validatedWindowMillis);
+
+        AratiriSecurityProperties.AuthRateLimit aboveMax = new AratiriSecurityProperties.AuthRateLimit();
+        aboveMax.setWindow(java.time.Duration.ofDays(1).plusMillis(1));
+        assertThrows(IllegalStateException.class, aboveMax::validate);
+
+        AratiriSecurityProperties.AuthRateLimit overflowing = new AratiriSecurityProperties.AuthRateLimit();
+        overflowing.setWindow(java.time.Duration.ofSeconds(Long.MAX_VALUE));
+        assertThrows(IllegalStateException.class, overflowing::validate);
+    }
+
+    @Test
+    void authRateLimit_validatedWindowMillisAcceptsBounds() {
+        AratiriSecurityProperties.AuthRateLimit min = new AratiriSecurityProperties.AuthRateLimit();
+        min.setWindow(AratiriSecurityProperties.AuthRateLimit.MIN_WINDOW);
+        assertEquals(1L, min.validatedWindowMillis());
+
+        AratiriSecurityProperties.AuthRateLimit max = new AratiriSecurityProperties.AuthRateLimit();
+        max.setWindow(AratiriSecurityProperties.AuthRateLimit.MAX_WINDOW);
+        assertEquals(AratiriSecurityProperties.AuthRateLimit.MAX_WINDOW_MILLIS, max.validatedWindowMillis());
+    }
+
+    @Test
     void defaultPrincipalClaim_defaultValue() {
         AratiriSecurityProperties props = new AratiriSecurityProperties();
         assertEquals("email", props.getDefaultPrincipalClaim());
