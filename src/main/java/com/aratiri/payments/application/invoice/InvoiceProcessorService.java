@@ -8,7 +8,7 @@ import com.aratiri.invoices.application.InvoiceStateUpdate;
 import com.aratiri.invoices.application.InvoiceStateUpdateResult;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.payments.domain.LightningInvoiceUpdate;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -63,7 +63,7 @@ public class InvoiceProcessorService {
         try {
             outboxWriter.publishInvoiceSettled(publication.invoiceId(), publication.event());
         } catch (Exception e) {
-            throw new AratiriException("Failed to create outbox event for settled invoice.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
+            throw new ApplicationException("Failed to create outbox event for settled invoice.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
         }
     }
 

@@ -16,7 +16,7 @@ import com.aratiri.payments.domain.LightningPaymentStatus;
 import com.aratiri.payments.domain.OnChainFeeEstimate;
 import com.aratiri.payments.domain.PaymentAccount;
 import com.aratiri.payments.domain.exception.LightningNodeTransportException;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.dto.TransactionCurrency;
@@ -256,7 +256,7 @@ class PaymentsAdapterTest {
     LightningPayment succeededPayment = lightningPayment(LightningPaymentStatus.SUCCEEDED);
     when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.of(succeededPayment));
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> paymentsAdapter.payLightningInvoice(request, USER_ID, "idem-key"));
 
     assertEquals(409, ex.getStatus());
@@ -279,7 +279,7 @@ class PaymentsAdapterTest {
     LightningPayment inFlightPayment = lightningPayment(LightningPaymentStatus.IN_FLIGHT);
     when(lightningNodePort.findPayment(PAYMENT_HASH)).thenReturn(Optional.of(inFlightPayment));
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> paymentsAdapter.payLightningInvoice(request, USER_ID, "idem-key"));
 
     assertEquals(409, ex.getStatus());
@@ -327,7 +327,7 @@ class PaymentsAdapterTest {
     when(lightningInvoicePort.findByPaymentHash(PAYMENT_HASH))
         .thenReturn(Optional.of(new InternalLightningInvoice("receiver-123", InternalLightningInvoice.InvoiceState.SETTLED)));
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> paymentsAdapter.payLightningInvoice(request, USER_ID, "idem-key"));
 
     assertEquals(400, ex.getStatus());
@@ -348,7 +348,7 @@ class PaymentsAdapterTest {
     when(lightningInvoicePort.findByPaymentHash(PAYMENT_HASH))
         .thenReturn(Optional.of(new InternalLightningInvoice(USER_ID, InternalLightningInvoice.InvoiceState.PENDING)));
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> paymentsAdapter.payLightningInvoice(request, USER_ID, "idem-key"));
 
     assertEquals(400, ex.getStatus());
@@ -370,7 +370,7 @@ class PaymentsAdapterTest {
     when(lightningInvoicePort.findByPaymentHash(PAYMENT_HASH)).thenReturn(Optional.empty());
     when(invoicesPort.existsSettledInvoice(PAYMENT_HASH)).thenReturn(true);
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> paymentsAdapter.payLightningInvoice(request, USER_ID, "idem-key"));
 
     assertEquals(400, ex.getStatus());
@@ -434,7 +434,7 @@ class PaymentsAdapterTest {
     when(lightningNodePort.findPayment(PAYMENT_HASH))
         .thenThrow(new LightningNodeTransportException("node unavailable", new RuntimeException("transport")));
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> paymentsAdapter.checkPaymentStatusOnNode(PAYMENT_HASH));
 
     assertEquals(500, ex.getStatus());
@@ -446,7 +446,7 @@ class PaymentsAdapterTest {
     when(lightningNodePort.findPayment(PAYMENT_HASH))
         .thenThrow(new RuntimeException("network failure"));
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> paymentsAdapter.checkPaymentStatusOnNode(PAYMENT_HASH));
 
     assertEquals(500, ex.getStatus());
@@ -469,7 +469,7 @@ class PaymentsAdapterTest {
     when(lightningNodePort.estimateOnChainFee(any(OnChainPaymentDTOs.EstimateFeeRequestDTO.class)))
         .thenReturn(new OnChainFeeEstimate(250L, 12L));
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> paymentsAdapter.sendOnChain(request, USER_ID, "idem-key"));
 
     assertEquals(400, ex.getStatus());
@@ -553,7 +553,7 @@ class PaymentsAdapterTest {
     when(lightningNodePort.estimateOnChainFee(any(OnChainPaymentDTOs.EstimateFeeRequestDTO.class)))
         .thenThrow(new RuntimeException("fee estimation failed"));
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> paymentsAdapter.estimateOnChainFee(request, USER_ID));
 
     assertEquals(500, ex.getStatus());

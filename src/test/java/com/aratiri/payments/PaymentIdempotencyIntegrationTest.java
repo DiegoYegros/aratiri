@@ -11,7 +11,7 @@ import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRep
 import com.aratiri.payments.application.PaymentCommandService;
 import com.aratiri.payments.application.command.PaymentCommandFailurePayload;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -122,7 +122,7 @@ class PaymentIdempotencyIntegrationTest extends AbstractIntegrationTest {
 
         String secondPayload = "{\"invoice\":\"lnbc1test456\"}";
 
-        AratiriException exception = assertThrows(AratiriException.class, () ->
+        ApplicationException exception = assertThrows(ApplicationException.class, () ->
                 paymentCommandService.resolveIdempotency(userId, idempotencyKey, "LIGHTNING_INVOICE_PAY", secondPayload)
         );
         assertEquals(HttpStatus.CONFLICT.value(), exception.getStatus());

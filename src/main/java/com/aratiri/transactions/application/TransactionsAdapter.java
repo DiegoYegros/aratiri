@@ -2,7 +2,7 @@ package com.aratiri.transactions.application;
 
 import com.aratiri.infrastructure.persistence.jpa.entity.*;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
@@ -39,16 +39,16 @@ public class TransactionsAdapter implements TransactionsPort {
     public TransactionDTOResponse confirmTransaction(String id, String userId) {
         logger.info("In confirmTransaction, received id [{}]", id);
         TransactionEntity transaction = transactionsRepository.findById(id)
-                .orElseThrow(() -> new AratiriException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
+                .orElseThrow(() -> new ApplicationException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
 
         if (!Objects.equals(transaction.getUserId(), userId)) {
-            throw new AratiriException(String.format("Transaction [%s] does not correspond to current user.", id));
+            throw new ApplicationException(String.format("Transaction [%s] does not correspond to current user.", id));
         }
         if (isExternalDebit(transaction)) {
             transactionSettlementModule.settleExternalDebit(new ExternalDebitCompletionSettlement(id, userId));
             return transactionsRepository.findById(id)
                     .map(this::mapToDtoFast)
-                    .orElseThrow(() -> new AratiriException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
+                    .orElseThrow(() -> new ApplicationException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
         }
         return mapToDto(transactionSettlementService.settlePending(transaction));
     }
@@ -58,12 +58,12 @@ public class TransactionsAdapter implements TransactionsPort {
     public TransactionDTOResponse confirmTransactionAsAdmin(String id) {
         logger.info("In confirmTransactionAsAdmin, received id [{}]", id);
         TransactionEntity transaction = transactionsRepository.findById(id)
-                .orElseThrow(() -> new AratiriException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
+                .orElseThrow(() -> new ApplicationException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
         if (isExternalDebit(transaction)) {
             transactionSettlementModule.settleExternalDebit(new ExternalDebitCompletionSettlement(id, null));
             return transactionsRepository.findById(id)
                     .map(this::mapToDtoFast)
-                    .orElseThrow(() -> new AratiriException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
+                    .orElseThrow(() -> new ApplicationException(String.format(TRANSACTION_NOT_FOUND_FORMAT, id)));
         }
         return mapToDto(transactionSettlementService.settlePending(transaction));
     }
@@ -152,7 +152,7 @@ public class TransactionsAdapter implements TransactionsPort {
     @Transactional
     public void failTransaction(String transactionId, String failureReason) {
         TransactionEntity transaction = transactionsRepository.findById(transactionId)
-                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found for failure.", transactionId)));
+                .orElseThrow(() -> new ApplicationException(String.format("Transaction with id [%s] not found for failure.", transactionId)));
         if (isExternalDebit(transaction)) {
             transactionSettlementModule.failExternalDebit(new ExternalDebitFailureSettlement(transactionId, failureReason));
             return;

@@ -10,7 +10,7 @@ import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import com.aratiri.invoices.application.InternalInvoiceSettlementFacts;
 import com.aratiri.invoices.application.SettleInternalInvoiceCommand;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
 import com.aratiri.webhooks.application.WebhookEventService;
@@ -193,7 +193,7 @@ class TransactionSettlementServiceTest {
         .type(TransactionType.LIGHTNING_DEBIT)
         .build();
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> service.createAndSettleTransaction(request));
 
     assertTrue(ex.getMessage().contains("not valid for the create-and-settle flow"));
@@ -319,7 +319,7 @@ class TransactionSettlementServiceTest {
     when(transactionsRepository.findById(TX_ID)).thenReturn(Optional.of(tx));
     ExternalDebitCompletionSettlement settlement = new ExternalDebitCompletionSettlement(TX_ID, USER_ID);
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> service.settleExternalDebit(settlement));
 
     assertTrue(ex.getMessage().contains("not valid for external debit"));
@@ -331,7 +331,7 @@ class TransactionSettlementServiceTest {
     when(transactionsRepository.findById(TX_ID)).thenReturn(Optional.of(tx));
     ExternalDebitCompletionSettlement settlement = new ExternalDebitCompletionSettlement(TX_ID, USER_ID);
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> service.settleExternalDebit(settlement));
 
     assertTrue(ex.getMessage().contains("does not correspond to current user"));
@@ -363,7 +363,7 @@ class TransactionSettlementServiceTest {
     when(transactionsRepository.findById(TX_ID)).thenReturn(Optional.of(tx));
     ExternalDebitFailureSettlement settlement = new ExternalDebitFailureSettlement(TX_ID, "reason");
 
-    assertThrows(AratiriException.class, () -> service.failExternalDebit(settlement));
+    assertThrows(ApplicationException.class, () -> service.failExternalDebit(settlement));
   }
 
   @Test
@@ -428,7 +428,7 @@ class TransactionSettlementServiceTest {
     when(transactionsRepository.findById(TX_ID)).thenReturn(Optional.empty());
     LightningRoutingFeeSettlement settlement = new LightningRoutingFeeSettlement(TX_ID, 50L);
 
-    assertThrows(AratiriException.class, () -> service.applyLightningRoutingFee(settlement));
+    assertThrows(ApplicationException.class, () -> service.applyLightningRoutingFee(settlement));
   }
 
   @Test
@@ -440,7 +440,7 @@ class TransactionSettlementServiceTest {
         .thenReturn(List.of(statusEvent(tx, TransactionStatus.PENDING), completedEvent(tx, 5000L)));
     LightningRoutingFeeSettlement settlement = new LightningRoutingFeeSettlement(TX_ID, 50L);
 
-    assertThrows(AratiriException.class, () -> service.applyLightningRoutingFee(settlement));
+    assertThrows(ApplicationException.class, () -> service.applyLightningRoutingFee(settlement));
   }
 
   @Test
@@ -451,7 +451,7 @@ class TransactionSettlementServiceTest {
         .thenReturn(List.of(statusEvent(tx, TransactionStatus.PENDING)));
     LightningRoutingFeeSettlement settlement = new LightningRoutingFeeSettlement(TX_ID, 50L);
 
-    assertThrows(AratiriException.class, () -> service.applyLightningRoutingFee(settlement));
+    assertThrows(ApplicationException.class, () -> service.applyLightningRoutingFee(settlement));
   }
 
   @Test
@@ -552,7 +552,7 @@ class TransactionSettlementServiceTest {
         TX_ID, USER_ID, "receiver", 1000L, "hash"
     );
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> service.settleInternalTransfer(settlement));
 
     assertTrue(ex.getMessage().contains("not valid for internal transfer"));
@@ -567,7 +567,7 @@ class TransactionSettlementServiceTest {
         TX_ID, USER_ID, "receiver", 1000L, "hash"
     );
 
-    assertThrows(AratiriException.class, () -> service.settleInternalTransfer(settlement));
+    assertThrows(ApplicationException.class, () -> service.settleInternalTransfer(settlement));
   }
 
   @Test
@@ -579,7 +579,7 @@ class TransactionSettlementServiceTest {
         TX_ID, USER_ID, "receiver", 1000L, "hash"
     );
 
-    assertThrows(AratiriException.class, () -> service.settleInternalTransfer(settlement));
+    assertThrows(ApplicationException.class, () -> service.settleInternalTransfer(settlement));
   }
 
   @Test
@@ -592,7 +592,7 @@ class TransactionSettlementServiceTest {
         TX_ID, USER_ID, "receiver", 1000L, "wrong-hash"
     );
 
-    assertThrows(AratiriException.class, () -> service.settleInternalTransfer(settlement));
+    assertThrows(ApplicationException.class, () -> service.settleInternalTransfer(settlement));
   }
 
   // ── settlePending – edge cases ──
@@ -625,7 +625,7 @@ class TransactionSettlementServiceTest {
             statusEvent(tx, TransactionStatus.FAILED)
         ));
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> service.settlePending(tx));
 
     assertTrue(ex.getMessage().contains("not valid for confirmation"));
@@ -642,7 +642,7 @@ class TransactionSettlementServiceTest {
     when(transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(TX_ID))
         .thenReturn(List.of(statusEvent(tx, TransactionStatus.PENDING), completedEvent(tx, 5000L)));
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> service.failTransaction(TX_ID, "should not fail completed"));
 
     assertTrue(ex.getMessage().contains("not valid for failure"));

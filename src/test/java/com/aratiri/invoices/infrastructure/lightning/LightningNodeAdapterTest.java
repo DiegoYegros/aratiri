@@ -4,7 +4,7 @@ import com.aratiri.invoices.domain.DecodedLightningInvoice;
 import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.invoices.domain.LightningInvoiceCreation;
 import com.aratiri.invoices.domain.LightningNodeInvoice;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -65,11 +65,11 @@ class LightningNodeAdapterTest {
     }
 
     @Test
-    void createInvoice_throwsAratiriExceptionOnGrpcError() {
+    void createInvoice_throwsApplicationExceptionOnGrpcError() {
         when(lightningStub.addInvoice(any(Invoice.class)))
                 .thenThrow(new StatusRuntimeException(Status.INTERNAL));
 
-        assertThrows(AratiriException.class,
+        assertThrows(ApplicationException.class,
                 () -> adapter.createInvoice(5000L, "test memo", new byte[32], new byte[32]));
     }
 
@@ -102,11 +102,11 @@ class LightningNodeAdapterTest {
     }
 
     @Test
-    void decodePaymentRequest_throwsAratiriExceptionOnGrpcError() {
+    void decodePaymentRequest_throwsApplicationExceptionOnGrpcError() {
         when(lightningStub.decodePayReq(any(PayReqString.class)))
                 .thenThrow(new StatusRuntimeException(Status.INTERNAL));
 
-        assertThrows(AratiriException.class,
+        assertThrows(ApplicationException.class,
                 () -> adapter.decodePaymentRequest("lnbc1..."));
     }
 
@@ -141,11 +141,11 @@ class LightningNodeAdapterTest {
     }
 
     @Test
-    void lookupInvoice_throwsAratiriExceptionOnOtherGrpcError() {
+    void lookupInvoice_throwsApplicationExceptionOnOtherGrpcError() {
         when(lightningStub.lookupInvoice(any(PaymentHash.class)))
                 .thenThrow(new StatusRuntimeException(Status.INTERNAL));
 
-        assertThrows(AratiriException.class,
+        assertThrows(ApplicationException.class,
                 () -> adapter.lookupInvoice("deadbeef"));
     }
 }

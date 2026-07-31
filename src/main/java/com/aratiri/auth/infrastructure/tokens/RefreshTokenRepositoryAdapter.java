@@ -7,7 +7,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.RefreshTokenEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.RefreshTokenRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.UserRepository;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -35,7 +35,7 @@ public class RefreshTokenRepositoryAdapter implements RefreshTokenPort {
     @Override
     public RefreshToken createRefreshToken(String userId) {
         UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new AratiriException("User not found", HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new ApplicationException("User not found", HttpStatus.NOT_FOUND.value()));
         Instant expiry = Instant.now().plusSeconds(properties.getJwtRefreshExpiration());
         RefreshTokenEntity entity = refreshTokenRepository.findByUser(user)
                 .map(existing -> {

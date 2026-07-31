@@ -9,7 +9,7 @@ import com.aratiri.auth.application.port.out.*;
 import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.RegistrationDraft;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -56,10 +56,10 @@ public class RegistrationAdapter implements RegistrationPort {
     @Override
     public void initiateRegistration(RegistrationCommand command) {
         loadUserPort.findByEmail(command.email()).ifPresent(user -> {
-            throw new AratiriException("Email is already in use", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Email is already in use", HttpStatus.BAD_REQUEST.value());
         });
         if (command.alias() != null && !command.alias().isBlank() && accountsPort.existsByAlias(command.alias())) {
-            throw new AratiriException("Alias is already in use", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Alias is already in use", HttpStatus.BAD_REQUEST.value());
         }
         String code = generateVerificationCode();
         RegistrationDraft draft = new RegistrationDraft(
@@ -77,13 +77,13 @@ public class RegistrationAdapter implements RegistrationPort {
     @Override
     public AuthTokens completeRegistration(VerificationCommand command) {
         RegistrationDraft draft = registrationDraftPort.findByEmail(command.email())
-                .orElseThrow(() -> new AratiriException("Invalid verification request", HttpStatus.BAD_REQUEST.value()));
+                .orElseThrow(() -> new ApplicationException("Invalid verification request", HttpStatus.BAD_REQUEST.value()));
         if (draft.isExpired(clock)) {
             registrationDraftPort.deleteByEmail(command.email());
-            throw new AratiriException("Verification code has expired", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Verification code has expired", HttpStatus.BAD_REQUEST.value());
         }
         if (!draft.code().equals(command.code())) {
-            throw new AratiriException("Invalid verification code", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Invalid verification code", HttpStatus.BAD_REQUEST.value());
         }
         AuthUser user = userCommandPort.registerLocalUser(draft.name(), draft.email(), draft.encodedPassword());
         CreateAccountRequestDTO createAccountRequest = new CreateAccountRequestDTO();

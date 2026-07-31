@@ -11,7 +11,7 @@ import com.aratiri.payments.application.event.PaymentInitiatedEvent;
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.payments.application.port.out.*;
 import com.aratiri.payments.domain.*;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 import com.aratiri.webhooks.application.PaymentWebhookFacts;
@@ -140,12 +140,12 @@ public class PaymentsAdapter implements PaymentsPort {
             InternalLightningInvoice internalInvoice
     ) {
         if (internalInvoice.state() == InternalLightningInvoice.InvoiceState.SETTLED) {
-            throw new AratiriException("The invoice is already paid", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("The invoice is already paid", HttpStatus.BAD_REQUEST.value());
         }
 
         long amountSat = decodedInvoice.amountSatoshis();
         if (internalInvoice.userId().equals(senderId)) {
-            throw new AratiriException("Payment to self is not allowed.", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Payment to self is not allowed.", HttpStatus.BAD_REQUEST.value());
         }
 
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
@@ -192,7 +192,7 @@ public class PaymentsAdapter implements PaymentsPort {
         try {
             return lightningNodePort.findPayment(paymentHash);
         } catch (Exception e) {
-            throw new AratiriException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
+            throw new ApplicationException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 
@@ -221,7 +221,7 @@ public class PaymentsAdapter implements PaymentsPort {
         long totalFeeSat = Math.addExact(networkFeeSat, platformFeeSat);
         long totalAmount = Math.addExact(amountSat, totalFeeSat);
         if (account.bitcoinAddress().equals(normalizedRequest.getAddress())) {
-            throw new AratiriException("Payment to self not allowed.", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Payment to self not allowed.", HttpStatus.BAD_REQUEST.value());
         }
 
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()
@@ -270,7 +270,7 @@ public class PaymentsAdapter implements PaymentsPort {
             responseDTO.setTotalFeeSat(Math.addExact(estimate.feeSat(), platformFeeSat));
             return responseDTO;
         } catch (Exception e) {
-            throw new AratiriException("Error estimating fee: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
+            throw new ApplicationException("Error estimating fee: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 
@@ -283,7 +283,7 @@ public class PaymentsAdapter implements PaymentsPort {
             outboxWriter.publishPaymentInitiated(transactionId, eventPayload);
             logger.info("Saved payment initiated event to outbox for aggregateId: {}", transactionId);
         } catch (Exception _) {
-            throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
+            throw new ApplicationException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 
@@ -292,7 +292,7 @@ public class PaymentsAdapter implements PaymentsPort {
             outboxWriter.publishOnChainPaymentInitiated(transactionId, eventPayload);
             logger.info("Saved on-chain payment initiated event to outbox for aggregateId: {}", transactionId);
         } catch (Exception _) {
-            throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
+            throw new ApplicationException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 
@@ -301,7 +301,7 @@ public class PaymentsAdapter implements PaymentsPort {
             outboxWriter.publishInternalTransferInitiated(transactionId, eventPayload);
             logger.info("Saved internal transfer initiated event to outbox for aggregateId: {}", transactionId);
         } catch (Exception _) {
-            throw new AratiriException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
+            throw new ApplicationException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 

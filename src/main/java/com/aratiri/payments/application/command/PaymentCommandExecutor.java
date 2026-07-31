@@ -2,7 +2,7 @@ package com.aratiri.payments.application.command;
 
 import com.aratiri.payments.application.PaymentCommandService;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -30,7 +30,7 @@ public class PaymentCommandExecutor {
             case FAILED_REPLAY -> throw JsonUtils.fromJson(
                     result.responsePayload(), PaymentCommandFailurePayload.class
             ).toException();
-            case IN_PROGRESS -> throw new AratiriException(
+            case IN_PROGRESS -> throw new ApplicationException(
                     command.inProgressMessage(),
                     HttpStatus.CONFLICT.value()
             );

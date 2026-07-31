@@ -7,7 +7,7 @@ import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.payments.application.port.in.PaymentsPort;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,9 +56,9 @@ class PaymentsAPITest {
         PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
         request.setInvoice("lnbc1...");
 
-        assertThrows(AratiriException.class, () -> api.payInvoice(null, request, ctx));
-        assertThrows(AratiriException.class, () -> api.payInvoice("", request, ctx));
-        assertThrows(AratiriException.class, () -> api.payInvoice("   ", request, ctx));
+        assertThrows(ApplicationException.class, () -> api.payInvoice(null, request, ctx));
+        assertThrows(ApplicationException.class, () -> api.payInvoice("", request, ctx));
+        assertThrows(ApplicationException.class, () -> api.payInvoice("   ", request, ctx));
     }
 
     @Test
@@ -83,7 +83,7 @@ class PaymentsAPITest {
         request.setAddress("bc1q...");
         request.setSatsAmount(10000L);
 
-        assertThrows(AratiriException.class, () -> api.sendOnChain(null, request, ctx));
+        assertThrows(ApplicationException.class, () -> api.sendOnChain(null, request, ctx));
     }
 
     @Test

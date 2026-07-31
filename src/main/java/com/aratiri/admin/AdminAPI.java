@@ -4,7 +4,7 @@ import com.aratiri.admin.application.dto.*;
 import com.aratiri.admin.application.port.in.AdminPort;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -163,7 +163,7 @@ public class AdminAPI {
     public ResponseEntity<NodeSettingsDTO> updateAutoManagePeers(@RequestBody Map<String, Boolean> payload) {
         Boolean enabled = payload.get("enabled");
         if (enabled == null) {
-            throw new AratiriException("Request body must contain 'enabled' field (true/false)", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Request body must contain 'enabled' field (true/false)", HttpStatus.BAD_REQUEST.value());
         }
         return ResponseEntity.ok(adminPort.updateAutoManagePeers(enabled));
     }

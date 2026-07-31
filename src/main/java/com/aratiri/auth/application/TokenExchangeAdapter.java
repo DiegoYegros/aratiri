@@ -7,7 +7,7 @@ import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.infrastructure.security.AratiriJwtPrincipalService;
 import com.aratiri.infrastructure.configuration.security.AratiriSecurityProperties;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -40,7 +40,7 @@ public class TokenExchangeAdapter implements TokenExchangePort {
     @Override
     public AuthTokens exchange(String externalToken) {
         if (!securityProperties.getTokenExchange().isEnabled()) {
-            throw new AratiriException("Token exchange is disabled", HttpStatus.NOT_FOUND.value());
+            throw new ApplicationException("Token exchange is disabled", HttpStatus.NOT_FOUND.value());
         }
 
         try {
@@ -50,7 +50,7 @@ public class TokenExchangeAdapter implements TokenExchangePort {
             String refreshToken = refreshTokenPort.createRefreshToken(user.id()).token();
             return new AuthTokens(accessToken, refreshToken);
         } catch (JwtException ex) {
-            throw new AratiriException(ex.getMessage(), HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException(ex.getMessage(), HttpStatus.BAD_REQUEST.value());
         }
     }
 }

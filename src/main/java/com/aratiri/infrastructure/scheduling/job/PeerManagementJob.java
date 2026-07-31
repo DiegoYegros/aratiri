@@ -6,7 +6,7 @@ import com.aratiri.admin.application.dto.PeerDTO;
 import com.aratiri.admin.application.port.in.AdminPort;
 import com.aratiri.admin.application.port.out.NodeSettingsPort;
 import com.aratiri.admin.domain.NodeSettings;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -99,7 +99,7 @@ public class PeerManagementJob {
             logger.info("Successfully initiated connection to {}", node.getAlias());
             currentPeerPubkeys.add(node.getPubKey());
             return true;
-        } catch (AratiriException e) {
+        } catch (ApplicationException e) {
             logger.warn("Failed to connect to peer {} ({}): {}", node.getAlias(), node.getPubKey(), e.getMessage());
         } catch (Exception e) {
             logger.error("Unexpected error connecting to peer {} ({}): {}", node.getAlias(), node.getPubKey(), e.getMessage(), e);

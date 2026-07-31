@@ -4,7 +4,7 @@ import com.aratiri.admin.application.dto.*;
 import com.aratiri.admin.application.port.in.AdminPort;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import lnrpc.CloseStatusUpdate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -234,14 +234,14 @@ class AdminAPITest {
     void updateAutoManagePeers_missingEnabled() {
         Map<String, Boolean> payload = Map.of();
 
-        assertThrows(AratiriException.class, () -> adminAPI.updateAutoManagePeers(payload));
+        assertThrows(ApplicationException.class, () -> adminAPI.updateAutoManagePeers(payload));
     }
 
     @Test
     void updateAutoManagePeers_nullEnabled() {
         Map<String, Boolean> payload = new java.util.HashMap<>();
         payload.put("enabled", null);
-        assertThrows(AratiriException.class, () -> adminAPI.updateAutoManagePeers(payload));
+        assertThrows(ApplicationException.class, () -> adminAPI.updateAutoManagePeers(payload));
     }
 
     @Test

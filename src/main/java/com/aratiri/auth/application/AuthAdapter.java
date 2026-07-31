@@ -5,7 +5,7 @@ import com.aratiri.auth.application.port.out.*;
 import com.aratiri.auth.domain.AuthProvider;
 import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.auth.domain.AuthUser;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -34,17 +34,17 @@ public class AuthAdapter implements AuthPort {
     @Override
     public AuthUser getCurrentUser() {
         String email = authenticatedUserPort.getCurrentUserEmail()
-                .orElseThrow(() -> new AratiriException("User not authenticated"));
+                .orElseThrow(() -> new ApplicationException("User not authenticated"));
         return loadUserPort.findByEmail(email)
-                .orElseThrow(() -> new AratiriException("User not found"));
+                .orElseThrow(() -> new ApplicationException("User not found"));
     }
 
     @Override
     public AuthTokens login(String username, String password) {
         AuthUser user = loadUserPort.findByEmail(username)
-                .orElseThrow(() -> new AratiriException("Invalid username or password"));
+                .orElseThrow(() -> new ApplicationException("Invalid username or password"));
         if (user.provider() != AuthProvider.LOCAL) {
-            throw new AratiriException("Please log in using your federated identity provider.", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Please log in using your federated identity provider.", HttpStatus.BAD_REQUEST.value());
         }
         authenticationPort.authenticate(username, password);
         String accessToken = accessTokenPort.generateAccessToken(username);

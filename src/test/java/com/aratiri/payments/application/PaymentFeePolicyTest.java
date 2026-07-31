@@ -1,6 +1,6 @@
 package com.aratiri.payments.application;
 
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -27,7 +27,7 @@ class PaymentFeePolicyTest {
   void platformFee_rejectsArithmeticOverflow() {
     PaymentFeePolicy policy = new PaymentFeePolicy(Long.MAX_VALUE, BigDecimal.ONE, 0L, null);
 
-    AratiriException exception = assertThrows(AratiriException.class, () -> policy.lightningPlatformFee(1L));
+    ApplicationException exception = assertThrows(ApplicationException.class, () -> policy.lightningPlatformFee(1L));
     assertEquals(500, exception.getStatus());
     assertTrue(exception.getMessage().contains("Configured payment fees exceed supported limits"));
   }

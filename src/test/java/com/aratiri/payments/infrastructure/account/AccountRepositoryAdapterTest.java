@@ -5,7 +5,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
 import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import com.aratiri.payments.domain.PaymentAccount;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,6 +54,6 @@ class AccountRepositoryAdapterTest {
     void getAccount_throwsWhenNotFound() {
         when(accountRepository.findByUserId("unknown")).thenReturn(null);
 
-        assertThrows(AratiriException.class, () -> adapter.getAccount("unknown"));
+        assertThrows(ApplicationException.class, () -> adapter.getAccount("unknown"));
     }
 }

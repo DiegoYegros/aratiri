@@ -7,7 +7,7 @@ import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.payments.application.event.OnChainPaymentInitiatedEvent;
 import com.aratiri.payments.application.event.PaymentInitiatedEvent;
 import com.aratiri.payments.application.event.PaymentSentEvent;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
@@ -81,7 +81,7 @@ public class OutboxWriterService implements OutboxWriter {
                     .build();
             outboxEventRepository.save(outboxEvent);
         } catch (Exception e) {
-            throw new AratiriException("Failed to create outbox event.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
+            throw new ApplicationException("Failed to create outbox event.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
         }
     }
 

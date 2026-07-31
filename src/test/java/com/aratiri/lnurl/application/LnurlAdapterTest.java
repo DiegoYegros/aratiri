@@ -11,7 +11,7 @@ import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.lnurl.application.port.out.LnurlRemotePort;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.payments.application.port.in.PaymentsPort;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,7 +70,7 @@ class LnurlAdapterTest {
     void getLnurlMetadata_throwsWhenAliasNotFound() {
         when(accountsPort.existsByAlias("unknown")).thenReturn(false);
 
-        assertThrows(AratiriException.class, () -> adapter.getLnurlMetadata("unknown"));
+        assertThrows(ApplicationException.class, () -> adapter.getLnurlMetadata("unknown"));
     }
 
     @Test
@@ -88,7 +88,7 @@ class LnurlAdapterTest {
     void getExternalLnurlMetadata_throwsOnRemoteFailure() {
         when(lnurlRemotePort.fetchMetadata("https://ext.com")).thenThrow(new RuntimeException("error"));
 
-        assertThrows(AratiriException.class, () -> adapter.getExternalLnurlMetadata("https://ext.com"));
+        assertThrows(ApplicationException.class, () -> adapter.getExternalLnurlMetadata("https://ext.com"));
     }
 
     @Test
@@ -120,9 +120,9 @@ class LnurlAdapterTest {
     @Test
     void lnurlCallback_throwsWhenAliasNotFound() {
         when(invoicesPort.generateInvoice(eq("unknown"), anyLong(), anyString(), isNull(), isNull()))
-                .thenThrow(new AratiriException("Account does not exist for given alias.", 404));
+                .thenThrow(new ApplicationException("Account does not exist for given alias.", 404));
 
-        AratiriException ex = assertThrows(AratiriException.class,
+        ApplicationException ex = assertThrows(ApplicationException.class,
                 () -> adapter.lnurlCallback("unknown", 1000L, null));
         assertEquals(404, ex.getStatus());
     }
@@ -182,7 +182,7 @@ class LnurlAdapterTest {
 
         when(lnurlRemotePort.fetchCallbackInvoice(anyString())).thenThrow(new RuntimeException("remote error"));
 
-        assertThrows(AratiriException.class, () -> adapter.handlePayRequest(request, "user-1", "key-1"));
+        assertThrows(ApplicationException.class, () -> adapter.handlePayRequest(request, "user-1", "key-1"));
     }
 
     @Test
@@ -198,7 +198,7 @@ class LnurlAdapterTest {
 
         when(lnurlRemotePort.fetchCallbackInvoice(anyString())).thenReturn(null);
 
-        assertThrows(AratiriException.class, () -> adapter.handlePayRequest(request, "user-1", "key-1"));
+        assertThrows(ApplicationException.class, () -> adapter.handlePayRequest(request, "user-1", "key-1"));
     }
 
     @Test
@@ -217,7 +217,7 @@ class LnurlAdapterTest {
 
         when(lnurlRemotePort.fetchCallbackInvoice(anyString())).thenReturn(callbackResponse);
 
-        assertThrows(AratiriException.class, () -> adapter.handlePayRequest(request, "user-1", "key-1"));
+        assertThrows(ApplicationException.class, () -> adapter.handlePayRequest(request, "user-1", "key-1"));
     }
 
     @Test
@@ -307,7 +307,7 @@ class LnurlAdapterTest {
         when(lnurlRemotePort.fetchCallbackInvoice(anyString()))
                 .thenThrow(new RuntimeException(new java.io.IOException("network error")));
 
-        assertThrows(AratiriException.class, () -> adapter.handlePayRequest(request, "user-1", "key-1"));
+        assertThrows(ApplicationException.class, () -> adapter.handlePayRequest(request, "user-1", "key-1"));
     }
 
     @Test
@@ -327,6 +327,6 @@ class LnurlAdapterTest {
 
         when(lnurlRemotePort.fetchCallbackInvoice(anyString())).thenReturn(callbackResponse);
 
-        assertThrows(AratiriException.class, () -> adapter.handlePayRequest(request, "user-1", "key-1"));
+        assertThrows(ApplicationException.class, () -> adapter.handlePayRequest(request, "user-1", "key-1"));
     }
 }

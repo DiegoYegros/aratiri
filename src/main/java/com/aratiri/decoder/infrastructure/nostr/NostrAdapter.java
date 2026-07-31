@@ -1,7 +1,7 @@
 package com.aratiri.decoder.infrastructure.nostr;
 
 import com.aratiri.decoder.application.port.out.NostrPort;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +34,7 @@ public class NostrAdapter implements NostrPort {
                         return contentNode.get(LUD16_FIELD).asString();
                     }
                 } catch (Exception _) {
-                    throw new AratiriException("Failed to parse nostr content.", HttpStatus.INTERNAL_SERVER_ERROR.value());
+                    throw new ApplicationException("Failed to parse nostr content.", HttpStatus.INTERNAL_SERVER_ERROR.value());
                 }
             }
             return null;
@@ -51,7 +51,7 @@ public class NostrAdapter implements NostrPort {
                         return contentNode.get(LUD16_FIELD).asString();
                     }
                 } catch (Exception _) {
-                    throw new AratiriException("Failed to parse nostr profile content.", HttpStatus.INTERNAL_SERVER_ERROR.value());
+                    throw new ApplicationException("Failed to parse nostr profile content.", HttpStatus.INTERNAL_SERVER_ERROR.value());
                 }
             }
             return null;

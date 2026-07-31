@@ -4,7 +4,7 @@ import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.invoices.application.InvoiceSettlementFacts;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.InvoiceCreditSettlement;
 import com.aratiri.transactions.application.TransactionSettlementModule;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ public class InvoiceSettledConsumer {
             backOff = @BackOff(delay = 1000, multiplier = 2.0),
             topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE,
             dltStrategy = org.springframework.kafka.retrytopic.DltStrategy.FAIL_ON_ERROR,
-            include = {Exception.class, AratiriException.class}
+            include = {Exception.class, ApplicationException.class}
     )
     public void handleInvoiceSettled(
             @Payload String message,

@@ -10,7 +10,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
 import com.aratiri.infrastructure.persistence.jpa.repository.NodeOperationsRepository;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import io.grpc.StatusRuntimeException;
 import lnrpc.*;
 import org.springframework.data.domain.PageRequest;
@@ -50,7 +50,7 @@ public class AdminAdapter implements AdminPort {
         try {
             lightningNodeAdminPort.connectPeer(request.getPubkey(), request.getHost());
         } catch (StatusRuntimeException e) {
-            throw new AratiriException(
+            throw new ApplicationException(
                     "Failed to connect to peer: " + Objects.requireNonNullElse(e.getStatus().getDescription(), "Unknown error"),
                     HttpStatus.BAD_GATEWAY.value()
             );
@@ -86,7 +86,7 @@ public class AdminAdapter implements AdminPort {
             );
             return channelPoint.getFundingTxidStr();
         } catch (StatusRuntimeException e) {
-            throw new AratiriException(
+            throw new ApplicationException(
                     Objects.requireNonNullElse(e.getStatus().getDescription(), "Unable to open channel"),
                     HttpStatus.BAD_REQUEST.value()
             );
@@ -97,13 +97,13 @@ public class AdminAdapter implements AdminPort {
     public CloseStatusUpdate closeChannel(CloseChannelRequestDTO request) {
         String[] parts = request.getChannelPoint().split(":");
         if (parts.length != 2) {
-            throw new AratiriException("Invalid channel point format. Expected 'fundingTxid:index'", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Invalid channel point format. Expected 'fundingTxid:index'", HttpStatus.BAD_REQUEST.value());
         }
         int outputIndex;
         try {
             outputIndex = Integer.parseInt(parts[1]);
         } catch (NumberFormatException _) {
-            throw new AratiriException("Invalid channel point output index", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Invalid channel point output index", HttpStatus.BAD_REQUEST.value());
         }
         return lightningNodeAdminPort.closeChannel(parts[0], outputIndex, request.isForce());
     }

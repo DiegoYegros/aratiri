@@ -8,7 +8,7 @@ import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRep
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.webhooks.application.WebhookEventService;
 import org.junit.jupiter.api.BeforeEach;
@@ -144,8 +144,8 @@ class TransactionsAdapterTest {
 
         when(transactionsRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(pendingTx));
 
-        AratiriException exception = assertThrows(
-                AratiriException.class,
+        ApplicationException exception = assertThrows(
+                ApplicationException.class,
                 () -> transactionsAdapter.confirmTransaction(TRANSACTION_ID, USER_ID)
         );
 
@@ -178,7 +178,7 @@ class TransactionsAdapterTest {
                 .type(TransactionType.LIGHTNING_DEBIT)
                 .build();
 
-        assertThrows(AratiriException.class, () -> transactionsAdapter.createAndSettleTransaction(request));
+        assertThrows(ApplicationException.class, () -> transactionsAdapter.createAndSettleTransaction(request));
     }
 
     @Test

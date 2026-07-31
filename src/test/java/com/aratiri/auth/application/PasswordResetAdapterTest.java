@@ -11,7 +11,7 @@ import com.aratiri.auth.domain.AuthProvider;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.PasswordResetToken;
 import com.aratiri.auth.domain.Role;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -126,7 +126,7 @@ class PasswordResetAdapterTest {
         PasswordResetCompletionCommand command =
                 new PasswordResetCompletionCommand("test@test.com", "123456", "newpass");
 
-        assertThrows(AratiriException.class, () -> adapter.completePasswordReset(command));
+        assertThrows(ApplicationException.class, () -> adapter.completePasswordReset(command));
     }
 
     @Test
@@ -139,7 +139,7 @@ class PasswordResetAdapterTest {
         PasswordResetCompletionCommand command =
                 new PasswordResetCompletionCommand("test@test.com", "123456", "newpass");
 
-        assertThrows(AratiriException.class, () -> adapter.completePasswordReset(command));
+        assertThrows(ApplicationException.class, () -> adapter.completePasswordReset(command));
         verify(passwordResetTokenPort).deleteByUserId("user-1");
     }
 
@@ -153,7 +153,7 @@ class PasswordResetAdapterTest {
         PasswordResetCompletionCommand command =
                 new PasswordResetCompletionCommand("test@test.com", "123456", "newpass");
 
-        assertThrows(AratiriException.class, () -> adapter.completePasswordReset(command));
+        assertThrows(ApplicationException.class, () -> adapter.completePasswordReset(command));
         verify(userCommandPort, never()).updatePassword(anyString(), anyString());
     }
 }

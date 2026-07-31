@@ -9,7 +9,7 @@ import com.aratiri.auth.domain.RefreshToken;
 import com.aratiri.auth.domain.Role;
 import com.aratiri.auth.infrastructure.security.AratiriJwtPrincipalService;
 import com.aratiri.infrastructure.configuration.security.AratiriSecurityProperties;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -84,7 +84,7 @@ class TokenExchangeAdapterTest {
         tokenExProps.setEnabled(false);
         when(securityProperties.getTokenExchange()).thenReturn(tokenExProps);
 
-        assertThrows(AratiriException.class, () -> adapter.exchange("ext-token"));
+        assertThrows(ApplicationException.class, () -> adapter.exchange("ext-token"));
     }
 
     @Test
@@ -95,6 +95,6 @@ class TokenExchangeAdapterTest {
         when(securityProperties.getTokenExchange()).thenReturn(tokenExProps);
         when(jwtDecoder.decode("bad-token")).thenThrow(new JwtException("invalid token"));
 
-        assertThrows(AratiriException.class, () -> adapter.exchange("bad-token"));
+        assertThrows(ApplicationException.class, () -> adapter.exchange("bad-token"));
     }
 }

@@ -5,7 +5,7 @@ import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.auth.application.port.in.GoogleAuthPort;
 import com.aratiri.auth.application.port.out.*;
 import com.aratiri.auth.domain.*;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -45,7 +45,7 @@ public class GoogleAuthAdapter implements GoogleAuthPort {
             AuthUser user = loadUserPort.findByEmail(profile.email())
                     .map(existing -> {
                         if (existing.provider() != AuthProvider.GOOGLE) {
-                            throw new AratiriException("This email is registered with a different identity provider. Please use that provider to sign in.", HttpStatus.BAD_REQUEST.value());
+                            throw new ApplicationException("This email is registered with a different identity provider. Please use that provider to sign in.", HttpStatus.BAD_REQUEST.value());
                         }
                         return existing;
                     })
@@ -60,11 +60,11 @@ public class GoogleAuthAdapter implements GoogleAuthPort {
             String accessToken = accessTokenPort.generateAccessToken(user.email());
             String refreshToken = refreshTokenPort.createRefreshToken(user.id()).token();
             return new AuthTokens(accessToken, refreshToken);
-        } catch (AratiriException ex) {
+        } catch (ApplicationException ex) {
             throw ex;
         } catch (Exception ex) {
             logger.error("Auth failed with Google, message is: {}", ex.getMessage(), ex);
-            throw new AratiriException("Auth Failed with Google", HttpStatus.INTERNAL_SERVER_ERROR.value());
+            throw new ApplicationException("Auth Failed with Google", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 }

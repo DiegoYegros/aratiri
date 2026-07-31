@@ -6,7 +6,7 @@ import com.aratiri.invoices.domain.DecodedLightningInvoice;
 import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.invoices.domain.LightningInvoiceCreation;
 import com.aratiri.invoices.domain.LightningNodeInvoice;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -57,7 +57,7 @@ public class LightningNodeAdapter implements LightningNodePort {
                     expirySeconds
             );
         } catch (StatusRuntimeException e) {
-            throw new AratiriException("Error creating invoice on LND node: " + e.getMessage(), HttpStatus.BAD_GATEWAY.value());
+            throw new ApplicationException("Error creating invoice on LND node: " + e.getMessage(), HttpStatus.BAD_GATEWAY.value());
         }
     }
 
@@ -83,7 +83,7 @@ public class LightningNodeAdapter implements LightningNodePort {
                     List.of()
             );
         } catch (StatusRuntimeException e) {
-            throw new AratiriException("Error decoding payment request: " + e.getMessage(), HttpStatus.BAD_GATEWAY.value());
+            throw new ApplicationException("Error decoding payment request: " + e.getMessage(), HttpStatus.BAD_GATEWAY.value());
         }
     }
 
@@ -107,7 +107,7 @@ public class LightningNodeAdapter implements LightningNodePort {
             if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
                 return Optional.empty();
             }
-            throw new AratiriException("Error looking up invoice on LND node: " + e.getMessage(), HttpStatus.BAD_GATEWAY.value());
+            throw new ApplicationException("Error looking up invoice on LND node: " + e.getMessage(), HttpStatus.BAD_GATEWAY.value());
         }
     }
 }

@@ -2,7 +2,7 @@ package com.aratiri.payments.application;
 
 import com.aratiri.infrastructure.persistence.jpa.entity.PaymentCommandEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.PaymentCommandRepository;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -61,7 +61,7 @@ public class PaymentCommandService {
             // Another transaction inserted the row
             PaymentCommandEntity raced = paymentCommandRepository.findByUserIdAndIdempotencyKey(
                     userId, idempotencyKey
-            ).orElseThrow(() -> new AratiriException(
+            ).orElseThrow(() -> new ApplicationException(
                     "Concurrent idempotency conflict",
                     HttpStatus.INTERNAL_SERVER_ERROR.value()
             ));
@@ -71,7 +71,7 @@ public class PaymentCommandService {
         // Reload to get generated timestamps
         PaymentCommandEntity saved = paymentCommandRepository.findByUserIdAndIdempotencyKey(
                 userId, idempotencyKey
-        ).orElseThrow(() -> new AratiriException(
+        ).orElseThrow(() -> new ApplicationException(
                 "Failed to read inserted payment command",
                 HttpStatus.INTERNAL_SERVER_ERROR.value()
         ));
@@ -81,7 +81,7 @@ public class PaymentCommandService {
 
     private PaymentCommandResult handleExistingCommand(PaymentCommandEntity existing, String requestHash) {
         if (!existing.getRequestHash().equals(requestHash)) {
-            throw new AratiriException(
+            throw new ApplicationException(
                     "Idempotency key conflict: different request payload for the same key",
                     HttpStatus.CONFLICT.value()
             );
@@ -101,7 +101,7 @@ public class PaymentCommandService {
     @Transactional
     public void completeCommand(UUID commandId, String transactionId, String responsePayload) {
         PaymentCommandEntity command = paymentCommandRepository.findById(commandId)
-                .orElseThrow(() -> new AratiriException("Payment command not found"));
+                .orElseThrow(() -> new ApplicationException("Payment command not found"));
 
         command.setTransactionId(transactionId);
         command.setResponsePayload(responsePayload);
@@ -112,7 +112,7 @@ public class PaymentCommandService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void failCommand(UUID commandId, String responsePayload) {
         PaymentCommandEntity command = paymentCommandRepository.findById(commandId)
-                .orElseThrow(() -> new AratiriException("Payment command not found"));
+                .orElseThrow(() -> new ApplicationException("Payment command not found"));
 
         command.setResponsePayload(responsePayload);
         command.setStatus("FAILED");
@@ -125,7 +125,7 @@ public class PaymentCommandService {
             byte[] hashBytes = digest.digest(input.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hashBytes);
         } catch (NoSuchAlgorithmException e) {
-            throw new AratiriException("SHA-256 algorithm not available", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
+            throw new ApplicationException("SHA-256 algorithm not available", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
         }
     }
 

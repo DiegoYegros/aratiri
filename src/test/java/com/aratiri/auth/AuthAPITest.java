@@ -11,7 +11,7 @@ import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.Role;
 import com.aratiri.infrastructure.configuration.security.AratiriSecurityProperties;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -188,7 +188,7 @@ class AuthAPITest {
         TokenExchangeRequestDTO request = new TokenExchangeRequestDTO();
         request.setExternalToken("ext-token");
 
-        assertThrows(AratiriException.class, () -> api.exchangeToken(null, request));
-        assertThrows(AratiriException.class, () -> api.exchangeToken("Bearer xyz", request));
+        assertThrows(ApplicationException.class, () -> api.exchangeToken(null, request));
+        assertThrows(ApplicationException.class, () -> api.exchangeToken("Bearer xyz", request));
     }
 }

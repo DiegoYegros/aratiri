@@ -20,7 +20,7 @@ import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRep
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEventRepository;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.InvoiceCreditSettlement;
 import com.aratiri.transactions.application.ExternalDebitCompletionSettlement;
 import com.aratiri.transactions.application.ExternalDebitFailureSettlement;
@@ -688,7 +688,7 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
                 .referenceId("ref-006")
                 .build();
 
-        AratiriException exception = assertThrows(AratiriException.class, () ->
+        ApplicationException exception = assertThrows(ApplicationException.class, () ->
                 transactionsPort.createAndSettleTransaction(request)
         );
 

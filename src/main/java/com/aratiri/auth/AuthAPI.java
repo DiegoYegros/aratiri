@@ -4,8 +4,8 @@ import com.aratiri.auth.application.dto.*;
 import com.aratiri.auth.application.port.in.*;
 import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.infrastructure.configuration.security.AratiriSecurityProperties;
-import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.shared.exception.ErrorResponse;
+import com.aratiri.errors.ApplicationException;
+import com.aratiri.infrastructure.web.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -176,7 +176,7 @@ public class AuthAPI {
 
     private void validateClientCredentials(String authorizationHeader) {
         if (authorizationHeader == null || !authorizationHeader.startsWith("Basic ")) {
-            throw new AratiriException("Missing Basic authentication header", HttpStatus.UNAUTHORIZED.value());
+            throw new ApplicationException("Missing Basic authentication header", HttpStatus.UNAUTHORIZED.value());
         }
 
         String base64Credentials = authorizationHeader.substring(6).trim();
@@ -184,11 +184,11 @@ public class AuthAPI {
         try {
             decoded = Base64.getDecoder().decode(base64Credentials);
         } catch (IllegalArgumentException _) {
-            throw new AratiriException("Invalid Basic authentication header", HttpStatus.UNAUTHORIZED.value());
+            throw new ApplicationException("Invalid Basic authentication header", HttpStatus.UNAUTHORIZED.value());
         }
         String[] parts = new String(decoded, StandardCharsets.UTF_8).split(":", 2);
         if (parts.length != 2) {
-            throw new AratiriException("Invalid Basic authentication header", HttpStatus.UNAUTHORIZED.value());
+            throw new ApplicationException("Invalid Basic authentication header", HttpStatus.UNAUTHORIZED.value());
         }
 
         String clientId = securityProperties.getTokenExchange().getClientId();
@@ -196,7 +196,7 @@ public class AuthAPI {
         if (clientId == null || clientSecret == null
                 || !clientId.equals(parts[0])
                 || !clientSecret.equals(parts[1])) {
-            throw new AratiriException("Invalid client credentials", HttpStatus.UNAUTHORIZED.value());
+            throw new ApplicationException("Invalid client credentials", HttpStatus.UNAUTHORIZED.value());
         }
     }
 }

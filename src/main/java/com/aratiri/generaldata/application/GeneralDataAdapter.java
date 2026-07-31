@@ -7,7 +7,7 @@ import com.aratiri.generaldata.domain.BtcPricePoint;
 import com.aratiri.generaldata.domain.BtcPriceRange;
 import com.aratiri.generaldata.domain.BtcPriceSnapshot;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -38,7 +38,7 @@ public class GeneralDataAdapter implements GeneralDataPort {
         BtcPriceSnapshot snapshot = cachedBtcPriceService.getCurrentBtcPriceSnapshot();
         BigDecimal price = snapshot.prices().get(normalizedCurrency);
         if (price == null) {
-            throw new AratiriException(
+            throw new ApplicationException(
                     "Current BTC price is unavailable for currency [" + normalizedCurrency + "].",
                     HttpStatus.SERVICE_UNAVAILABLE.value()
             );
@@ -54,7 +54,7 @@ public class GeneralDataAdapter implements GeneralDataPort {
             List<BtcPricePoint> points = cachedBtcPriceService.getBtcPriceHistory(normalizedCurrency, normalizedRange);
             return new BtcPriceHistoryResponseDTO(normalizedCurrency, normalizedRange.code(), points);
         } catch (IllegalStateException _) {
-            throw new AratiriException(
+            throw new ApplicationException(
                     "BTC price history is unavailable for currency [" + normalizedCurrency + "] and range [" + normalizedRange.code() + "].",
                     HttpStatus.SERVICE_UNAVAILABLE.value()
             );

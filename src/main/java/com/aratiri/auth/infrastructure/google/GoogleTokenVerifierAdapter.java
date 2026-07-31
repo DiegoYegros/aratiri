@@ -2,7 +2,7 @@ package com.aratiri.auth.infrastructure.google;
 
 import com.aratiri.auth.application.port.out.GoogleTokenVerifierPort;
 import com.aratiri.auth.domain.GoogleUserProfile;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
@@ -31,14 +31,14 @@ public class GoogleTokenVerifierAdapter implements GoogleTokenVerifierPort {
         try {
             GoogleIdToken idToken = verifier.verify(token);
             if (idToken == null) {
-                throw new AratiriException("Google Token Invalid", HttpStatus.UNAUTHORIZED.value());
+                throw new ApplicationException("Google Token Invalid", HttpStatus.UNAUTHORIZED.value());
             }
             GoogleIdToken.Payload payload = idToken.getPayload();
             String email = payload.getEmail();
             String name = (String) payload.get("name");
             return new GoogleUserProfile(email, name);
         } catch (GeneralSecurityException | IOException _) {
-            throw new AratiriException("Unable to verify Google token", HttpStatus.INTERNAL_SERVER_ERROR.value());
+            throw new ApplicationException("Unable to verify Google token", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 }

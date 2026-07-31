@@ -5,7 +5,7 @@ import com.aratiri.accounts.application.dto.CreateAccountRequestDTO;
 import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.auth.application.port.out.*;
 import com.aratiri.auth.domain.*;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -102,7 +102,7 @@ class GoogleAuthAdapterTest {
         when(googleTokenVerifierPort.verify("google-token")).thenReturn(profile);
         when(loadUserPort.findByEmail("user@test.com")).thenReturn(Optional.of(localUser));
 
-        assertThrows(AratiriException.class, () -> adapter.loginWithGoogle("google-token"));
+        assertThrows(ApplicationException.class, () -> adapter.loginWithGoogle("google-token"));
     }
 
     @Test
@@ -110,6 +110,6 @@ class GoogleAuthAdapterTest {
         when(googleTokenVerifierPort.verify("google-token"))
                 .thenThrow(new RuntimeException("Network error"));
 
-        assertThrows(AratiriException.class, () -> adapter.loginWithGoogle("google-token"));
+        assertThrows(ApplicationException.class, () -> adapter.loginWithGoogle("google-token"));
     }
 }

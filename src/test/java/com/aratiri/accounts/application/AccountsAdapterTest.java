@@ -7,8 +7,8 @@ import com.aratiri.accounts.domain.AccountUser;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryType;
-import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.shared.qr.QrCodeService;
+import com.aratiri.errors.ApplicationException;
+import com.aratiri.accounts.infrastructure.qr.QrCodeService;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
@@ -102,7 +102,7 @@ class AccountsAdapterTest {
     void getAccount_throwsWhenNotFound() {
         when(accountPersistencePort.findById("nonexistent")).thenReturn(Optional.empty());
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adapter.getAccount("nonexistent"));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.getAccount("nonexistent"));
         assertEquals(404, ex.getStatus());
     }
 
@@ -124,7 +124,7 @@ class AccountsAdapterTest {
     void getAccountByUserId_throwsWhenNotFound() {
         when(accountPersistencePort.findByUserId(USER_ID)).thenReturn(Optional.empty());
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adapter.getAccountByUserId(USER_ID));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.getAccountByUserId(USER_ID));
         assertEquals(404, ex.getStatus());
     }
 
@@ -166,7 +166,7 @@ class AccountsAdapterTest {
         CreateAccountRequestDTO request = new CreateAccountRequestDTO();
         request.setUserId("other-user");
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adapter.createAccount(request, USER_ID));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.createAccount(request, USER_ID));
         assertTrue(ex.getMessage().contains("does not match"));
     }
 
@@ -179,7 +179,7 @@ class AccountsAdapterTest {
         Account existing = new Account(ACCOUNT_ID, user, 0L, BTC_ADDRESS, ALIAS);
         when(accountPersistencePort.findByUserId(USER_ID)).thenReturn(Optional.of(existing));
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adapter.createAccount(request, USER_ID));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.createAccount(request, USER_ID));
         assertTrue(ex.getMessage().contains("already exists"));
     }
 
@@ -191,7 +191,7 @@ class AccountsAdapterTest {
         when(accountPersistencePort.findByUserId(USER_ID)).thenReturn(Optional.empty());
         when(loadUserPort.findById(USER_ID)).thenReturn(Optional.empty());
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adapter.createAccount(request, USER_ID));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.createAccount(request, USER_ID));
         assertEquals(404, ex.getStatus());
     }
 
@@ -207,7 +207,7 @@ class AccountsAdapterTest {
         when(lightningAddressPort.generateTaprootAddress()).thenReturn(BTC_ADDRESS);
         when(accountPersistencePort.existsByAlias(ALIAS)).thenReturn(true);
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adapter.createAccount(request, USER_ID));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.createAccount(request, USER_ID));
         assertTrue(ex.getMessage().contains("already in use"));
     }
 
@@ -253,7 +253,7 @@ class AccountsAdapterTest {
     void creditBalance_accountNotFound() {
         when(accountPersistencePort.findByUserId(USER_ID)).thenReturn(Optional.empty());
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adapter.creditBalance(USER_ID, 10000L));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.creditBalance(USER_ID, 10000L));
         assertEquals(404, ex.getStatus());
     }
 
@@ -275,7 +275,7 @@ class AccountsAdapterTest {
     void getAccountByAlias_notFound() {
         when(accountPersistencePort.findByAlias("nobody")).thenReturn(Optional.empty());
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adapter.getAccountByAlias("nobody"));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.getAccountByAlias("nobody"));
         assertEquals(404, ex.getStatus());
     }
 

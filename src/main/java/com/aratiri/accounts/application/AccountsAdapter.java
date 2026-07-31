@@ -9,10 +9,10 @@ import com.aratiri.accounts.infrastructure.alias.AliasGenerator;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryType;
-import com.aratiri.shared.constants.BitcoinConstants;
-import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.shared.qr.QrCodeService;
-import com.aratiri.shared.util.Bech32Util;
+import com.aratiri.bitcoin.BitcoinAmounts;
+import com.aratiri.errors.ApplicationException;
+import com.aratiri.accounts.infrastructure.qr.QrCodeService;
+import com.aratiri.bitcoin.Bech32;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
@@ -68,14 +68,14 @@ public class AccountsAdapter implements AccountsPort {
     @Override
     public AccountDTO getAccount(String id) {
         Account account = accountPersistencePort.findById(id)
-                .orElseThrow(() -> new AratiriException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new ApplicationException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
         return buildAccountDTO(account);
     }
 
     @Override
     public AccountDTO getAccountByUserId(String userId) {
         Account account = accountPersistencePort.findByUserId(userId)
-                .orElseThrow(() -> new AratiriException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new ApplicationException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
         return buildAccountDTO(account);
     }
 
@@ -89,16 +89,16 @@ public class AccountsAdapter implements AccountsPort {
         logger.info("Creating an account for userId [{}]", ctxUserId);
         String userId = request.getUserId();
         if (!userId.equalsIgnoreCase(ctxUserId)) {
-            throw new AratiriException("UserId does not match logged-in user");
+            throw new ApplicationException("UserId does not match logged-in user");
         }
         if (accountPersistencePort.findByUserId(userId).isPresent()) {
-            throw new AratiriException(
+            throw new ApplicationException(
                     "An account already exists for the user. Multiple accounts is not allowed.",
                     HttpStatus.BAD_REQUEST.value()
             );
         }
         AccountUser user = loadUserPort.findById(userId)
-                .orElseThrow(() -> new AratiriException("User not found", HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new ApplicationException("User not found", HttpStatus.NOT_FOUND.value()));
 
         String bitcoinAddress = lightningAddressPort.generateTaprootAddress();
         String alias = determineAlias(request.getAlias());
@@ -112,17 +112,17 @@ public class AccountsAdapter implements AccountsPort {
     @Override
     public AccountDTO creditBalance(String userId, long satsAmount) {
         Account account = accountPersistencePort.findByUserId(userId)
-                .orElseThrow(() -> new AratiriException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new ApplicationException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
         accountLedgerService.appendEntry(account.id(), null, satsAmount, AccountEntryType.MANUAL_ADJUSTMENT, "Manual credit adjustment");
         Account refreshed = accountPersistencePort.findById(account.id())
-                .orElseThrow(() -> new AratiriException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new ApplicationException(ACCOUNT_NOT_FOUND_FOR_USER, HttpStatus.NOT_FOUND.value()));
         return buildAccountDTO(refreshed);
     }
 
     @Override
     public AccountDTO getAccountByAlias(String alias) {
         Account account = accountPersistencePort.findByAlias(alias)
-                .orElseThrow(() -> new AratiriException("Account does not exist for given alias.", HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new ApplicationException("Account does not exist for given alias.", HttpStatus.NOT_FOUND.value()));
         return buildAccountDTO(account);
     }
 
@@ -136,7 +136,7 @@ public class AccountsAdapter implements AccountsPort {
                 .filter(e -> e.getStatus() != TransactionStatus.FAILED)
                 .map(t -> {
                     long satoshis = t.getAmountSat();
-                    BigDecimal amountInBtc = BitcoinConstants.satoshisToBtc(satoshis);
+                    BigDecimal amountInBtc = BitcoinAmounts.satoshisToBtc(satoshis);
                     Map<String, BigDecimal> fiatEquivalents = btcPrices.entrySet().stream()
                             .collect(Collectors.toMap(
                                     Map.Entry::getKey,
@@ -167,14 +167,14 @@ public class AccountsAdapter implements AccountsPort {
                 alias = AliasGenerator.generateAlias();
             } while (accountPersistencePort.existsByAlias(alias));
         } else if (accountPersistencePort.existsByAlias(alias)) {
-            throw new AratiriException("Alias is already in use.", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Alias is already in use.", HttpStatus.BAD_REQUEST.value());
         }
         return alias;
     }
 
     private String buildLnurlForAlias(String alias) {
         String url = properties.getAratiriBaseUrl() + "/.well-known/lnurlp/" + alias;
-        return Bech32Util.encodeLnurl(url);
+        return Bech32.encodeLnurl(url);
     }
 
     private String buildAlias(String alias) {
@@ -188,7 +188,7 @@ public class AccountsAdapter implements AccountsPort {
         String alias = buildAlias(account.alias());
         String lnurlQrCode = qrCodeService.getBase64(lnurl);
         String bitcoinAddressQrCode = qrCodeService.getBase64("bitcoin:" + account.bitcoinAddress());
-        BigDecimal balanceInBtc = BitcoinConstants.satoshisToBtc(account.balance());
+        BigDecimal balanceInBtc = BitcoinAmounts.satoshisToBtc(account.balance());
         Map<String, BigDecimal> btcPrices = currencyConversionPort.getCurrentBtcPrice();
         Map<String, BigDecimal> fiatEquivalents = btcPrices.entrySet().stream()
                 .collect(Collectors.toMap(

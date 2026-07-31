@@ -7,8 +7,8 @@ import com.aratiri.decoder.application.port.out.NostrPort;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.invoices.application.dto.DecodedInvoicetDTO;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
-import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.shared.util.Bech32Util;
+import com.aratiri.errors.ApplicationException;
+import com.aratiri.bitcoin.Bech32;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -150,7 +150,7 @@ class DecoderAdapterTest {
         when(aratiriProperties.getAratiriBaseUrl()).thenReturn("https://aratiri.example.com");
         when(lnurlPort.getInternalMetadata("user123")).thenReturn(buildLnurlMetadata());
 
-        DecodedResultDTO result = decoderAdapter.decode(Bech32Util.encodeLnurl(url));
+        DecodedResultDTO result = decoderAdapter.decode(Bech32.encodeLnurl(url));
         assertEquals("lnurl_params", result.getType());
     }
 
@@ -160,13 +160,13 @@ class DecoderAdapterTest {
         when(aratiriProperties.getAratiriBaseUrl()).thenReturn("https://aratiri.example.com");
         when(lnurlPort.getExternalMetadata(url)).thenReturn(buildLnurlMetadata());
 
-        DecodedResultDTO result = decoderAdapter.decode(Bech32Util.encodeLnurl(url));
+        DecodedResultDTO result = decoderAdapter.decode(Bech32.encodeLnurl(url));
         assertEquals("lnurl_params", result.getType());
     }
 
     @Test
     void decode_lnurl_exception() {
-        DecodedResultDTO result = decoderAdapter.decode(Bech32Util.encodeLnurl("https://error.example.com"));
+        DecodedResultDTO result = decoderAdapter.decode(Bech32.encodeLnurl("https://error.example.com"));
         assertEquals("error", result.getType());
     }
 
@@ -180,7 +180,7 @@ class DecoderAdapterTest {
 
     @Test
     void decode_alias_notFound_tryLightningAddress() {
-        when(lnurlPort.getInternalMetadata("test")).thenThrow(new AratiriException("not found"));
+        when(lnurlPort.getInternalMetadata("test")).thenThrow(new ApplicationException("not found"));
         when(lnurlPort.getExternalMetadata("https://example.com/.well-known/lnurlp/test")).thenReturn(buildLnurlMetadata());
 
         DecodedResultDTO result = decoderAdapter.decode("test@example.com");
@@ -189,7 +189,7 @@ class DecoderAdapterTest {
 
     @Test
     void decode_unsupported_format() {
-        when(lnurlPort.getInternalMetadata(any())).thenThrow(new AratiriException("not found"));
+        when(lnurlPort.getInternalMetadata(any())).thenThrow(new ApplicationException("not found"));
         DecodedResultDTO result = decoderAdapter.decode("something_random");
         assertEquals("error", result.getType());
     }
@@ -205,7 +205,7 @@ class DecoderAdapterTest {
     @Test
     void decode_nip05_success() {
         when(lnurlPort.getInternalMetadata("test.domain"))
-                .thenThrow(new AratiriException("not found"));
+                .thenThrow(new ApplicationException("not found"));
         CompletableFuture<String> future = CompletableFuture.completedFuture("user@domain.com");
         when(nostrPort.resolveNip05ToLud16("_@test.domain")).thenReturn(future);
         when(lnurlPort.getExternalMetadata("https://domain.com/.well-known/lnurlp/user"))
@@ -217,7 +217,7 @@ class DecoderAdapterTest {
 
     @Test
     void decode_nip05_withAtSign_alreadyHasAt() {
-        when(lnurlPort.getInternalMetadata("test")).thenThrow(new AratiriException("not found"));
+        when(lnurlPort.getInternalMetadata("test")).thenThrow(new ApplicationException("not found"));
         when(lnurlPort.getExternalMetadata("https://domain.com/.well-known/lnurlp/test"))
                 .thenThrow(new RuntimeException("bad"));
 
@@ -234,7 +234,7 @@ class DecoderAdapterTest {
     @SuppressWarnings("unchecked")
     void decode_nip05_interruptedException() throws Exception {
         when(lnurlPort.getInternalMetadata("test.domain"))
-                .thenThrow(new AratiriException("not found"));
+                .thenThrow(new ApplicationException("not found"));
         CompletableFuture<String> future = mock(CompletableFuture.class);
         when(future.get(3, TimeUnit.SECONDS)).thenThrow(new InterruptedException());
         when(nostrPort.resolveNip05ToLud16("_@test.domain")).thenReturn(future);
@@ -246,7 +246,7 @@ class DecoderAdapterTest {
     @Test
     void decode_nip05_executionException() {
         when(lnurlPort.getInternalMetadata("test.domain"))
-                .thenThrow(new AratiriException("not found"));
+                .thenThrow(new ApplicationException("not found"));
         CompletableFuture<String> future = new CompletableFuture<>();
         future.completeExceptionally(new RuntimeException("fail"));
         when(nostrPort.resolveNip05ToLud16("_@test.domain")).thenReturn(future);
@@ -258,7 +258,7 @@ class DecoderAdapterTest {
     @Test
     void decode_nip05_timeoutException() {
         when(lnurlPort.getInternalMetadata("test.domain"))
-                .thenThrow(new AratiriException("not found"));
+                .thenThrow(new ApplicationException("not found"));
         CompletableFuture<String> future = new CompletableFuture<>();
         future.completeExceptionally(new TimeoutException("timeout"));
         when(nostrPort.resolveNip05ToLud16("_@test.domain")).thenReturn(future);
@@ -270,18 +270,18 @@ class DecoderAdapterTest {
     @Test
     void decode_nip05_invalidLightningAddressFormat() {
         when(lnurlPort.getInternalMetadata("test.domain"))
-                .thenThrow(new AratiriException("not found"));
+                .thenThrow(new ApplicationException("not found"));
         CompletableFuture<String> future = CompletableFuture.completedFuture("noatsign");
         when(nostrPort.resolveNip05ToLud16("_@test.domain")).thenReturn(future);
 
-        assertThrows(AratiriException.class,
+        assertThrows(ApplicationException.class,
                 () -> decoderAdapter.decode("test.domain"));
     }
 
     @Test
     void decode_nip05_nullLightningAddress_returnsError() {
         when(lnurlPort.getInternalMetadata("test.domain"))
-                .thenThrow(new AratiriException("not found"));
+                .thenThrow(new ApplicationException("not found"));
         CompletableFuture<String> future = CompletableFuture.completedFuture(null);
         when(nostrPort.resolveNip05ToLud16("_@test.domain")).thenReturn(future);
 
@@ -292,7 +292,7 @@ class DecoderAdapterTest {
     @Test
     void decode_nip05_emptyLightningAddress_returnsError() {
         when(lnurlPort.getInternalMetadata("test.domain"))
-                .thenThrow(new AratiriException("not found"));
+                .thenThrow(new ApplicationException("not found"));
         CompletableFuture<String> future = CompletableFuture.completedFuture("");
         when(nostrPort.resolveNip05ToLud16("_@test.domain")).thenReturn(future);
 

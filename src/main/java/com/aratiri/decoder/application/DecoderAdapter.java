@@ -7,8 +7,8 @@ import com.aratiri.decoder.application.port.out.LnurlPort;
 import com.aratiri.decoder.application.port.out.NostrPort;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
-import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.shared.util.Bech32Util;
+import com.aratiri.errors.ApplicationException;
+import com.aratiri.bitcoin.Bech32;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,8 +51,8 @@ public class DecoderAdapter implements DecoderPort {
     private DecodedResultDTO decodeLnurl(String input) {
         try {
             logger.info("Decoding LNURL: {}", input);
-            Bech32Util.Bech32Data decoded = Bech32Util.bech32Decode(input);
-            String decodedUrl = new String(Bech32Util.convertBits(decoded.data(), 5, 8, false));
+            Bech32.Data decoded = Bech32.decode(input);
+            String decodedUrl = new String(Bech32.convertBits(decoded.data(), 5, 8, false));
             logger.info("Decoded URL: {}", decodedUrl);
             LnurlpResponseDTO lnurlMetadata = decodedUrl.contains(aratiriProperties.getAratiriBaseUrl())
                     ? lnurlPort.getInternalMetadata(decodedUrl.substring(decodedUrl.lastIndexOf('/') + 1))
@@ -103,7 +103,7 @@ public class DecoderAdapter implements DecoderPort {
             String aliasOnly = input.contains("@") ? input.split("@")[0] : input;
             logger.info("Trying alias lookup: {}", aliasOnly);
             return success("alias", lnurlPort.getInternalMetadata(aliasOnly));
-        } catch (AratiriException _) {
+        } catch (ApplicationException _) {
             if (input.contains("@")) {
                 try {
                     return resolveLightningAddress(input);
@@ -141,7 +141,7 @@ public class DecoderAdapter implements DecoderPort {
             String lnurlpUrl = "https://" + parts[1] + "/.well-known/lnurlp/" + parts[0];
             return success("lnurl_params", lnurlPort.getExternalMetadata(lnurlpUrl));
         }
-        throw new AratiriException("Invalid Lightning Address format.");
+        throw new ApplicationException("Invalid Lightning Address format.");
     }
 
     private DecodedResultDTO success(String type, Object data) {

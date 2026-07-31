@@ -7,7 +7,7 @@ import com.aratiri.lnurl.application.dto.LnurlPayRequestDTO;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.lnurl.application.port.in.LnurlApplicationPort;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -64,9 +64,9 @@ class LnurlAPITest {
     @Test
     void lnurlCallback_unknownAlias_propagatesNotFound() {
         when(lnurlPort.lnurlCallback("ghost", 1000L, null))
-                .thenThrow(new AratiriException("Account does not exist for given alias.", HttpStatus.NOT_FOUND.value()));
+                .thenThrow(new ApplicationException("Account does not exist for given alias.", HttpStatus.NOT_FOUND.value()));
 
-        AratiriException ex = assertThrows(AratiriException.class,
+        ApplicationException ex = assertThrows(ApplicationException.class,
                 () -> api.lnurlCallback("ghost", 1000L, null));
         assertEquals(404, ex.getStatus());
     }
@@ -91,7 +91,7 @@ class LnurlAPITest {
         LnurlPayRequestDTO request = new LnurlPayRequestDTO();
         request.setCallback("https://example.com/callback");
 
-        assertThrows(AratiriException.class, () -> api.pay(null, request, ctx));
-        assertThrows(AratiriException.class, () -> api.pay("", request, ctx));
+        assertThrows(ApplicationException.class, () -> api.pay(null, request, ctx));
+        assertThrows(ApplicationException.class, () -> api.pay("", request, ctx));
     }
 }

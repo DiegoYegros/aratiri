@@ -25,7 +25,7 @@ If the tutor requires microservices, extract incrementally from the following ma
 | `admin` | LND gateway service | Node administration plus the LND-facing parts of `infrastructure`; exclusively own LND credentials and gRPC access. |
 | `generaldata` | Pricing/reference-data service | Exchange-rate retrieval and caching; extract only if it needs independent scaling or reuse. |
 | `webhooks` | Webhook delivery service | Endpoint subscriptions, signed delivery attempts, and retries; consume domain events asynchronously. |
-| `infrastructure`, `shared` | Not services | Split adapters into the service that owns each use case; keep only small versioned contracts shared across deployables. |
+| `infrastructure`, `bitcoin`, `errors` | Not services | Split adapters into the service that owns each use case; keep only small versioned contracts (APIs/events) across deployables. Protocol helpers (`bitcoin`) travel with the protocol edge; do not elevate exceptions into a shared kernel. |
 
 Each extracted service must own its persistence rather than directly sharing Aratiri's schema. Cross-boundary workflows must use versioned APIs or events, with idempotency and observable retries.
 

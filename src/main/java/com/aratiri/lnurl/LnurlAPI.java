@@ -6,7 +6,7 @@ import com.aratiri.lnurl.application.dto.LnurlPayRequestDTO;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.lnurl.application.port.in.LnurlApplicationPort;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -64,7 +64,7 @@ public class LnurlAPI {
 
     private void validateIdempotencyKey(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            throw new AratiriException("Idempotency-Key header is required", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Idempotency-Key header is required", HttpStatus.BAD_REQUEST.value());
         }
     }
 }

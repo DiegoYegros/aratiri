@@ -1,6 +1,6 @@
 package com.aratiri.decoder.infrastructure.nostr;
 
-import com.aratiri.shared.util.Bech32Util;
+import com.aratiri.bitcoin.Bech32;
 
 public class NostrUtil {
 
@@ -8,10 +8,10 @@ public class NostrUtil {
     }
 
     public static String npubToHex(String npub) {
-        Bech32Util.Bech32Data decoded = Bech32Util.bech32Decode(npub);
+        Bech32.Data decoded = Bech32.decode(npub);
         byte[] data = decoded.data();
-        byte[] bytes = Bech32Util.convertBits(data, 5, 8, false);
-        return Bech32Util.bytesToHex(bytes);
+        byte[] bytes = Bech32.convertBits(data, 5, 8, false);
+        return Bech32.bytesToHex(bytes);
     }
 
     public static String createSubscriptionRequest(String pubkey, String subscriptionId) {

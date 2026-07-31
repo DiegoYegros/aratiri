@@ -1,7 +1,6 @@
 package com.aratiri.infrastructure.web;
 
-import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.shared.exception.ErrorResponse;
+import com.aratiri.errors.ApplicationException;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import org.junit.jupiter.api.Test;
@@ -150,9 +149,9 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleAratiriException_withStatus() {
-        AratiriException ex = new AratiriException("not found", HttpStatus.NOT_FOUND.value());
-        ResponseEntity<ErrorResponse> response = handler.handleAratiriException(ex);
+    void handleApplicationException_withStatus() {
+        ApplicationException ex = new ApplicationException("not found", HttpStatus.NOT_FOUND.value());
+        ResponseEntity<ErrorResponse> response = handler.handleApplicationException(ex);
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(404, response.getBody().getStatus());
@@ -160,18 +159,18 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleAratiriException_withNullStatus() {
-        AratiriException ex = new AratiriException("unknown error");
-        ResponseEntity<ErrorResponse> response = handler.handleAratiriException(ex);
+    void handleApplicationException_withNullStatus() {
+        ApplicationException ex = new ApplicationException("unknown error");
+        ResponseEntity<ErrorResponse> response = handler.handleApplicationException(ex);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(500, response.getBody().getStatus());
     }
 
     @Test
-    void handleAratiriException_withInvalidStatus() {
-        AratiriException ex = new AratiriException("error", 9999);
-        ResponseEntity<ErrorResponse> response = handler.handleAratiriException(ex);
+    void handleApplicationException_withInvalidStatus() {
+        ApplicationException ex = new ApplicationException("error", 9999);
+        ResponseEntity<ErrorResponse> response = handler.handleApplicationException(ex);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(500, response.getBody().getStatus());

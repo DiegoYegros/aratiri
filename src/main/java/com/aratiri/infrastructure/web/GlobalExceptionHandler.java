@@ -1,7 +1,6 @@
 package com.aratiri.infrastructure.web;
 
-import com.aratiri.shared.exception.AratiriException;
-import com.aratiri.shared.exception.ErrorResponse;
+import com.aratiri.errors.ApplicationException;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import org.slf4j.Logger;
@@ -104,9 +103,9 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.FORBIDDEN);
     }
 
-    @ExceptionHandler(AratiriException.class)
-    public ResponseEntity<ErrorResponse> handleAratiriException(AratiriException ex) {
-        logger.error("AratiriException occured: {}", ex.getMessage());
+    @ExceptionHandler(ApplicationException.class)
+    public ResponseEntity<ErrorResponse> handleApplicationException(ApplicationException ex) {
+        logger.error("ApplicationException occured: {}", ex.getMessage());
         HttpStatus status = HttpStatus.resolve(ex.getStatus() == null ? 0 : ex.getStatus());
         if (status == null) {
             status = HttpStatus.INTERNAL_SERVER_ERROR;

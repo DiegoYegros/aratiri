@@ -6,7 +6,7 @@ import com.aratiri.generaldata.domain.BtcPricePoint;
 import com.aratiri.generaldata.domain.BtcPriceRange;
 import com.aratiri.generaldata.domain.BtcPriceSnapshot;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,8 +69,8 @@ class GeneralDataAdapterTest {
         when(cachedBtcPriceService.getCurrentBtcPriceSnapshot())
                 .thenReturn(new BtcPriceSnapshot(Map.of("eur", BigDecimal.valueOf(78000)), Instant.parse("2026-04-12T12:00:00Z")));
 
-        AratiriException exception = assertThrows(
-                AratiriException.class,
+        ApplicationException exception = assertThrows(
+                ApplicationException.class,
                 () -> generalDataAdapter.getCurrentBtcPrice("usd")
         );
 
@@ -99,8 +99,8 @@ class GeneralDataAdapterTest {
         when(cachedBtcPriceService.getBtcPriceHistory("usd", BtcPriceRange.ONE_HOUR))
                 .thenThrow(new IllegalStateException("Provider unavailable"));
 
-        AratiriException exception = assertThrows(
-                AratiriException.class,
+        ApplicationException exception = assertThrows(
+                ApplicationException.class,
                 () -> generalDataAdapter.getBtcPriceHistory("usd", "1h")
         );
 

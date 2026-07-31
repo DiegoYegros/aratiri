@@ -1,6 +1,6 @@
 package com.aratiri.payments.application;
 
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -50,7 +50,7 @@ class PaymentFeePolicy {
       }
       return Math.addExact(fixedFeeSat, percentageFeeSat);
     } catch (ArithmeticException _) {
-      throw new AratiriException(
+      throw new ApplicationException(
           "Configured payment fees exceed supported limits.",
           HttpStatus.INTERNAL_SERVER_ERROR.value()
       );

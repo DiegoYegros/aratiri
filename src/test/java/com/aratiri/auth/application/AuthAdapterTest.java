@@ -6,7 +6,7 @@ import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.RefreshToken;
 import com.aratiri.auth.domain.Role;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,7 +64,7 @@ class AuthAdapterTest {
         AuthUser user = new AuthUser("user-1", "Test User", "test@example.com", AuthProvider.GOOGLE, Role.USER);
         when(loadUserPort.findByEmail("test@example.com")).thenReturn(Optional.of(user));
 
-        AratiriException ex = assertThrows(AratiriException.class,
+        ApplicationException ex = assertThrows(ApplicationException.class,
                 () -> authAdapter.login("test@example.com", "password"));
 
         assertTrue(ex.getMessage().contains("federated"));
@@ -85,7 +85,7 @@ class AuthAdapterTest {
     void getCurrentUser_shouldThrowWhenNotAuthenticated() {
         when(authenticatedUserPort.getCurrentUserEmail()).thenReturn(Optional.empty());
 
-        assertThrows(AratiriException.class, () -> authAdapter.getCurrentUser());
+        assertThrows(ApplicationException.class, () -> authAdapter.getCurrentUser());
     }
 
     @Test

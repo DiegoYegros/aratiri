@@ -13,8 +13,8 @@ import com.aratiri.lnurl.application.port.out.LnurlRemotePort;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.payments.application.port.in.PaymentsPort;
-import com.aratiri.shared.constants.BitcoinConstants;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.bitcoin.BitcoinAmounts;
+import com.aratiri.errors.ApplicationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,12 +53,12 @@ public class LnurlAdapter implements LnurlApplicationPort {
     public LnurlpResponseDTO getLnurlMetadata(String alias) {
         boolean exists = accountsPort.existsByAlias(alias);
         if (!exists) {
-            throw new AratiriException("Alias does not match any account.", HttpStatus.NOT_FOUND.value());
+            throw new ApplicationException("Alias does not match any account.", HttpStatus.NOT_FOUND.value());
         }
         LnurlpResponseDTO response = new LnurlpResponseDTO();
         response.setCallback(properties.getAratiriBaseUrl() + "/lnurl/callback/" + alias);
         response.setMinSendable(1000L);
-        response.setMaxSendable(BitcoinConstants.SATOSHIS_PER_BTC_LONG * 1000);
+        response.setMaxSendable(BitcoinAmounts.SATOSHIS_PER_BTC_LONG * 1000);
         response.setMetadata("[[\"text/plain\", \"Payment to " + alias + "\"]]");
         response.setTag("payRequest");
         response.setCommentAllowed(140);
@@ -71,7 +71,7 @@ public class LnurlAdapter implements LnurlApplicationPort {
         try {
             return lnurlRemotePort.fetchMetadata(url);
         } catch (Exception _) {
-            throw new AratiriException("Failed to fetch LNURL metadata from external URL.", HttpStatus.BAD_GATEWAY.value());
+            throw new ApplicationException("Failed to fetch LNURL metadata from external URL.", HttpStatus.BAD_GATEWAY.value());
         }
     }
 
@@ -108,10 +108,10 @@ public class LnurlAdapter implements LnurlApplicationPort {
         try {
             callbackResponse = lnurlRemotePort.fetchCallbackInvoice(finalCallbackUrl);
         } catch (Exception _) {
-            throw new AratiriException("Failed to fetch invoice from LNURL callback.", HttpStatus.BAD_GATEWAY.value());
+            throw new ApplicationException("Failed to fetch invoice from LNURL callback.", HttpStatus.BAD_GATEWAY.value());
         }
         if (callbackResponse == null || callbackResponse.getPaymentRequest() == null || callbackResponse.getPaymentRequest().isEmpty()) {
-            throw new AratiriException("Invalid response from LNURL callback.", HttpStatus.BAD_GATEWAY.value());
+            throw new ApplicationException("Invalid response from LNURL callback.", HttpStatus.BAD_GATEWAY.value());
         }
         return callbackResponse;
     }

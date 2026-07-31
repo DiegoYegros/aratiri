@@ -13,7 +13,7 @@ import com.aratiri.payments.domain.LightningPayment;
 import com.aratiri.payments.domain.LightningPaymentStatus;
 import com.aratiri.payments.domain.exception.LightningNodeTransportException;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
@@ -313,10 +313,10 @@ class NodeOperationServiceTest {
 
         when(lightningNodePort.sendOnChain(any())).thenReturn("abc123txid");
         when(transactionsPort.confirmTransaction(TX_ID, USER_ID))
-                .thenThrow(new AratiriException("confirmation failed"))
+                .thenThrow(new ApplicationException("confirmation failed"))
                 .thenReturn(mock(com.aratiri.transactions.application.dto.TransactionDTOResponse.class));
 
-        assertThrows(AratiriException.class, () -> service.executeOnChain(op));
+        assertThrows(ApplicationException.class, () -> service.executeOnChain(op));
 
         assertEquals(NodeOperationStatus.BROADCASTED, op.getStatus());
         assertEquals("abc123txid", op.getExternalId());

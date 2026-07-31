@@ -9,7 +9,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
 import com.aratiri.infrastructure.persistence.jpa.repository.NodeOperationsRepository;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lnrpc.*;
@@ -111,7 +111,7 @@ class AdminAdapterTest {
     }
 
     @Test
-    void connectPeer_grpcError_throwsAratiriException() {
+    void connectPeer_grpcError_throwsApplicationException() {
         ConnectPeerRequestDTO request = new ConnectPeerRequestDTO();
         request.setPubkey("02abc");
         request.setHost("127.0.0.1:9735");
@@ -119,7 +119,7 @@ class AdminAdapterTest {
                 Status.UNAVAILABLE.withDescription("peer offline"));
         doThrow(grpcError).when(lightningNodeAdminPort).connectPeer(anyString(), anyString());
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adminAdapter.connectPeer(request));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adminAdapter.connectPeer(request));
         assertTrue(ex.getMessage().contains("peer offline"));
     }
 
@@ -141,7 +141,7 @@ class AdminAdapterTest {
     }
 
     @Test
-    void openChannel_grpcError_throwsAratiriException() {
+    void openChannel_grpcError_throwsApplicationException() {
         OpenChannelRequestDTO request = new OpenChannelRequestDTO();
         request.setNodePubkey("02abc");
         request.setLocalFundingAmount(1000000L);
@@ -153,7 +153,7 @@ class AdminAdapterTest {
         when(lightningNodeAdminPort.openChannel(anyString(), anyLong(), anyLong(), anyBoolean()))
                 .thenThrow(grpcError);
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adminAdapter.openChannel(request));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adminAdapter.openChannel(request));
         assertTrue(ex.getMessage().contains("insufficient funds"));
     }
 
@@ -171,22 +171,22 @@ class AdminAdapterTest {
     }
 
     @Test
-    void closeChannel_invalidFormat_throwsAratiriException() {
+    void closeChannel_invalidFormat_throwsApplicationException() {
         CloseChannelRequestDTO request = new CloseChannelRequestDTO();
         request.setChannelPoint("invalid-format");
         request.setForce(false);
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adminAdapter.closeChannel(request));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adminAdapter.closeChannel(request));
         assertTrue(ex.getMessage().contains("Invalid channel point format"));
     }
 
     @Test
-    void closeChannel_invalidOutputIndex_throwsAratiriException() {
+    void closeChannel_invalidOutputIndex_throwsApplicationException() {
         CloseChannelRequestDTO request = new CloseChannelRequestDTO();
         request.setChannelPoint("deadbeef:notanumber");
         request.setForce(false);
 
-        AratiriException ex = assertThrows(AratiriException.class, () -> adminAdapter.closeChannel(request));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adminAdapter.closeChannel(request));
         assertTrue(ex.getMessage().contains("Invalid channel point"));
     }
 

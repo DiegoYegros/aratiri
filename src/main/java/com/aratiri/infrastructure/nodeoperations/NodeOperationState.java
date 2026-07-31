@@ -5,7 +5,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
 import com.aratiri.infrastructure.persistence.jpa.repository.NodeOperationsRepository;
 import com.aratiri.payments.domain.LightningPayment;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +43,7 @@ class NodeOperationState {
     void failTransaction(String transactionId, String reason) {
         try {
             transactionsPort.failTransaction(transactionId, reason);
-        } catch (AratiriException e) {
+        } catch (ApplicationException e) {
             if (e.getMessage() != null && e.getMessage().contains("not valid for failure")) {
                 log.info("Transaction {} already failed, skipping fail", transactionId);
             } else {

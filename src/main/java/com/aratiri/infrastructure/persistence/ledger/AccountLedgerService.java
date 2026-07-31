@@ -6,7 +6,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryType;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountEntryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.webhooks.application.AccountBalanceChangedWebhookFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
 import org.springframework.stereotype.Service;
@@ -30,7 +30,7 @@ public class AccountLedgerService {
         AccountEntity account = accountRepository.findByUserIdForUpdate(transaction.getUserId())
                 .orElse(null);
         if (account == null) {
-            throw new AratiriException("Account not found for user: " + transaction.getUserId());
+            throw new ApplicationException("Account not found for user: " + transaction.getUserId());
         }
         return appendEntry(account, transaction, deltaSats, entryType, description);
     }
@@ -74,7 +74,7 @@ public class AccountLedgerService {
     @Transactional
     public long appendEntry(String accountId, String transactionId, long deltaSats, AccountEntryType entryType, String description) {
         AccountEntity account = accountRepository.findByIdForUpdate(accountId)
-                .orElseThrow(() -> new AratiriException("Account not found for id: " + accountId));
+                .orElseThrow(() -> new ApplicationException("Account not found for id: " + accountId));
         return appendEntry(account, transactionId, deltaSats, entryType, description);
     }
 
@@ -89,7 +89,7 @@ public class AccountLedgerService {
     public long getCurrentBalanceForUser(String userId) {
         AccountEntity account = accountRepository.findByUserId(userId);
         if (account == null) {
-            throw new AratiriException("Account not found for user: " + userId);
+            throw new ApplicationException("Account not found for user: " + userId);
         }
         return accountEntryRepository.findFirstByAccount_IdOrderByCreatedAtDescIdDesc(account.getId())
                 .map(AccountEntryEntity::getBalanceAfter)
@@ -107,7 +107,7 @@ public class AccountLedgerService {
         AccountEntity account = accountRepository.findByUserIdForUpdate(transaction.getUserId())
                 .orElse(null);
         if (account == null) {
-            throw new AratiriException("Account not found for user: " + transaction.getUserId());
+            throw new ApplicationException("Account not found for user: " + transaction.getUserId());
         }
         return appendEntry(account, transaction, -transaction.getCurrentAmount(), entryType, description);
     }
@@ -116,7 +116,7 @@ public class AccountLedgerService {
         AccountEntity account = accountRepository.findByUserIdForUpdate(transaction.getUserId())
                 .orElse(null);
         if (account == null) {
-            throw new AratiriException("Account not found for user: " + transaction.getUserId());
+            throw new ApplicationException("Account not found for user: " + transaction.getUserId());
         }
         return appendEntry(account, transaction, transaction.getCurrentAmount(), entryType, description);
     }
@@ -136,7 +136,7 @@ public class AccountLedgerService {
                 .orElse(0L);
         long newBalance = previousBalance + deltaSats;
         if (newBalance < 0) {
-            throw new AratiriException("Insufficient funds for account: " + account.getId());
+            throw new ApplicationException("Insufficient funds for account: " + account.getId());
         }
         AccountEntryEntity entry = new AccountEntryEntity();
         entry.setAccount(account);
@@ -165,7 +165,7 @@ public class AccountLedgerService {
                 .orElse(0L);
         long newBalance = previousBalance + deltaSats;
         if (newBalance < 0) {
-            throw new AratiriException("Insufficient funds for account: " + account.getId());
+            throw new ApplicationException("Insufficient funds for account: " + account.getId());
         }
         AccountEntryEntity entry = new AccountEntryEntity();
         entry.setAccount(account);

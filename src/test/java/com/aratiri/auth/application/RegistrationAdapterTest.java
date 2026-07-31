@@ -16,7 +16,7 @@ import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.RefreshToken;
 import com.aratiri.auth.domain.RegistrationDraft;
 import com.aratiri.auth.domain.Role;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -94,7 +94,7 @@ class RegistrationAdapterTest {
         AuthUser existing = new AuthUser("user-1", "Test", "test@test.com", AuthProvider.LOCAL, Role.USER);
         when(loadUserPort.findByEmail("test@test.com")).thenReturn(Optional.of(existing));
 
-        assertThrows(AratiriException.class, () -> adapter.initiateRegistration(command));
+        assertThrows(ApplicationException.class, () -> adapter.initiateRegistration(command));
         verify(registrationDraftPort, never()).save(any());
     }
 
@@ -104,7 +104,7 @@ class RegistrationAdapterTest {
         when(loadUserPort.findByEmail("test@test.com")).thenReturn(Optional.empty());
         when(accountsPort.existsByAlias("takenalias")).thenReturn(true);
 
-        assertThrows(AratiriException.class, () -> adapter.initiateRegistration(command));
+        assertThrows(ApplicationException.class, () -> adapter.initiateRegistration(command));
         verify(registrationDraftPort, never()).save(any());
     }
 
@@ -145,7 +145,7 @@ class RegistrationAdapterTest {
         when(registrationDraftPort.findByEmail("test@test.com")).thenReturn(Optional.empty());
         VerificationCommand command = new VerificationCommand("test@test.com", "123456");
 
-        assertThrows(AratiriException.class, () -> adapter.completeRegistration(command));
+        assertThrows(ApplicationException.class, () -> adapter.completeRegistration(command));
     }
 
     @Test
@@ -155,7 +155,7 @@ class RegistrationAdapterTest {
         when(registrationDraftPort.findByEmail("test@test.com")).thenReturn(Optional.of(draft));
         VerificationCommand command = new VerificationCommand("test@test.com", "123456");
 
-        assertThrows(AratiriException.class, () -> adapter.completeRegistration(command));
+        assertThrows(ApplicationException.class, () -> adapter.completeRegistration(command));
         verify(registrationDraftPort).deleteByEmail("test@test.com");
     }
 
@@ -166,7 +166,7 @@ class RegistrationAdapterTest {
         when(registrationDraftPort.findByEmail("test@test.com")).thenReturn(Optional.of(draft));
         VerificationCommand command = new VerificationCommand("test@test.com", "123456");
 
-        assertThrows(AratiriException.class, () -> adapter.completeRegistration(command));
+        assertThrows(ApplicationException.class, () -> adapter.completeRegistration(command));
         verify(userCommandPort, never()).registerLocalUser(anyString(), anyString(), anyString());
     }
 }

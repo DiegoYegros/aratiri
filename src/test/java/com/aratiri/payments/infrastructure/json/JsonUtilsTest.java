@@ -1,6 +1,6 @@
 package com.aratiri.payments.infrastructure.json;
 
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,7 +31,7 @@ class JsonUtilsTest {
 
     @Test
     void fromJson_throwsOnInvalidJson() {
-        assertThrows(AratiriException.class, () -> JsonUtils.fromJson("invalid", TestPayload.class));
+        assertThrows(ApplicationException.class, () -> JsonUtils.fromJson("invalid", TestPayload.class));
     }
 
     @Test
@@ -40,6 +40,6 @@ class JsonUtilsTest {
             final Object self = this;
         };
 
-        assertThrows(AratiriException.class, () -> JsonUtils.toJson(self));
+        assertThrows(ApplicationException.class, () -> JsonUtils.toJson(self));
     }
 }

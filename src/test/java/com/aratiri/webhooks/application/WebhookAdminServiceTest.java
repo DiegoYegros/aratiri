@@ -6,7 +6,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointSubscriptionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookDeliveryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEndpointRepository;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.webhooks.application.destination.WebhookDestinationPolicy;
 import com.aratiri.webhooks.application.destination.WebhookDestinationRejectedException;
 import com.aratiri.webhooks.application.dto.*;
@@ -93,7 +93,7 @@ class WebhookAdminServiceTest {
     doThrow(new WebhookDestinationRejectedException())
         .when(webhookDestinationPolicy).validate("https://127.0.0.1/hook");
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> webhookAdminService.createEndpoint(request));
 
     assertEquals(WebhookDestinationRejectedException.PUBLIC_MESSAGE, ex.getMessage());
@@ -205,7 +205,7 @@ class WebhookAdminServiceTest {
     UUID id = UUID.randomUUID();
     when(webhookEndpointRepository.findById(id)).thenReturn(Optional.empty());
 
-    AratiriException ex = assertThrows(AratiriException.class, () -> webhookAdminService.getEndpoint(id));
+    ApplicationException ex = assertThrows(ApplicationException.class, () -> webhookAdminService.getEndpoint(id));
     assertTrue(ex.getMessage().contains("Webhook endpoint not found"));
   }
 
@@ -251,7 +251,7 @@ class WebhookAdminServiceTest {
     doThrow(new WebhookDestinationRejectedException())
         .when(webhookDestinationPolicy).validate("http://localhost/hook");
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> webhookAdminService.updateEndpoint(id, request));
 
     assertEquals(WebhookDestinationRejectedException.PUBLIC_MESSAGE, ex.getMessage());
@@ -273,7 +273,7 @@ class WebhookAdminServiceTest {
     request.setEventTypes(Set.of("payment.succeeded"));
     request.setEnabled(true);
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> webhookAdminService.updateEndpoint(id, request));
     assertTrue(ex.getMessage().contains("Webhook endpoint not found"));
   }
@@ -326,7 +326,7 @@ class WebhookAdminServiceTest {
     UUID id = UUID.randomUUID();
     when(webhookEndpointRepository.findById(id)).thenReturn(Optional.empty());
 
-    AratiriException ex = assertThrows(AratiriException.class, () -> webhookAdminService.rotateSecret(id));
+    ApplicationException ex = assertThrows(ApplicationException.class, () -> webhookAdminService.rotateSecret(id));
     assertTrue(ex.getMessage().contains("Webhook endpoint not found"));
   }
 
@@ -374,7 +374,7 @@ class WebhookAdminServiceTest {
     UUID id = UUID.randomUUID();
     when(webhookEndpointRepository.findById(id)).thenReturn(Optional.empty());
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> webhookAdminService.sendTestEvent(id));
     assertTrue(ex.getMessage().contains("Webhook endpoint not found"));
   }
@@ -406,7 +406,7 @@ class WebhookAdminServiceTest {
         .build();
     when(webhookDeliveryRepository.findById(id)).thenReturn(Optional.of(delivery));
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> webhookAdminService.retryDelivery(id));
     assertTrue(ex.getMessage().contains("Cannot retry a succeeded delivery"));
   }
@@ -416,7 +416,7 @@ class WebhookAdminServiceTest {
     UUID id = UUID.randomUUID();
     when(webhookDeliveryRepository.findById(id)).thenReturn(Optional.empty());
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> webhookAdminService.retryDelivery(id));
     assertTrue(ex.getMessage().contains("Webhook delivery not found"));
   }
@@ -481,7 +481,7 @@ class WebhookAdminServiceTest {
     UUID id = UUID.randomUUID();
     when(webhookDeliveryRepository.findByIdWithEvent(id)).thenReturn(Optional.empty());
 
-    AratiriException ex = assertThrows(AratiriException.class,
+    ApplicationException ex = assertThrows(ApplicationException.class,
         () -> webhookAdminService.getDelivery(id));
     assertTrue(ex.getMessage().contains("Webhook delivery not found"));
   }

@@ -1,7 +1,7 @@
 package com.aratiri.infrastructure.filter;
 
 import com.aratiri.infrastructure.configuration.security.AratiriSecurityProperties;
-import com.aratiri.shared.exception.ErrorResponse;
+import com.aratiri.infrastructure.web.ErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

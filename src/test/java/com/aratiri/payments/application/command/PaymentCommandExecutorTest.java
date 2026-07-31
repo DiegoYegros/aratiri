@@ -4,7 +4,7 @@ import com.aratiri.payments.application.PaymentCommandService;
 import com.aratiri.payments.application.dto.PayInvoiceRequestDTO;
 import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.payments.infrastructure.json.JsonUtils;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -80,7 +80,7 @@ class PaymentCommandExecutorTest {
         var command = command(request, () -> {
             throw new AssertionError("Execution should not be called when in progress");
         });
-        AratiriException exception = assertThrows(AratiriException.class, () ->
+        ApplicationException exception = assertThrows(ApplicationException.class, () ->
                 executor.execute(command));
 
         assertEquals("Payment with this idempotency key is still in progress", exception.getMessage());
@@ -93,7 +93,7 @@ class PaymentCommandExecutorTest {
         PayInvoiceRequestDTO request = request("lnbc1test");
 
         when(paymentCommandService.resolveIdempotency(any(), any(), eq("LIGHTNING_INVOICE_PAY"), any()))
-                .thenThrow(new AratiriException(
+                .thenThrow(new ApplicationException(
                         "Idempotency key conflict: different request payload for the same key",
                         HttpStatus.CONFLICT.value()
                 ));
@@ -101,7 +101,7 @@ class PaymentCommandExecutorTest {
         var command = command(request, () -> {
             throw new AssertionError("Execution should not be called on conflict");
         });
-        AratiriException exception = assertThrows(AratiriException.class, () ->
+        ApplicationException exception = assertThrows(ApplicationException.class, () ->
                 executor.execute(command));
 
         assertEquals(HttpStatus.CONFLICT.value(), exception.getStatus());
@@ -122,7 +122,7 @@ class PaymentCommandExecutorTest {
         var command = command(request, () -> {
             throw new AssertionError("Execution should not be called on failed replay");
         });
-        AratiriException exception = assertThrows(AratiriException.class, () ->
+        ApplicationException exception = assertThrows(ApplicationException.class, () ->
                 executor.execute(command));
 
         assertEquals("Invoice has already been paid", exception.getMessage());
@@ -134,7 +134,7 @@ class PaymentCommandExecutorTest {
     void execute_executionFailure_recordsFailureAndPropagates() {
         UUID commandId = UUID.randomUUID();
         PayInvoiceRequestDTO request = request("lnbc1test");
-        AratiriException failure = new AratiriException("Payment failed", HttpStatus.BAD_REQUEST.value());
+        ApplicationException failure = new ApplicationException("Payment failed", HttpStatus.BAD_REQUEST.value());
 
         when(paymentCommandService.resolveIdempotency(any(), any(), eq("LIGHTNING_INVOICE_PAY"), any()))
                 .thenReturn(PaymentCommandService.PaymentCommandResult.newCommand(commandId));

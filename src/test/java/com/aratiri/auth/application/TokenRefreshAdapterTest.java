@@ -8,7 +8,7 @@ import com.aratiri.auth.domain.AuthTokens;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.RefreshToken;
 import com.aratiri.auth.domain.Role;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -63,7 +63,7 @@ class TokenRefreshAdapterTest {
     void refreshAccessToken_throwsWhenTokenNotFound() {
         when(refreshTokenPort.findByToken("unknown")).thenReturn(Optional.empty());
 
-        assertThrows(AratiriException.class, () -> adapter.refreshAccessToken("unknown"));
+        assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("unknown"));
     }
 
     @Test
@@ -71,7 +71,7 @@ class TokenRefreshAdapterTest {
         RefreshToken refreshToken = new RefreshToken("expired-token", "user-1", Instant.parse("2024-12-31T23:59:59Z"));
         when(refreshTokenPort.findByToken("expired-token")).thenReturn(Optional.of(refreshToken));
 
-        assertThrows(AratiriException.class, () -> adapter.refreshAccessToken("expired-token"));
+        assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("expired-token"));
         verify(refreshTokenPort).deleteRefreshToken("expired-token");
     }
 }

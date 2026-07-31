@@ -12,7 +12,7 @@ import com.aratiri.infrastructure.persistence.jpa.repository.AccountEntryReposit
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.TransactionCurrency;
 import com.aratiri.transactions.application.dto.TransactionType;
 import org.junit.jupiter.api.BeforeEach;
@@ -164,7 +164,7 @@ class LedgerIntegrationTest extends AbstractIntegrationTest {
 
         accountLedgerService.appendEntry(accountId, "tx-001", 500, AccountEntryType.MANUAL_ADJUSTMENT, "Credit");
 
-        AratiriException exception = assertThrows(AratiriException.class, () ->
+        ApplicationException exception = assertThrows(ApplicationException.class, () ->
                 accountLedgerService.appendEntry(accountId, "tx-002", -1000, AccountEntryType.MANUAL_ADJUSTMENT, "Overdraft")
         );
 
@@ -235,7 +235,7 @@ class LedgerIntegrationTest extends AbstractIntegrationTest {
         TransactionEntity tx = new TransactionEntity();
         tx.setUserId("non-existent-user");
         tx.setId("tx-001");
-        AratiriException exception = assertThrows(AratiriException.class, () ->
+        ApplicationException exception = assertThrows(ApplicationException.class, () ->
                 accountLedgerService.appendEntryForUser(tx, 1000, AccountEntryType.MANUAL_ADJUSTMENT, "Test")
         );
 
@@ -245,7 +245,7 @@ class LedgerIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Append entry for non-existent account throws exception")
     void appendEntry_for_non_existent_account_throws() {
-        AratiriException exception = assertThrows(AratiriException.class, () ->
+        ApplicationException exception = assertThrows(ApplicationException.class, () ->
                 accountLedgerService.appendEntry("non-existent-account", "tx-001", 1000, AccountEntryType.MANUAL_ADJUSTMENT, "Test")
         );
 

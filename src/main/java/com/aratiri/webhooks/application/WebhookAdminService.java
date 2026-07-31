@@ -6,7 +6,7 @@ import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointSubscriptionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookDeliveryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEndpointRepository;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.webhooks.application.destination.WebhookDestinationPolicy;
 import com.aratiri.webhooks.application.destination.WebhookDestinationRejectedException;
 import com.aratiri.webhooks.application.dto.*;
@@ -144,16 +144,16 @@ public class WebhookAdminService {
     @Transactional(readOnly = true)
     public WebhookDeliveryResponseDTO getDelivery(UUID id) {
         WebhookDeliveryEntity delivery = webhookDeliveryRepository.findByIdWithEvent(id)
-                .orElseThrow(() -> new AratiriException("Webhook delivery not found", HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new ApplicationException("Webhook delivery not found", HttpStatus.NOT_FOUND.value()));
         return mapToDeliveryResponse(delivery);
     }
 
     @Transactional
     public void retryDelivery(UUID id) {
         WebhookDeliveryEntity delivery = webhookDeliveryRepository.findById(id)
-                .orElseThrow(() -> new AratiriException("Webhook delivery not found", HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new ApplicationException("Webhook delivery not found", HttpStatus.NOT_FOUND.value()));
         if (delivery.getStatus() == WebhookDeliveryStatus.SUCCEEDED) {
-            throw new AratiriException("Cannot retry a succeeded delivery", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Cannot retry a succeeded delivery", HttpStatus.BAD_REQUEST.value());
         }
         webhookDeliveryLifecycle.resetForManualRetry(delivery);
         log.info("Manually retried webhook delivery id={}", id);
@@ -163,7 +163,7 @@ public class WebhookAdminService {
         try {
             webhookDestinationPolicy.validate(url);
         } catch (WebhookDestinationRejectedException e) {
-            throw new AratiriException(
+            throw new ApplicationException(
                     WebhookDestinationRejectedException.PUBLIC_MESSAGE,
                     HttpStatus.BAD_REQUEST.value(),
                     e);
@@ -172,7 +172,7 @@ public class WebhookAdminService {
 
     private WebhookEndpointEntity findEndpointOrThrow(UUID id) {
         return webhookEndpointRepository.findById(id)
-                .orElseThrow(() -> new AratiriException("Webhook endpoint not found", HttpStatus.NOT_FOUND.value()));
+                .orElseThrow(() -> new ApplicationException("Webhook endpoint not found", HttpStatus.NOT_FOUND.value()));
     }
 
     private WebhookEndpointResponseDTO mapToResponse(WebhookEndpointEntity endpoint) {

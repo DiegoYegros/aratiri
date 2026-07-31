@@ -1,6 +1,6 @@
 package com.aratiri.infrastructure.configuration;
 
-import com.aratiri.shared.exception.ErrorResponse;
+import com.aratiri.infrastructure.web.ErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

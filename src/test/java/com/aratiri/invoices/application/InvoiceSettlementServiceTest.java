@@ -2,7 +2,7 @@ package com.aratiri.invoices.application;
 
 import com.aratiri.invoices.application.port.out.LightningInvoicePersistencePort;
 import com.aratiri.invoices.domain.LightningInvoice;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -116,7 +116,7 @@ class InvoiceSettlementServiceTest {
                 .thenReturn(Optional.of(settledInvoice));
         SettleInternalInvoiceCommand command = new SettleInternalInvoiceCommand("receiver-1", "payment-hash", 1_000L);
 
-        assertThrows(AratiriException.class, () -> service.settleInternalInvoice(command));
+        assertThrows(ApplicationException.class, () -> service.settleInternalInvoice(command));
         verify(lightningInvoicePersistencePort, never()).save(any());
     }
 

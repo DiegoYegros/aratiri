@@ -3,7 +3,7 @@ package com.aratiri.transactions;
 import com.aratiri.auth.application.dto.UserDTO;
 import com.aratiri.auth.domain.Role;
 import com.aratiri.infrastructure.web.context.AratiriContext;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.TransactionDTOResponse;
 import com.aratiri.transactions.application.dto.TransactionPageResponse;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
@@ -51,7 +51,7 @@ class TransactionsAPITest {
     void getTransaction_throwsWhenNotFound() {
         when(transactionsPort.getTransactionById("tx-1", "user-1")).thenReturn(Optional.empty());
 
-        assertThrows(AratiriException.class, () -> api.getTransaction("tx-1", ctx));
+        assertThrows(ApplicationException.class, () -> api.getTransaction("tx-1", ctx));
     }
 
     @Test
@@ -67,9 +67,9 @@ class TransactionsAPITest {
 
     @Test
     void listTransactions_validatesCursor() {
-        assertThrows(AratiriException.class, () -> api.listTransactions("invalid", 50, ctx));
-        assertThrows(AratiriException.class, () -> api.listTransactions("_id", 50, ctx));
-        assertThrows(AratiriException.class, () -> api.listTransactions("abc_id", 50, ctx));
+        assertThrows(ApplicationException.class, () -> api.listTransactions("invalid", 50, ctx));
+        assertThrows(ApplicationException.class, () -> api.listTransactions("_id", 50, ctx));
+        assertThrows(ApplicationException.class, () -> api.listTransactions("abc_id", 50, ctx));
     }
 
     @Test

@@ -11,7 +11,7 @@ import com.aratiri.invoices.application.InternalInvoiceSettlementFacts;
 import com.aratiri.invoices.application.SettleInternalInvoiceCommand;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.payments.application.event.PaymentSentEvent;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.CreateTransactionRequest;
 import com.aratiri.transactions.application.dto.TransactionCurrency;
 import com.aratiri.transactions.application.dto.TransactionStatus;
@@ -92,7 +92,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
 
     public TransactionState createAndSettleTransaction(CreateTransactionRequest request) {
         if (!SETTLEABLE_TYPES.contains(request.getType())) {
-            throw new AratiriException(
+            throw new ApplicationException(
                     String.format("Transaction type [%s] is not valid for the create-and-settle flow.", request.getType()),
                     HttpStatus.BAD_REQUEST.value()
             );
@@ -211,7 +211,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
             return state;
         }
         if (!state.isPending()) {
-            throw new AratiriException(String.format("Transaction status [%s] is not valid for confirmation.", state.status()));
+            throw new ApplicationException(String.format("Transaction status [%s] is not valid for confirmation.", state.status()));
         }
         long newBalanceSat = postLedgerEntry(transaction);
         appendStatusEvent(transaction, TransactionStatus.COMPLETED, newBalanceSat, null, completionEffects);
@@ -242,7 +242,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
         if (!state.isPending()) {
             logger.error("Attempted to fail a transaction that was not PENDING. ID: {}, Current Status: {}",
                     transactionId, state.status());
-            throw new AratiriException(String.format("Transaction status [%s] is not valid for failure.", state.status()));
+            throw new ApplicationException(String.format("Transaction status [%s] is not valid for failure.", state.status()));
         }
         appendStatusEvent(transaction, TransactionStatus.FAILED, null, failureReason);
         transaction.setCurrentStatus(TransactionStatus.FAILED.name());
@@ -257,17 +257,17 @@ public class TransactionSettlementService implements TransactionSettlementModule
             return;
         }
         TransactionEntity transaction = transactionsRepository.findById(transactionId)
-                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found for fee update.", transactionId)));
+                .orElseThrow(() -> new ApplicationException(String.format("Transaction with id [%s] not found for fee update.", transactionId)));
         TransactionState state = currentState(transaction);
         if (!state.isPending()) {
             logger.error("Attempted to add a routing fee to a transaction that was not PENDING. ID: {}, Current Status: {}",
                     transactionId, state.status());
-            throw new AratiriException(String.format("Transaction status [%s] is not valid for fee update.", state.status()));
+            throw new ApplicationException(String.format("Transaction status [%s] is not valid for fee update.", state.status()));
         }
         if (transaction.getType() != TransactionType.LIGHTNING_DEBIT) {
             logger.error("Attempted to add a routing fee to a transaction of type [{}]. Only LIGHTNING_DEBIT is supported.",
                     transaction.getType());
-            throw new AratiriException("Routing fees can only be applied to Lightning debit transactions.");
+            throw new ApplicationException("Routing fees can only be applied to Lightning debit transactions.");
         }
         boolean hasFeeEvent = state.events().stream()
                 .anyMatch(e -> e.getEventType() == TransactionEventType.FEE_ADDED);
@@ -335,12 +335,12 @@ public class TransactionSettlementService implements TransactionSettlementModule
 
     private TransactionEntity loadTransaction(String transactionId, String action) {
         return transactionsRepository.findById(transactionId)
-                .orElseThrow(() -> new AratiriException(String.format("Transaction with id [%s] not found for %s.", transactionId, action)));
+                .orElseThrow(() -> new ApplicationException(String.format("Transaction with id [%s] not found for %s.", transactionId, action)));
     }
 
     private void requireExternalDebit(TransactionEntity transaction, String action) {
         if (!EXTERNAL_DEBIT_TYPES.contains(transaction.getType())) {
-            throw new AratiriException(String.format(
+            throw new ApplicationException(String.format(
                     "Transaction type [%s] is not valid for external debit %s.",
                     transaction.getType(),
                     action
@@ -366,25 +366,25 @@ public class TransactionSettlementService implements TransactionSettlementModule
 
     private void requireInternalTransferDebit(TransactionEntity transaction, InternalTransferSettlement settlement) {
         if (transaction.getType() != TransactionType.LIGHTNING_DEBIT) {
-            throw new AratiriException(String.format(
+            throw new ApplicationException(String.format(
                     "Transaction type [%s] is not valid for internal transfer settlement.",
                     transaction.getType()
             ));
         }
         if (!settlement.senderId().equals(transaction.getUserId())) {
-            throw new AratiriException(String.format("Transaction [%s] does not correspond to internal transfer sender.", transaction.getId()));
+            throw new ApplicationException(String.format("Transaction [%s] does not correspond to internal transfer sender.", transaction.getId()));
         }
         if (transaction.getCurrentAmount() != settlement.amountSat()) {
-            throw new AratiriException(String.format("Transaction [%s] amount does not match internal transfer amount.", transaction.getId()));
+            throw new ApplicationException(String.format("Transaction [%s] amount does not match internal transfer amount.", transaction.getId()));
         }
         if (!settlement.paymentHash().equals(transaction.getReferenceId())) {
-            throw new AratiriException(String.format("Transaction [%s] reference does not match internal transfer payment hash.", transaction.getId()));
+            throw new ApplicationException(String.format("Transaction [%s] reference does not match internal transfer payment hash.", transaction.getId()));
         }
     }
 
     private void requireUserIfPresent(TransactionEntity transaction, String userId) {
         if (userId != null && !userId.equals(transaction.getUserId())) {
-            throw new AratiriException(String.format("Transaction [%s] does not correspond to current user.", transaction.getId()));
+            throw new ApplicationException(String.format("Transaction [%s] does not correspond to current user.", transaction.getId()));
         }
     }
 
@@ -507,19 +507,19 @@ public class TransactionSettlementService implements TransactionSettlementModule
 
     private void requireInternalTransferCredit(TransactionEntity transaction, InternalTransferSettlement settlement) {
         if (transaction.getType() != TransactionType.LIGHTNING_CREDIT) {
-            throw new AratiriException(String.format(
+            throw new ApplicationException(String.format(
                     "Transaction type [%s] is not valid for internal transfer receiver settlement.",
                     transaction.getType()
             ));
         }
         if (!settlement.receiverId().equals(transaction.getUserId())) {
-            throw new AratiriException(String.format("Transaction [%s] does not correspond to internal transfer receiver.", transaction.getId()));
+            throw new ApplicationException(String.format("Transaction [%s] does not correspond to internal transfer receiver.", transaction.getId()));
         }
         if (transaction.getCurrentAmount() != settlement.amountSat()) {
-            throw new AratiriException(String.format("Transaction [%s] amount does not match internal transfer amount.", transaction.getId()));
+            throw new ApplicationException(String.format("Transaction [%s] amount does not match internal transfer amount.", transaction.getId()));
         }
         if (!settlement.paymentHash().equals(transaction.getReferenceId())) {
-            throw new AratiriException(String.format("Transaction [%s] reference does not match internal transfer payment hash.", transaction.getId()));
+            throw new ApplicationException(String.format("Transaction [%s] reference does not match internal transfer payment hash.", transaction.getId()));
         }
     }
 
@@ -538,7 +538,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
             TransactionState receiverSettlement
     ) {
         if (senderSettlement.status() != TransactionStatus.COMPLETED || receiverSettlement.status() != TransactionStatus.COMPLETED) {
-            throw new AratiriException("Internal transfer settlement did not complete both transaction sides.");
+            throw new ApplicationException("Internal transfer settlement did not complete both transaction sides.");
         }
         InternalTransferCompletedEvent completedEvent = new InternalTransferCompletedEvent(
                 settlement.senderId(),
@@ -552,7 +552,7 @@ public class TransactionSettlementService implements TransactionSettlementModule
             outboxWriter.publishInternalTransferCompleted(settlement.transactionId(), completedEvent);
         } catch (Exception e) {
             logger.error("Failed to create outbox event for InternalTransferCompletedEvent", e);
-            throw new AratiriException("Failed to publish settlement event for internal transfer.");
+            throw new ApplicationException("Failed to publish settlement event for internal transfer.");
         }
     }
 

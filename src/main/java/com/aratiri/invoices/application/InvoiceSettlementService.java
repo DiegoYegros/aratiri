@@ -4,7 +4,7 @@ import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.invoices.application.port.out.LightningInvoicePersistencePort;
 import com.aratiri.invoices.domain.LightningInvoice;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -35,14 +35,14 @@ public class InvoiceSettlementService implements InvoiceSettlementPort {
     @Transactional
     public InternalInvoiceSettlementFacts settleInternalInvoice(SettleInternalInvoiceCommand command) {
         LightningInvoice invoice = lightningInvoicePersistencePort.findByPaymentHash(command.paymentHash())
-                .orElseThrow(() -> new AratiriException("Internal invoice not found for payment hash."));
+                .orElseThrow(() -> new ApplicationException("Internal invoice not found for payment hash."));
 
         if (!command.receiverId().equals(invoice.userId())) {
-            throw new AratiriException("Internal invoice does not correspond to transfer receiver.");
+            throw new ApplicationException("Internal invoice does not correspond to transfer receiver.");
         }
         if (invoice.invoiceState() == LightningInvoice.InvoiceState.SETTLED) {
             if (invoice.amountPaidSats() != command.amountSat()) {
-                throw new AratiriException("Internal invoice settlement amount does not match transfer amount.");
+                throw new ApplicationException("Internal invoice settlement amount does not match transfer amount.");
             }
             return InternalInvoiceSettlementFacts.from(invoice);
         }

@@ -50,17 +50,18 @@ src/main/java/com/aratiri/
 ├── payments/                      # Lightning/on-chain/LNURL payments with idempotency keys
 ├── transactions/                  # append-only tx read model, lifecycle events, settlement
 ├── webhooks/                      # event construction, endpoint subscription, delivery retry
-├── infrastructure/                # shared adapters (see Architecture)
+├── bitcoin/                       # satoshi/BTC amounts and Bech32 (LNURL/Nostr) codec
+├── errors/                        # transport-neutral ApplicationException (prefer context domain exceptions)
+├── infrastructure/                # cross-cutting adapters (see Architecture)
 │   ├── persistence/jpa/entity/    # JPA entities (@Getter/@Setter, never @Data)
 │   ├── persistence/jpa/repository/# Spring Data repositories
 │   ├── messaging/                 # Kafka consumers, producers, outbox job
 │   ├── nodeoperations/            # LND payment/side-effect workers
 │   ├── scheduling/                # @Scheduled jobs (retry, reconcile, reconnect)
-│   ├── web/                       # global exception handler, request context
+│   ├── web/                       # global exception handler, ErrorResponse, request context
 │   ├── grpc/                      # gRPC interceptors for LND calls
 │   ├── filter/                    # servlet filters (JWT, CORS, etc.)
 │   └── configuration/             # @Configuration classes, bean wiring
-├── shared/                        # constants, exception classes, utility functions
 
 src/main/proto/                    # LND .proto files → generated lnrpc, routerrpc, invoicesrpc
 src/test/java/com/aratiri/         # mirrors main; AbstractIntegrationTest + *IntegrationTest per context
@@ -82,7 +83,9 @@ Aratiri is a modular monolith with ports-and-adapters (hexagonal) architecture (
 | `lnurl` | LNURL-pay callback and execution | HTTP (public + authenticated) |
 | `webhooks` | Event → signed delivery with retry | Kafka events → `webhooks.application` → HTTP outbound |
 | `admin` | LND node ops, channels, peers, wallet, settings, stats | HTTP → `admin.application.port.in` → `LightningNodeClientAdapter` (gRPC) |
-| `infrastructure` | Shared adapters: JPA repos, Kafka, LND gRPC, scheduling | Implements `application.port.out` interfaces for all modules |
+| `bitcoin` | Satoshi/BTC amount helpers and Bech32 codec | Used by accounts, decoder, lnurl protocol paths |
+| `errors` | Transport-neutral `ApplicationException` | Thrown by application/adapters; mapped in `infrastructure.web` |
+| `infrastructure` | Cross-cutting adapters: JPA repos, Kafka, LND gRPC, scheduling, web | Implements `application.port.out` interfaces for all modules |
 
 **Request-to-settlement flow** (see README for diagrams):
 
@@ -121,7 +124,7 @@ Aratiri is a modular monolith with ports-and-adapters (hexagonal) architecture (
 - Tests mirror the main package structure. Integration tests extend `AbstractIntegrationTest`.
 - Use `2-space` indentation for `.java` files.
 - Import order: Java standard library → third-party → `com.aratiri` — no strict enforcement beyond `spotless` which is not configured; follow surrounding convention.
-- Error handling: domain exceptions from `shared/exception/`, caught by the global exception handler in `infrastructure/web/`.
+- Error handling: prefer context-owned exceptions under `{context}/domain/exception/`; `errors.ApplicationException` is the transport-neutral catch-all (optional HTTP status hint) mapped by `infrastructure/web/GlobalExceptionHandler`. HTTP `ErrorResponse` lives in `infrastructure/web/`.
 - Configuration: `application.properties` or `application.yml` under `src/main/resources/`; environment-specific overrides via env vars (`SPRING_*`, `ARATIRI_*`).
 
 ## Repository Rules

@@ -1,7 +1,7 @@
 package com.aratiri.payments.application;
 
 import com.aratiri.payments.domain.LightningPaymentStatus;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -39,7 +39,7 @@ class ExistingPaymentPolicy {
 
 record ExistingPaymentRejection(String message, int status) {
 
-  AratiriException toException() {
-    return new AratiriException(message, status);
+  ApplicationException toException() {
+    return new ApplicationException(message, status);
   }
 }

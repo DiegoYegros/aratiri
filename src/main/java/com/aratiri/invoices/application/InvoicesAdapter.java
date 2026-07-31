@@ -11,7 +11,7 @@ import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.invoices.domain.LightningInvoiceCreation;
 import com.aratiri.invoices.domain.LightningNodeInvoice;
 import com.aratiri.invoices.infrastructure.InvoiceUtils;
-import com.aratiri.shared.exception.AratiriException;
+import com.aratiri.errors.ApplicationException;
 import com.aratiri.webhooks.application.InvoiceCreatedWebhookFacts;
 import com.aratiri.webhooks.application.WebhookEventService;
 import org.slf4j.Logger;
@@ -104,10 +104,10 @@ public class InvoicesAdapter implements InvoicesPort {
             LightningInvoice savedInvoice = lightningInvoicePersistencePort.save(invoice);
             webhookEventService.createInvoiceCreatedEvent(InvoiceCreatedWebhookFacts.from(savedInvoice));
             return new GenerateInvoiceDTO(creation.paymentRequest());
-        } catch (AratiriException e) {
+        } catch (ApplicationException e) {
             throw e;
         } catch (Exception e) {
-            throw new AratiriException(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
+            throw new ApplicationException(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 
