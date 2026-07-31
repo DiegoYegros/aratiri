@@ -14,6 +14,7 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Component
@@ -74,13 +75,13 @@ public class NotificationConsumer {
                 PaymentSentEvent event = jsonMapper.readValue(message, PaymentSentEvent.class);
                 userId = event.getUserId();
                 eventName = "payment_sent";
-                notificationPayload = Map.of(
-                        MESSAGE_KEY, "Payment Sent",
-                        "transactionId", event.getTransactionId(),
-                        AMOUNT_SATS_KEY, event.getAmount(),
-                        PAYMENT_REQUEST_KEY, event.getPaymentHash(),
-                        "memo", event.getMemo()
-                );
+                // On-chain payments legitimately have a null paymentHash; Map.of rejects nulls.
+                notificationPayload = new HashMap<>();
+                notificationPayload.put(MESSAGE_KEY, "Payment Sent");
+                notificationPayload.put("transactionId", event.getTransactionId());
+                notificationPayload.put(AMOUNT_SATS_KEY, event.getAmount());
+                notificationPayload.put(PAYMENT_REQUEST_KEY, event.getPaymentHash());
+                notificationPayload.put("memo", event.getMemo());
             } else {
                 log.warn("Unknown topic in NotificationConsumer: {} — acknowledging to avoid blocking the partition", topic);
                 ack.acknowledge();
