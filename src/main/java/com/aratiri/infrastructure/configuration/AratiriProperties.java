@@ -23,6 +23,14 @@ public class AratiriProperties {
     @Value("${aratiri.base.url}")
     private String aratiriBaseUrl;
 
+    /**
+     * Public frontend origin used for owner-facing payment-request share URLs
+     * ({@code /pay/{publicId}}). Independent of {@link #aratiriBaseUrl}, which remains
+     * the API/LNURL callback base.
+     */
+    @Value("${aratiri.frontend.base.url:http://localhost:3000}")
+    private String frontendBaseUrl;
+
     @Value("${lnd.path.tls.cert}")
     private String lndTlsCertPath;
 

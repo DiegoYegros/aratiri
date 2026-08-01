@@ -2,6 +2,7 @@ package com.aratiri.invoices.infrastructure.lightning;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.aratiri.invoices.application.port.out.LightningNodePort;
+import invoicesrpc.InvoicesGrpc;
 import lnrpc.LightningGrpc;
 import lnrpc.PayReq;
 import lnrpc.PayReqString;
@@ -39,20 +40,25 @@ class Bolt11DecodeCacheTest {
         }
 
         @Bean
-        LightningNodeAdapter lightningNodeAdapter(LightningGrpc.LightningBlockingStub stub) {
-            return new LightningNodeAdapter(stub, 3600L);
+        LightningNodeAdapter lightningNodeAdapter(
+                LightningGrpc.LightningBlockingStub stub,
+                InvoicesGrpc.InvoicesBlockingStub invoicesStub
+        ) {
+            return new LightningNodeAdapter(stub, invoicesStub, 3600L);
         }
     }
 
     @Test
     void decodePaymentRequest_secondCallWithSameInvoiceIsServedFromCache() {
         LightningGrpc.LightningBlockingStub stub = mock(LightningGrpc.LightningBlockingStub.class);
+        InvoicesGrpc.InvoicesBlockingStub invoicesStub = mock(InvoicesGrpc.InvoicesBlockingStub.class);
         when(stub.withDeadlineAfter(anyLong(), any(TimeUnit.class))).thenReturn(stub);
         when(stub.decodePayReq(any(PayReqString.class)))
                 .thenReturn(PayReq.newBuilder().setPaymentHash("hash").setNumSatoshis(1000L).build());
 
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean("lightningStub", LightningGrpc.LightningBlockingStub.class, () -> stub);
+            context.registerBean("invoicesStub", InvoicesGrpc.InvoicesBlockingStub.class, () -> invoicesStub);
             context.register(TestCacheConfig.class);
             context.refresh();
 
@@ -67,12 +73,14 @@ class Bolt11DecodeCacheTest {
     @Test
     void decodePaymentRequest_cacheKeyIsCaseInsensitive() {
         LightningGrpc.LightningBlockingStub stub = mock(LightningGrpc.LightningBlockingStub.class);
+        InvoicesGrpc.InvoicesBlockingStub invoicesStub = mock(InvoicesGrpc.InvoicesBlockingStub.class);
         when(stub.withDeadlineAfter(anyLong(), any(TimeUnit.class))).thenReturn(stub);
         when(stub.decodePayReq(any(PayReqString.class)))
                 .thenReturn(PayReq.newBuilder().setPaymentHash("hash").setNumSatoshis(1000L).build());
 
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean("lightningStub", LightningGrpc.LightningBlockingStub.class, () -> stub);
+            context.registerBean("invoicesStub", InvoicesGrpc.InvoicesBlockingStub.class, () -> invoicesStub);
             context.register(TestCacheConfig.class);
             context.refresh();
 

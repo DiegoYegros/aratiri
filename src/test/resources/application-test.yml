@@ -74,6 +74,9 @@ lnd:
 aratiri:
   base:
     url: http://localhost:0
+  frontend:
+    base:
+      url: http://localhost:3000
   cors:
     allowed:
       origins: http://localhost:3000

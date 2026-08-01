@@ -1,6 +1,7 @@
 package com.aratiri.invoices.application;
 
 import com.aratiri.invoices.application.port.out.LightningInvoicePersistencePort;
+import com.aratiri.invoices.application.port.out.LinkedPaymentRequestPort;
 import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.errors.ApplicationException;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,7 +11,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -22,14 +26,20 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class InvoiceSettlementServiceTest {
 
+    private static final Instant FIXED_INSTANT = Instant.parse("2025-01-01T00:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
+
     @Mock
     private LightningInvoicePersistencePort lightningInvoicePersistencePort;
+
+    @Mock
+    private LinkedPaymentRequestPort linkedPaymentRequestPort;
 
     private InvoiceSettlementService service;
 
     @BeforeEach
     void setUp() {
-        service = new InvoiceSettlementService(lightningInvoicePersistencePort);
+        service = new InvoiceSettlementService(lightningInvoicePersistencePort, linkedPaymentRequestPort, CLOCK);
     }
 
     @Test
@@ -99,6 +109,7 @@ class InvoiceSettlementServiceTest {
         assertEquals("receiver-1", facts.receiverId());
         assertEquals(1_000L, facts.amountPaidSats());
         assertEquals("internal memo", facts.memo());
+        verify(linkedPaymentRequestPort).markPaidByPaymentHash("payment-hash", FIXED_INSTANT);
     }
 
     @Test
@@ -150,6 +161,7 @@ class InvoiceSettlementServiceTest {
         assertEquals(2_500L, publication.event().getAmount());
         assertEquals("payment-hash", publication.event().getPaymentHash());
         assertEquals("invoice memo", publication.event().getMemo());
+        verify(linkedPaymentRequestPort).markPaidByPaymentHash("payment-hash", FIXED_INSTANT);
     }
 
     private LightningInvoice invoice(

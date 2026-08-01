@@ -59,6 +59,7 @@ public abstract class AbstractIntegrationTest {
                     aratiri.transaction_events,
                     aratiri.transactions,
                     aratiri.lightning_invoices,
+                    aratiri.payment_requests,
                     aratiri.outbox_events,
                     aratiri.refresh_tokens,
                     aratiri.password_reset_data,

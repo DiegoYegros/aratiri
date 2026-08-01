@@ -89,6 +89,9 @@ lnd:
 aratiri:
   base:
     url: ${ARATIRI_BASE_URL}
+  frontend:
+    base:
+      url: ${ARATIRI_FRONTEND_BASE_URL:http://localhost:3000}
   outbox:
     batch-size: ${ARATIRI_OUTBOX_BATCH_SIZE:200}
     fixed-delay-ms: ${ARATIRI_OUTBOX_FIXED_DELAY_MS:1000}

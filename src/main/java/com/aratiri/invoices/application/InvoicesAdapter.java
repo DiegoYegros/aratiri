@@ -6,7 +6,9 @@ import com.aratiri.invoices.application.port.in.InvoicesPort;
 import com.aratiri.invoices.application.port.out.AccountLookupPort;
 import com.aratiri.invoices.application.port.out.LightningInvoicePersistencePort;
 import com.aratiri.invoices.application.port.out.LightningNodePort;
+import com.aratiri.invoices.domain.CreatedLightningInvoice;
 import com.aratiri.invoices.domain.DecodedLightningInvoice;
+import com.aratiri.invoices.domain.InvoiceCancelOutcome;
 import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.invoices.domain.LightningInvoiceCreation;
 import com.aratiri.invoices.domain.LightningNodeInvoice;
@@ -48,14 +50,39 @@ public class InvoicesAdapter implements InvoicesPort {
     @Override
     public GenerateInvoiceDTO generateInvoice(long satsAmount, String memo, String userId, String externalReference, String metadata) {
         logger.info("Generating invoice for sats amount [{}] and with memo [{}] for userId [{}]", satsAmount, memo, userId);
-        return createAndSaveInvoice(userId, satsAmount, memo, externalReference, metadata);
+        return new GenerateInvoiceDTO(createAndSaveInvoice(userId, satsAmount, memo, externalReference, metadata, null).paymentRequest());
     }
 
     @Override
     public GenerateInvoiceDTO generateInvoice(String alias, long satsAmount, String memo, String externalReference, String metadata) {
         logger.info("Generating invoice for sats amount [{}] and with memo [{}] for alias [{}]", satsAmount, memo, alias);
         String userId = accountLookupPort.getUserIdByAlias(alias);
-        return createAndSaveInvoice(userId, satsAmount, memo, externalReference, metadata);
+        return new GenerateInvoiceDTO(createAndSaveInvoice(userId, satsAmount, memo, externalReference, metadata, null).paymentRequest());
+    }
+
+    @Override
+    public CreatedLightningInvoice createInvoice(
+            long satsAmount,
+            String memo,
+            String userId,
+            String externalReference,
+            String metadata,
+            long expirySeconds
+    ) {
+        logger.info(
+                "Generating invoice for sats amount [{}] memo [{}] userId [{}] expirySeconds [{}]",
+                satsAmount,
+                memo,
+                userId,
+                expirySeconds
+        );
+        return createAndSaveInvoice(userId, satsAmount, memo, externalReference, metadata, expirySeconds);
+    }
+
+    @Override
+    public InvoiceCancelOutcome cancelInvoice(String paymentHash) {
+        logger.info("Cancelling Lightning invoice for paymentHash [{}]", paymentHash);
+        return lightningNodePort.cancelInvoice(paymentHash);
     }
 
     @Override
@@ -78,12 +105,21 @@ public class InvoicesAdapter implements InvoicesPort {
         return lightningInvoicePersistencePort.findSettledByPaymentHash(paymentHash).isPresent();
     }
 
-    private GenerateInvoiceDTO createAndSaveInvoice(String userId, long satsAmount, String memo, String externalReference, String metadata) {
+    private CreatedLightningInvoice createAndSaveInvoice(
+            String userId,
+            long satsAmount,
+            String memo,
+            String externalReference,
+            String metadata,
+            Long expirySecondsOverride
+    ) {
         try {
             byte[] preImage = InvoiceUtils.generatePreimage();
             byte[] hash = InvoiceUtils.sha256(preImage);
 
-            LightningInvoiceCreation creation = lightningNodePort.createInvoice(satsAmount, memo, preImage, hash);
+            LightningInvoiceCreation creation = expirySecondsOverride == null
+                    ? lightningNodePort.createInvoice(satsAmount, memo, preImage, hash)
+                    : lightningNodePort.createInvoice(satsAmount, memo, preImage, hash, expirySecondsOverride);
 
             LightningInvoice invoice = new LightningInvoice(
                     null,
@@ -103,7 +139,12 @@ public class InvoicesAdapter implements InvoicesPort {
             );
             LightningInvoice savedInvoice = lightningInvoicePersistencePort.save(invoice);
             webhookEventService.createInvoiceCreatedEvent(InvoiceCreatedWebhookFacts.from(savedInvoice));
-            return new GenerateInvoiceDTO(creation.paymentRequest());
+            return new CreatedLightningInvoice(
+                    savedInvoice.id(),
+                    savedInvoice.paymentHash(),
+                    savedInvoice.paymentRequest(),
+                    savedInvoice.expiry()
+            );
         } catch (ApplicationException e) {
             throw e;
         } catch (Exception e) {

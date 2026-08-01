@@ -3,11 +3,14 @@ package com.aratiri.invoices.infrastructure.lightning;
 import com.aratiri.infrastructure.grpc.GrpcDeadlines;
 import com.aratiri.invoices.application.port.out.LightningNodePort;
 import com.aratiri.invoices.domain.DecodedLightningInvoice;
+import com.aratiri.invoices.domain.InvoiceCancelOutcome;
 import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.invoices.domain.LightningInvoiceCreation;
 import com.aratiri.invoices.domain.LightningNodeInvoice;
 import com.aratiri.errors.ApplicationException;
 import com.google.protobuf.ByteString;
+import invoicesrpc.CancelInvoiceMsg;
+import invoicesrpc.InvoicesGrpc;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lnrpc.*;
@@ -26,18 +29,32 @@ import java.util.concurrent.TimeUnit;
 public class LightningNodeAdapter implements LightningNodePort {
 
     private final LightningGrpc.LightningBlockingStub lightningStub;
+    private final InvoicesGrpc.InvoicesBlockingStub invoicesStub;
     private final long expirySeconds;
 
     public LightningNodeAdapter(
             LightningGrpc.LightningBlockingStub lightningStub,
+            InvoicesGrpc.InvoicesBlockingStub invoicesStub,
             @Value("${aratiri.invoices.expiry-seconds:3600}") long expirySeconds
     ) {
         this.lightningStub = lightningStub;
+        this.invoicesStub = invoicesStub;
         this.expirySeconds = expirySeconds;
     }
 
     @Override
     public LightningInvoiceCreation createInvoice(long satsAmount, String memo, byte[] preimage, byte[] hash) {
+        return createInvoice(satsAmount, memo, preimage, hash, expirySeconds);
+    }
+
+    @Override
+    public LightningInvoiceCreation createInvoice(
+            long satsAmount,
+            String memo,
+            byte[] preimage,
+            byte[] hash,
+            long expirySeconds
+    ) {
         try {
             Invoice request = Invoice.newBuilder()
                     .setRHash(ByteString.copyFrom(hash))
@@ -108,6 +125,33 @@ public class LightningNodeAdapter implements LightningNodePort {
                 return Optional.empty();
             }
             throw new ApplicationException("Error looking up invoice on LND node: " + e.getMessage(), HttpStatus.BAD_GATEWAY.value());
+        }
+    }
+
+    @Override
+    public InvoiceCancelOutcome cancelInvoice(String paymentHash) {
+        try {
+            CancelInvoiceMsg request = CancelInvoiceMsg.newBuilder()
+                    .setPaymentHash(ByteString.fromHex(paymentHash))
+                    .build();
+            invoicesStub
+                    .withDeadlineAfter(GrpcDeadlines.INVOICE_MUTATION.toMillis(), TimeUnit.MILLISECONDS)
+                    .cancelInvoice(request);
+            return InvoiceCancelOutcome.CANCELLED;
+        } catch (StatusRuntimeException e) {
+            Status.Code code = e.getStatus().getCode();
+            if (code == Status.Code.NOT_FOUND) {
+                // Invoice absent on this node: BOLT11 is not payable here.
+                return InvoiceCancelOutcome.NOT_FOUND;
+            }
+            if (code == Status.Code.FAILED_PRECONDITION) {
+                // LND: CancelInvoice fails when the invoice is already settled.
+                return InvoiceCancelOutcome.ALREADY_SETTLED;
+            }
+            throw new ApplicationException(
+                    "Error cancelling invoice on LND node: " + e.getMessage(),
+                    HttpStatus.BAD_GATEWAY.value()
+            );
         }
     }
 }

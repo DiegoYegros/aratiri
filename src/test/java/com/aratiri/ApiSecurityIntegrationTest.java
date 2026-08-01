@@ -89,6 +89,14 @@ class ApiSecurityIntegrationTest extends AbstractApiSecurityIntegrationTest {
         webTestClient().post().uri("/v1/invoices")
                 .exchange()
                 .expectStatus().isUnauthorized();
+
+        webTestClient().post().uri("/v1/payment-requests")
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        webTestClient().get().uri("/v1/payment-requests")
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 
     @Test
@@ -129,6 +137,13 @@ class ApiSecurityIntegrationTest extends AbstractApiSecurityIntegrationTest {
                 });
 
         webTestClient().get().uri("/v1/notifications/subscribe")
+                .exchange()
+                .expectStatus().value(status -> {
+                    assertNotEquals(401, status);
+                    assertNotEquals(403, status);
+                });
+
+        webTestClient().get().uri("/r/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
                 .exchange()
                 .expectStatus().value(status -> {
                     assertNotEquals(401, status);

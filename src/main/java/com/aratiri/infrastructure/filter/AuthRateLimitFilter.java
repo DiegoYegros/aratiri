@@ -22,14 +22,18 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Applies in-process rate limits to sensitive public auth endpoints.
+ * Applies in-process rate limits to sensitive public auth endpoints and public
+ * payment-request lookups ({@code GET /r/**}).
  * <p>
- * Ordered after {@link LogFilter} ({@code @Order(1)}) within the application servlet filter
- * chain so request/response status logging still observes 429s. Spring Security's filter chain
- * defaults to order {@code -100}, so this filter is <em>not</em> guaranteed to run before
- * Security; for {@code permitAll} auth routes Security continues and this filter can still
- * short-circuit the remaining chain. A denied request never reaches MVC controllers or auth
- * application services (covered by the integration spy on {@code AuthPort}).
+ * Ordered after {@link LogFilter} ({@code @Order(1)}) and
+ * {@link PublicPaymentRequestCacheControlFilter} ({@code @Order(2)}) within the application
+ * servlet filter chain so request/response status logging still observes 429s and public
+ * payment-request responses retain {@code Cache-Control: no-store} even when short-circuited.
+ * Spring Security's filter chain defaults to order {@code -100}, so this filter is
+ * <em>not</em> guaranteed to run before Security; for {@code permitAll} auth routes Security
+ * continues and this filter can still short-circuit the remaining chain. A denied request
+ * never reaches MVC controllers or auth application services (covered by the integration spy
+ * on {@code AuthPort}).
  * <p>
  * Client identity is {@link HttpServletRequest#getRemoteAddr()} only —
  * {@code X-Forwarded-For} is intentionally ignored because this service does not sanitize
@@ -37,7 +41,7 @@ import java.util.Set;
  * IPs matter.
  */
 @Component
-@Order(2)
+@Order(3)
 public class AuthRateLimitFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(AuthRateLimitFilter.class);
@@ -54,6 +58,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     );
 
     private static final String RATE_LIMIT_MESSAGE = "Too many requests. Please try again later.";
+    private static final String PUBLIC_PAYMENT_REQUEST_PREFIX = "/r/";
+    private static final String PUBLIC_PAYMENT_REQUEST_BUCKET = "/r";
 
     private final AuthRateLimiter rateLimiter;
     private final boolean enabled;
@@ -67,7 +73,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        if (!enabled || !isSensitiveAuthRequest(request)) {
+        if (!enabled || !isRateLimitedRequest(request)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -85,6 +91,10 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         writeTooManyRequests(response, decision.retryAfterSeconds());
     }
 
+    private boolean isRateLimitedRequest(HttpServletRequest request) {
+        return isSensitiveAuthRequest(request) || isPublicPaymentRequestGet(request);
+    }
+
     private boolean isSensitiveAuthRequest(HttpServletRequest request) {
         if (!"POST".equalsIgnoreCase(request.getMethod())) {
             return false;
@@ -92,12 +102,25 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         return SENSITIVE_AUTH_PATHS.contains(normalizedPath(request));
     }
 
+    private boolean isPublicPaymentRequestGet(HttpServletRequest request) {
+        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+        String path = normalizedPath(request);
+        return path.startsWith(PUBLIC_PAYMENT_REQUEST_PREFIX) && path.length() > PUBLIC_PAYMENT_REQUEST_PREFIX.length();
+    }
+
     private String buildKey(HttpServletRequest request) {
         String remote = request.getRemoteAddr();
         if (remote == null || remote.isBlank()) {
             remote = "unknown";
         }
-        return remote + "|" + request.getMethod().toUpperCase(Locale.ROOT) + "|" + normalizedPath(request);
+        String method = request.getMethod().toUpperCase(Locale.ROOT);
+        if (isPublicPaymentRequestGet(request)) {
+            // Bucket all public payment-request lookups together so opaque IDs cannot explode keyspace.
+            return remote + "|" + method + "|" + PUBLIC_PAYMENT_REQUEST_BUCKET;
+        }
+        return remote + "|" + method + "|" + normalizedPath(request);
     }
 
     private String normalizedPath(HttpServletRequest request) {
@@ -119,6 +142,10 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds));
+        // Preserve no-store if an earlier filter already set it; reaffirm for /r short-circuits.
+        if (!response.containsHeader(HttpHeaders.CACHE_CONTROL)) {
+            response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        }
         ErrorResponse body = new ErrorResponse(
                 RATE_LIMIT_MESSAGE,
                 HttpStatus.TOO_MANY_REQUESTS.value(),

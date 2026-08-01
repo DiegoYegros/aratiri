@@ -3,6 +3,7 @@ package com.aratiri.invoices.application;
 import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.invoices.application.port.out.LightningInvoicePersistencePort;
+import com.aratiri.invoices.application.port.out.LinkedPaymentRequestPort;
 import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.errors.ApplicationException;
 import org.slf4j.Logger;
@@ -10,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -18,9 +20,17 @@ public class InvoiceSettlementService implements InvoiceSettlementPort {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final LightningInvoicePersistencePort lightningInvoicePersistencePort;
+    private final LinkedPaymentRequestPort linkedPaymentRequestPort;
+    private final Clock clock;
 
-    public InvoiceSettlementService(LightningInvoicePersistencePort lightningInvoicePersistencePort) {
+    public InvoiceSettlementService(
+            LightningInvoicePersistencePort lightningInvoicePersistencePort,
+            LinkedPaymentRequestPort linkedPaymentRequestPort,
+            Clock clock
+    ) {
         this.lightningInvoicePersistencePort = lightningInvoicePersistencePort;
+        this.linkedPaymentRequestPort = linkedPaymentRequestPort;
+        this.clock = clock;
     }
 
     @Override
@@ -47,7 +57,8 @@ public class InvoiceSettlementService implements InvoiceSettlementPort {
             return InternalInvoiceSettlementFacts.from(invoice);
         }
 
-        LightningInvoice settledInvoice = lightningInvoicePersistencePort.save(invoice.settle(command.amountSat(), LocalDateTime.now()));
+        LightningInvoice settledInvoice = lightningInvoicePersistencePort.save(invoice.settle(command.amountSat(), LocalDateTime.now(clock)));
+        linkedPaymentRequestPort.markPaidByPaymentHash(settledInvoice.paymentHash(), clock.instant());
         return InternalInvoiceSettlementFacts.from(settledInvoice);
     }
 
@@ -70,13 +81,14 @@ public class InvoiceSettlementService implements InvoiceSettlementPort {
                 invoice.invoiceState(), newState, update.paymentRequest());
 
         if (newState == LightningInvoice.InvoiceState.SETTLED) {
-            LightningInvoice settledInvoice = lightningInvoicePersistencePort.save(invoice.settle(update.amountPaidSat(), LocalDateTime.now()));
+            LightningInvoice settledInvoice = lightningInvoicePersistencePort.save(invoice.settle(update.amountPaidSat(), LocalDateTime.now(clock)));
+            linkedPaymentRequestPort.markPaidByPaymentHash(settledInvoice.paymentHash(), clock.instant());
             logger.info("Invoice settled for {} sats: {}", update.amountPaidSat(), update.paymentRequest());
             InvoiceSettledEvent eventPayload = new InvoiceSettledEvent(
                     settledInvoice.userId(),
                     settledInvoice.amountSats(),
                     settledInvoice.paymentHash(),
-                    LocalDateTime.now(),
+                    LocalDateTime.now(clock),
                     settledInvoice.memo()
             );
             return InvoiceStateUpdateResult.settled(new InvoiceSettledPublication(settledInvoice.id(), eventPayload));

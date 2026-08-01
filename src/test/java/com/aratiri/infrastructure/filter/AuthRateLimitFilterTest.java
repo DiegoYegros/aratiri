@@ -127,8 +127,43 @@ class AuthRateLimitFilterTest {
         verify(filterChain, times(5)).doFilter(any(), any());
     }
 
+    @Test
+    void shortCircuitsPublicPaymentRequestGetWhenExceeded() throws Exception {
+        MockHttpServletRequest first = publicPaymentRequest("10.0.0.1", "/r/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        MockHttpServletRequest second = publicPaymentRequest("10.0.0.1", "/r/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+        MockHttpServletRequest third = publicPaymentRequest("10.0.0.1", "/r/cccccccccccccccccccccccccccccccc");
+
+        filter.doFilter(first, new MockHttpServletResponse(), filterChain);
+        filter.doFilter(second, new MockHttpServletResponse(), filterChain);
+
+        MockHttpServletResponse denied = new MockHttpServletResponse();
+        filter.doFilter(third, denied, filterChain);
+
+        verify(filterChain, times(2)).doFilter(any(), any());
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS.value(), denied.getStatus());
+        assertEquals("30", denied.getHeader(HttpHeaders.RETRY_AFTER));
+    }
+
+    @Test
+    void bucketsDistinctPublicIdsTogetherForSameRemote() throws Exception {
+        filter.doFilter(publicPaymentRequest("10.0.0.1", "/r/id1"), new MockHttpServletResponse(), filterChain);
+        filter.doFilter(publicPaymentRequest("10.0.0.1", "/r/id2"), new MockHttpServletResponse(), filterChain);
+
+        MockHttpServletResponse denied = new MockHttpServletResponse();
+        filter.doFilter(publicPaymentRequest("10.0.0.1", "/r/id3"), denied, filterChain);
+
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS.value(), denied.getStatus());
+        verify(filterChain, times(2)).doFilter(any(), any());
+    }
+
     private static MockHttpServletRequest sensitiveLogin(String remoteAddr) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/auth/login");
+        request.setRemoteAddr(remoteAddr);
+        return request;
+    }
+
+    private static MockHttpServletRequest publicPaymentRequest(String remoteAddr, String path) {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
         request.setRemoteAddr(remoteAddr);
         return request;
     }

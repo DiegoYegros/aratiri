@@ -7,7 +7,8 @@ Aratiri is configured through Spring Boot properties, usually supplied as enviro
 | Variable | Purpose |
 | --- | --- |
 | `SERVER_PORT` | HTTP port. Defaults to `2100`. |
-| `ARATIRI_BASE_URL` | Public base URL used for LNURL callback URLs, lightning addresses, and QR payloads. |
+| `ARATIRI_BASE_URL` | Public API base URL used for LNURL callback URLs, lightning addresses, and QR payloads. Not used for payment-request share links. |
+| `ARATIRI_FRONTEND_BASE_URL` | Public frontend origin for owner-facing payment-request share URLs (`/pay/{publicId}`). Defaults to `http://localhost:3000`. |
 | `ARATIRI_CORS_ALLOWED_ORIGINS` | Comma-separated allowed browser origins. |
 | `JWT_SECRET` | HMAC signing secret for locally issued access tokens. Use a strong 256-bit-or-larger secret. |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka bootstrap address. Use `kafka:29092` inside Compose and `localhost:9092` from the host. |
@@ -91,7 +92,7 @@ Sensitive public auth routes (`login`, `register`, `verify`, `forgot-password`, 
 
 | Variable / property | Default | Purpose |
 | --- | --- | --- |
-| `ARATIRI_SECURITY_AUTH_RATE_LIMIT_ENABLED` / `aratiri.security.auth-rate-limit.enabled` | `true` | Enables the servlet filter. Disable only when a trusted gateway/WAF already enforces equivalent limits, or for tightly controlled local testing. |
+| `ARATIRI_SECURITY_AUTH_RATE_LIMIT_ENABLED` / `aratiri.security.auth-rate-limit.enabled` | `true` | Enables the servlet filter for sensitive public auth POSTs and public payment-request GETs (`/r/{publicId}`). Disable only when a trusted gateway/WAF already enforces equivalent limits, or for tightly controlled local testing. |
 | `ARATIRI_SECURITY_AUTH_RATE_LIMIT_REQUESTS_PER_WINDOW` / `aratiri.security.auth-rate-limit.requests-per-window` | `30` | Max allowed requests per key within one window. Must be `>= 1`. |
 | `ARATIRI_SECURITY_AUTH_RATE_LIMIT_WINDOW` / `aratiri.security.auth-rate-limit.window` | `1m` | Fixed window duration (Spring `Duration`). Supported range: **`1ms`–`1d` inclusive**. Sub-millisecond positives (which truncate to 0ms), zero/negative values, durations above 1 day, and values that overflow millisecond conversion fail startup. |
 | `ARATIRI_SECURITY_AUTH_RATE_LIMIT_MAXIMUM_KEYS` / `aratiri.security.auth-rate-limit.maximum-keys` | `100000` | Caffeine bound on distinct keys. Must be `>= 1`. |

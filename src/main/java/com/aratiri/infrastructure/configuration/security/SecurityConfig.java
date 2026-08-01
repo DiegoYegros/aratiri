@@ -46,6 +46,7 @@ public class SecurityConfig {
             "/v1/auth/exchange",
             "/.well-known/lnurlp/**",
             "/lnurl/callback/**",
+            "/r/**",
             "/v1/auth/sso/google",
             "/v1/notifications/subscribe"
     };

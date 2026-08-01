@@ -1,17 +1,22 @@
 package com.aratiri.invoices.infrastructure.lightning;
 
 import com.aratiri.invoices.domain.DecodedLightningInvoice;
+import com.aratiri.invoices.domain.InvoiceCancelOutcome;
 import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.invoices.domain.LightningInvoiceCreation;
 import com.aratiri.invoices.domain.LightningNodeInvoice;
 import com.aratiri.errors.ApplicationException;
 import com.google.protobuf.ByteString;
+import invoicesrpc.CancelInvoiceMsg;
+import invoicesrpc.CancelInvoiceResp;
+import invoicesrpc.InvoicesGrpc;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lnrpc.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -22,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,12 +36,16 @@ class LightningNodeAdapterTest {
     @Mock
     private LightningGrpc.LightningBlockingStub lightningStub;
 
+    @Mock
+    private InvoicesGrpc.InvoicesBlockingStub invoicesStub;
+
     private LightningNodeAdapter adapter;
 
     @BeforeEach
     void setUp() {
         lenient().when(lightningStub.withDeadlineAfter(anyLong(), any(TimeUnit.class))).thenReturn(lightningStub);
-        adapter = new LightningNodeAdapter(lightningStub, 3600L);
+        lenient().when(invoicesStub.withDeadlineAfter(anyLong(), any(TimeUnit.class))).thenReturn(invoicesStub);
+        adapter = new LightningNodeAdapter(lightningStub, invoicesStub, 3600L);
     }
 
     @Test
@@ -59,8 +69,8 @@ class LightningNodeAdapterTest {
         org.mockito.Mockito.verify(lightningStub, org.mockito.Mockito.never())
                 .decodePayReq(any(PayReqString.class));
 
-        org.mockito.ArgumentCaptor<Invoice> requestCaptor = org.mockito.ArgumentCaptor.forClass(Invoice.class);
-        org.mockito.Mockito.verify(lightningStub).addInvoice(requestCaptor.capture());
+        ArgumentCaptor<Invoice> requestCaptor = ArgumentCaptor.forClass(Invoice.class);
+        verify(lightningStub).addInvoice(requestCaptor.capture());
         assertEquals(3600L, requestCaptor.getValue().getExpiry(), "expiry must be requested explicitly");
     }
 
@@ -147,5 +157,44 @@ class LightningNodeAdapterTest {
 
         assertThrows(ApplicationException.class,
                 () -> adapter.lookupInvoice("deadbeef"));
+    }
+
+    @Test
+    void cancelInvoice_succeedsViaInvoicesRpc() {
+        String paymentHash = "aabb";
+        when(invoicesStub.cancelInvoice(any(CancelInvoiceMsg.class)))
+                .thenReturn(CancelInvoiceResp.getDefaultInstance());
+
+        InvoiceCancelOutcome outcome = adapter.cancelInvoice(paymentHash);
+
+        assertEquals(InvoiceCancelOutcome.CANCELLED, outcome);
+        ArgumentCaptor<CancelInvoiceMsg> captor = ArgumentCaptor.forClass(CancelInvoiceMsg.class);
+        verify(invoicesStub).cancelInvoice(captor.capture());
+        assertArrayEquals(ByteString.fromHex(paymentHash).toByteArray(), captor.getValue().getPaymentHash().toByteArray());
+    }
+
+    @Test
+    void cancelInvoice_mapsAlreadySettled() {
+        when(invoicesStub.cancelInvoice(any(CancelInvoiceMsg.class)))
+                .thenThrow(new StatusRuntimeException(Status.FAILED_PRECONDITION.withDescription("invoice already settled")));
+
+        assertEquals(InvoiceCancelOutcome.ALREADY_SETTLED, adapter.cancelInvoice("deadbeef"));
+    }
+
+    @Test
+    void cancelInvoice_mapsNotFound() {
+        when(invoicesStub.cancelInvoice(any(CancelInvoiceMsg.class)))
+                .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
+
+        assertEquals(InvoiceCancelOutcome.NOT_FOUND, adapter.cancelInvoice("deadbeef"));
+    }
+
+    @Test
+    void cancelInvoice_throwsApplicationExceptionOnOtherGrpcError() {
+        when(invoicesStub.cancelInvoice(any(CancelInvoiceMsg.class)))
+                .thenThrow(new StatusRuntimeException(Status.UNAVAILABLE));
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.cancelInvoice("deadbeef"));
+        assertEquals(502, ex.getStatus());
     }
 }

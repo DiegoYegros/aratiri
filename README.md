@@ -50,6 +50,7 @@ The source tree is organized by bounded area under `src/main/java/com/aratiri`.
 | `auth` | Local auth, Google SSO, trusted issuer token exchange, refresh tokens, password reset, user provisioning, WebSocket notification identity. |
 | `accounts` | One account per user, LNURL alias, node-owned on-chain deposit address, QR payloads, fiat-denominated balance views. |
 | `invoices` | Creates LND invoices, persists local invoice records, decodes payment requests, emits invoice-created webhooks. |
+| `requests` | Shareable single-use fixed-satoshi Lightning payment links backed by local invoices and the existing settlement path. |
 | `payments` | Idempotent Lightning, LNURL, and on-chain payment commands. Creates pending debit transactions and emits payment intent events. |
 | `transactions` | Transaction read model, append-only lifecycle events, settlement processors, account ledger updates, payment succeeded/failed events. |
 | `lnurl` | Public LNURL-pay metadata/callback endpoints and authenticated LNURL-pay execution. |
@@ -139,6 +140,8 @@ Incoming Lightning and on-chain credits come from LND streams.
 | `/v1/auth` | Login, registration verification, Google SSO, refresh, token exchange, logout, password reset, current user. |
 | `/v1/accounts` | Current account, account lookup, account creation, legacy date-range transaction list. |
 | `/v1/invoices` | Authenticated invoice creation and invoice decode. |
+| `/v1/payment-requests` | Authenticated create/list/detail/cancel for shareable single-use Lightning payment links. |
+| `/r/{publicId}` | Public unauthenticated payment-request lookup (safe fields only; `Cache-Control: no-store`). |
 | `/v1/payments` | Idempotent Lightning and on-chain payment initiation plus on-chain fee estimates. |
 | `/v1/transactions` | User-scoped transaction reads with cursor pagination and admin-only manual confirmation. |
 | `/.well-known/lnurlp/{alias}` and `/lnurl/callback/{alias}` | Public LNURL-pay metadata and callback endpoints. |
