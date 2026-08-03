@@ -13,7 +13,10 @@
 #   <compose-dir>/ops/deploy/deploy.sh  ->  <compose-dir>
 #
 # Usage:
-#   deploy.sh [compose-file]      # default: <compose-dir>/docker-compose.yml
+#   deploy.sh [--dry-run] [compose-file]   # default: <compose-dir>/docker-compose.yml
+#
+#   --dry-run   report what a real run would do without pulling, logging in, or
+#               touching running containers. Used for staging/validation.
 #
 # Environment (also read from the systemd EnvironmentFile):
 #   ARATIRI_COMPOSE_DIR   compose + .env directory (override auto-detection)
@@ -22,9 +25,20 @@
 
 set -euo pipefail
 
+DRY_RUN=0
+COMPOSE_FILE_ARG=""
+for arg in "$@"; do
+  case "${arg}" in
+    --dry-run) DRY_RUN=1 ;;
+    -*) echo "unknown option: ${arg}" >&2; exit 1 ;;
+    *) COMPOSE_FILE_ARG="${arg}" ;;
+  esac
+done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_DIR="${ARATIRI_COMPOSE_DIR:-$(dirname "${SCRIPT_DIR}")}"
-COMPOSE_FILE="${1:-${COMPOSE_DIR}/docker-compose.yml}"
+# Script lives at <compose-dir>/ops/deploy/deploy.sh, so climb two levels.
+COMPOSE_DIR="${ARATIRI_COMPOSE_DIR:-$(dirname "$(dirname "${SCRIPT_DIR}")")}"
+COMPOSE_FILE="${COMPOSE_FILE_ARG:-${COMPOSE_DIR}/docker-compose.yml}"
 ENV_FILE="${COMPOSE_DIR}/.env"
 # Writable by the user the timer runs as (daya). Kept out of /run since that
 # is root-owned and the poller deliberately runs unprivileged.
@@ -80,7 +94,7 @@ read_env() {
 GHCR_USERNAME="${GHCR_USERNAME:-$(read_env GHCR_USERNAME)}"
 GHCR_TOKEN="${GHCR_TOKEN:-$(read_env GHCR_TOKEN)}"
 
-if [ -n "${GHCR_USERNAME}" ] && [ -n "${GHCR_TOKEN}" ]; then
+if [ "${DRY_RUN}" -eq 0 ] && [ -n "${GHCR_USERNAME}" ] && [ -n "${GHCR_TOKEN}" ]; then
   echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin >/dev/null 2>&1 \
     && log "logged in to GHCR" || log "GHCR login failed; relying on cached credentials"
 fi
@@ -90,13 +104,17 @@ if [ ! -f "${COMPOSE_FILE}" ]; then
   exit 1
 fi
 
-# First make the local :latest tags current. This is a registry manifest
-# check (no layer downloads) when nothing changed; image IDs stay identical.
-log "refreshing image tags"
-if ! compose_cmd pull; then
-  # e.g. GHCR package still private / network down. Compare against whatever
-  # local images exist and retry next cycle rather than failing the unit.
-  log "compose pull failed; continuing with local images"
+if [ "${DRY_RUN}" -eq 1 ]; then
+  log "dry-run: comparing deployed digests against local ${COMPOSE_FILE} (no pull, no up)"
+else
+  # First make the local :latest tags current. This is a registry manifest
+  # check (no layer downloads) when nothing changed; image IDs stay identical.
+  log "refreshing image tags"
+  if ! compose_cmd pull; then
+    # e.g. GHCR package still private / network down. Compare against whatever
+    # local images exist and retry next cycle rather than failing the unit.
+    log "compose pull failed; continuing with local images"
+  fi
 fi
 
 changed=0
@@ -128,6 +146,10 @@ for image in "${IMAGES[@]}"; do
 done
 
 if [ "${changed}" -eq 1 ]; then
+  if [ "${DRY_RUN}" -eq 1 ]; then
+    log "dry-run: image change detected, would run 'compose pull && up -d'"
+    exit 0
+  fi
   redeploy
 else
   log "no image changes; nothing to do"
