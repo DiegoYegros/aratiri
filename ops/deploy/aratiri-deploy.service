@@ -1,0 +1,17 @@
+[Unit]
+Description=Aratiri deploy poller (pull GHCR images, redeploy on change)
+Documentation=https://github.com/DiegoYegros/aratiri/blob/master/ops/README.md
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# Runs as the owner of the compose dir so docker access + file perms match the
+# existing deploy. Adjust User= to the account that owns ~/aratiri-deploy.
+User=daya
+Group=docker
+EnvironmentFile=/home/daya/aratiri-deploy/.env
+ExecStart=/home/daya/aratiri-deploy/ops/deploy/deploy.sh
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=600
