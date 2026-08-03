@@ -136,6 +136,31 @@ Payment APIs require an `Idempotency-Key` header for:
 
 These are Spring properties. Set them as environment variables with relaxed binding if needed, for example `ARATIRI_NODE_OPERATIONS_BATCH_SIZE`.
 
+## Payment Request Sagas
+
+Shareable payment requests commit durable `PROVISIONING` intent (cryptographically random preimage + SHA-256 payment hash) before any LND `AddInvoice`. A leased worker looks up by payment hash, then adds the invoice only if absent, and finalizes `OPEN`. Cancellation first transitions payable `OPEN`/`PROVISIONING` to `CANCEL_PENDING` (hiding BOLT11), then a leased worker performs lookup/cancel and finalizes `CANCELLED`. `PAID` wins over every other stored status when LND proves settlement. `EXPIRED` is derived only from `OPEN`. Terminal provisioning exhaustion becomes inspectable `FAILED` (same-key replay never silently mints a replacement).
+
+| Property / Variable | Default | Purpose |
+| --- | --- | --- |
+| `aratiri.payment-requests.saga.fixed-delay-ms` | `1000` | Saga worker schedule. |
+| `aratiri.payment-requests.saga.batch-size` | `10` | Rows claimed per batch. |
+| `aratiri.payment-requests.saga.lease-seconds` | `300` | Worker lease duration. |
+| `aratiri.payment-requests.saga.provision-max-attempts` | `10` | Attempts before `FAILED`. |
+| `aratiri.payment-requests.saga.cancel-max-attempts` | `10` | Attempts before exhausted (row remains `CANCEL_PENDING`). |
+| `aratiri.payment-requests.saga.backoff-base-ms` | `1000` | Exponential backoff base. |
+| `aratiri.payment-requests.saga.backoff-max-ms` | `60000` | Exponential backoff cap. |
+
+Observability:
+
+- Micrometer gauges: `aratiri.payment_requests.provisioning.due|in_progress|failed`, `aratiri.payment_requests.cancellation.due|in_progress|exhausted` (Actuator `/actuator/metrics` / Prometheus).
+- Admin: `GET /v1/admin/payment-request-sagas/status`, `/failed`, `/exhausted-cancellations`.
+
+HTTP contract notes:
+
+- Create: `201` when synchronously `OPEN`, `202` + `Location` while `PROVISIONING`, same-key replay `202` while pending / `200` once `OPEN`/terminal, payload conflict `409`.
+- Cancel: `202` for `CANCEL_PENDING` (including replay), `200` once `CANCELLED`, `409` for `PAID`/`EXPIRED`/`FAILED`.
+- BOLT11 appears only while effective status is `OPEN`. Preimage, lease fields, and diagnostics are never exposed on owner/public DTOs.
+
 ## Webhooks
 
 | Property / Variable | Default | Purpose |

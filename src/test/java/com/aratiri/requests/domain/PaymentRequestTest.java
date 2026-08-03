@@ -41,21 +41,51 @@ class PaymentRequestTest {
         assertEquals(PaymentRequestStatus.CANCELLED, cancelled.effectiveStatus(EXPIRES.plusSeconds(1)));
     }
 
+    @Test
+    void effectiveStatus_provisioningAndCancelPendingAreNotExpired() {
+        PaymentRequest provisioning = request(PaymentRequestStatus.PROVISIONING, null, null);
+        assertEquals(PaymentRequestStatus.PROVISIONING, provisioning.effectiveStatus(EXPIRES.plusSeconds(1)));
+
+        PaymentRequest cancelPending = request(PaymentRequestStatus.CANCEL_PENDING, "lnbc1", null);
+        assertEquals(PaymentRequestStatus.CANCEL_PENDING, cancelPending.effectiveStatus(EXPIRES.plusSeconds(1)));
+    }
+
+    @Test
+    void effectiveStatus_failedRemainsFailed() {
+        PaymentRequest failed = request(PaymentRequestStatus.FAILED, null, null).withFailed("boom");
+        assertEquals(PaymentRequestStatus.FAILED, failed.effectiveStatus(EXPIRES.plusSeconds(1)));
+    }
+
     private static PaymentRequest openRequest() {
+        return request(PaymentRequestStatus.OPEN, "lnbc1", "invoice-1");
+    }
+
+    private static PaymentRequest request(PaymentRequestStatus status, String bolt11, String invoiceId) {
         return new PaymentRequest(
                 "id-1",
                 "publicidpublicidpublicidpub12",
                 "user-1",
                 1000L,
                 "memo",
-                PaymentRequestStatus.OPEN,
+                status,
                 "payment-hash",
-                "lnbc1",
-                "invoice-1",
+                "cHJlaW1hZ2U=",
+                bolt11,
+                invoiceId,
                 "idem-1",
                 "payload-hash",
                 CREATED,
                 EXPIRES,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
                 null,
                 null
         );

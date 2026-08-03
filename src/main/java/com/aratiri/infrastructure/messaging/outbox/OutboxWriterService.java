@@ -13,6 +13,7 @@ import com.aratiri.transactions.application.event.InternalTransferCompletedEvent
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
 import com.aratiri.transactions.application.event.OnChainTransactionReceivedEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
@@ -33,7 +34,7 @@ public class OutboxWriterService implements OutboxWriter {
 
     @Override
     public void publishInvoiceSettled(String invoiceId, InvoiceSettledEvent eventPayload) {
-        publish(INVOICE_AGGREGATE_TYPE, invoiceId, KafkaTopics.INVOICE_SETTLED, eventPayload);
+        publishOnce(INVOICE_AGGREGATE_TYPE, invoiceId, KafkaTopics.INVOICE_SETTLED, eventPayload);
     }
 
     @Override
@@ -80,6 +81,8 @@ public class OutboxWriterService implements OutboxWriter {
                     .payload(jsonMapper.writeValueAsString(eventPayload))
                     .build();
             outboxEventRepository.save(outboxEvent);
+        } catch (DataIntegrityViolationException e) {
+            throw e;
         } catch (Exception e) {
             throw new ApplicationException("Failed to create outbox event.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
         }
@@ -89,7 +92,14 @@ public class OutboxWriterService implements OutboxWriter {
         if (outboxEventRepository.existsByAggregateTypeAndAggregateIdAndEventType(aggregateType, aggregateId, topic.getCode())) {
             return;
         }
-        publish(aggregateType, aggregateId, topic, eventPayload);
+        try {
+            publish(aggregateType, aggregateId, topic, eventPayload);
+        } catch (DataIntegrityViolationException e) {
+            if (outboxEventRepository.existsByAggregateTypeAndAggregateIdAndEventType(aggregateType, aggregateId, topic.getCode())) {
+                return;
+            }
+            throw new ApplicationException("Failed to create outbox event.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
+        }
     }
 
     private void publish(CommittedEvent committedEvent) {

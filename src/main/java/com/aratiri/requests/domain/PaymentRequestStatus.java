@@ -1,8 +1,12 @@
 package com.aratiri.requests.domain;
 
 public enum PaymentRequestStatus {
+    PROVISIONING,
     OPEN,
+    CANCEL_PENDING,
+    CANCELLED,
     PAID,
-    EXPIRED,
-    CANCELLED
+    FAILED,
+    /** Derived only from OPEN when clockInstant >= expiresAt; never stored. */
+    EXPIRED
 }

@@ -2,9 +2,6 @@ package com.aratiri.requests.application;
 
 import com.aratiri.errors.ApplicationException;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
-import com.aratiri.invoices.application.port.in.InvoicesPort;
-import com.aratiri.invoices.domain.CreatedLightningInvoice;
-import com.aratiri.invoices.domain.InvoiceCancelOutcome;
 import com.aratiri.requests.application.dto.CreatePaymentRequestDTO;
 import com.aratiri.requests.application.dto.OwnerPaymentRequestDTO;
 import com.aratiri.requests.application.dto.PaymentRequestPageResponse;
@@ -15,7 +12,8 @@ import com.aratiri.requests.domain.PaymentRequest;
 import com.aratiri.requests.domain.PaymentRequestStatus;
 import com.aratiri.requests.domain.exception.PaymentRequestConflictException;
 import com.aratiri.requests.domain.exception.PaymentRequestNotFoundException;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,96 +21,62 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.UUID;
+import java.util.Optional;
 
 @Service
 public class PaymentRequestsAdapter implements PaymentRequestsPort {
 
-    private static final String IDEMPOTENCY_CONFLICT_MESSAGE =
-            "Idempotency key conflict: different request payload for the same key";
+    private static final Logger logger = LoggerFactory.getLogger(PaymentRequestsAdapter.class);
     private static final String PAID_CANCEL_CONFLICT_MESSAGE =
             "Payment request is already paid and cannot be cancelled";
     private static final String PAYMENT_REQUEST_NOT_FOUND_MESSAGE = "Payment request not found";
 
     private final PaymentRequestPersistencePort persistencePort;
-    private final InvoicesPort invoicesPort;
+    private final PaymentRequestIntentService intentService;
+    private final PaymentRequestSagaService sagaService;
     private final AratiriProperties properties;
     private final Clock clock;
-    private final SecureRandom secureRandom = new SecureRandom();
 
     public PaymentRequestsAdapter(
             PaymentRequestPersistencePort persistencePort,
-            InvoicesPort invoicesPort,
+            PaymentRequestIntentService intentService,
+            PaymentRequestSagaService sagaService,
             AratiriProperties properties,
             Clock clock
     ) {
         this.persistencePort = persistencePort;
-        this.invoicesPort = invoicesPort;
+        this.intentService = intentService;
+        this.sagaService = sagaService;
         this.properties = properties;
         this.clock = clock;
     }
 
     @Override
-    @Transactional
-    public OwnerPaymentRequestDTO create(String userId, String idempotencyKey, CreatePaymentRequestDTO request) {
+    public CreatePaymentRequestResult create(String userId, String idempotencyKey, CreatePaymentRequestDTO request) {
         validateCreateRequest(request);
         String payloadHash = payloadHash(request);
-
-        // Serialize concurrent first creates for the same owner+key before minting an LND invoice.
-        persistencePort.lockCreateSlot(userId, idempotencyKey);
-
-        var existing = persistencePort.findByUserIdAndIdempotencyKey(userId, idempotencyKey);
-        if (existing.isPresent()) {
-            return replayOrConflict(existing.get(), payloadHash);
-        }
-
-        Instant now = clock.instant();
-        Instant expiresAt = now.plusSeconds(request.getExpiresInSeconds());
         String memo = normalizeMemo(request.getMemo());
-        String publicId = generatePublicId();
 
-        CreatedLightningInvoice invoice = invoicesPort.createInvoice(
-                request.getAmountSats(),
-                memo == null ? "" : memo,
-                userId,
-                null,
-                null,
-                request.getExpiresInSeconds()
-        );
+        PaymentRequestIntentService.IntentCommitResult committed =
+                intentService.commitIntent(userId, idempotencyKey, request, payloadHash, memo);
+        PaymentRequest saved = committed.request();
 
-        PaymentRequest toSave = new PaymentRequest(
-                UUID.randomUUID().toString(),
-                publicId,
-                userId,
-                request.getAmountSats(),
-                memo,
-                PaymentRequestStatus.OPEN,
-                invoice.paymentHash(),
-                invoice.paymentRequest(),
-                invoice.id(),
-                idempotencyKey,
-                payloadHash,
-                now,
-                expiresAt,
-                null,
-                null
-        );
-
-        try {
-            PaymentRequest saved = persistencePort.save(toSave);
-            return toOwnerDto(saved, now);
-        } catch (DataIntegrityViolationException ex) {
-            // Defense in depth for residual unique collisions (e.g. public_id); idempotency races
-            // are prevented by lockCreateSlot before invoice minting.
-            PaymentRequest raced = persistencePort.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
-                    .orElseThrow(() -> ex);
-            return replayOrConflict(raced, payloadHash);
+        if (saved.storedStatus() == PaymentRequestStatus.PROVISIONING) {
+            try {
+                sagaService.tryProvision(saved.id());
+            } catch (Exception e) {
+                // Worker retries from committed intent.
+                logger.debug("Immediate provision deferred to saga worker for requestId={}: {}",
+                        saved.id(), e.toString());
+            }
+            saved = persistencePort.findById(saved.id()).orElse(saved);
         }
+
+        return new CreatePaymentRequestResult(toOwnerDto(saved, clock.instant()), committed.newlyCreated());
     }
 
     @Override
@@ -161,49 +125,71 @@ public class PaymentRequestsAdapter implements PaymentRequestsPort {
     }
 
     @Override
-    // Intentionally not @Transactional: LND cancel can take up to ~15s. Reads/RPC/conditional
-    // updates use short repository transactions so a connection is never held across the RPC.
     public OwnerPaymentRequestDTO cancel(String userId, String publicId) {
         Instant now = clock.instant();
         PaymentRequest current = persistencePort.findByPublicIdAndUserId(publicId, userId)
                 .orElseThrow(() -> new PaymentRequestNotFoundException(PAYMENT_REQUEST_NOT_FOUND_MESSAGE));
 
-        PaymentRequestStatus status = current.effectiveStatus(now);
-        if (status == PaymentRequestStatus.CANCELLED) {
-            // Idempotent replay: cancellation was already established; skip LND.
-            return toOwnerDto(current, now);
+        Optional<OwnerPaymentRequestDTO> alreadyCancelled = cancelIfAlreadyTerminal(current, now);
+        if (alreadyCancelled.isPresent()) {
+            return alreadyCancelled.get();
         }
-        if (status == PaymentRequestStatus.PAID) {
-            throw new PaymentRequestConflictException(PAID_CANCEL_CONFLICT_MESSAGE);
-        }
-        if (status != PaymentRequestStatus.OPEN) {
-            throw new PaymentRequestConflictException("Payment request is no longer payable and cannot be cancelled");
-        }
+        assertCancellable(current.effectiveStatus(now));
 
-        // Cancel on LND first so we never report CANCELLED while leaving a payable BOLT11.
-        InvoiceCancelOutcome outcome = invoicesPort.cancelInvoice(current.paymentHash());
-        if (outcome == InvoiceCancelOutcome.ALREADY_SETTLED) {
-            // Real LND settlement is sufficient proof to heal the shareable request to PAID
-            // immediately. Do not credit the ledger here; existing settlement remains exactly-once.
-            persistencePort.markPaidByPaymentHash(current.paymentHash(), now);
-            throw new PaymentRequestConflictException(PAID_CANCEL_CONFLICT_MESSAGE);
-        }
-        // CANCELLED (including already-canceled) or NOT_FOUND (absent = not payable on this node).
-
-        int updated = persistencePort.cancelIfOpen(publicId, userId, now, now);
+        int updated = persistencePort.markCancelPendingIfPayable(publicId, userId, now);
         PaymentRequest after = persistencePort.findByPublicIdAndUserId(publicId, userId)
                 .orElseThrow(() -> new PaymentRequestNotFoundException(PAYMENT_REQUEST_NOT_FOUND_MESSAGE));
 
-        if (updated > 0) {
-            return toOwnerDto(after, now);
+        if (updated > 0 || after.storedStatus() == PaymentRequestStatus.CANCEL_PENDING) {
+            return completeCancelPending(userId, publicId, after);
         }
+        return resolveCancelRace(after);
+    }
 
-        PaymentRequestStatus afterStatus = after.effectiveStatus(now);
-        if (afterStatus == PaymentRequestStatus.CANCELLED) {
-            return toOwnerDto(after, now);
+    private Optional<OwnerPaymentRequestDTO> cancelIfAlreadyTerminal(PaymentRequest current, Instant now) {
+        PaymentRequestStatus status = current.effectiveStatus(now);
+        if (status == PaymentRequestStatus.CANCELLED || status == PaymentRequestStatus.CANCEL_PENDING) {
+            return Optional.of(toOwnerDto(current, now));
+        }
+        return Optional.empty();
+    }
+
+    private void assertCancellable(PaymentRequestStatus status) {
+        if (status == PaymentRequestStatus.PAID) {
+            throw new PaymentRequestConflictException(PAID_CANCEL_CONFLICT_MESSAGE);
+        }
+        if (status == PaymentRequestStatus.EXPIRED) {
+            throw new PaymentRequestConflictException("Payment request is no longer payable and cannot be cancelled");
+        }
+        if (status == PaymentRequestStatus.FAILED) {
+            throw new PaymentRequestConflictException("Payment request provisioning failed and cannot be cancelled");
+        }
+        if (status != PaymentRequestStatus.OPEN && status != PaymentRequestStatus.PROVISIONING) {
+            throw new PaymentRequestConflictException("Payment request is no longer payable and cannot be cancelled");
+        }
+    }
+
+    private OwnerPaymentRequestDTO completeCancelPending(String userId, String publicId, PaymentRequest after) {
+        try {
+            sagaService.tryCancel(after.id());
+        } catch (Exception e) {
+            // Worker retries independently.
+            logger.debug("Immediate cancel deferred to saga worker for requestId={}: {}",
+                    after.id(), e.toString());
+        }
+        PaymentRequest refreshed = persistencePort.findByPublicIdAndUserId(publicId, userId).orElse(after);
+        if (refreshed.effectiveStatus(clock.instant()) == PaymentRequestStatus.PAID) {
+            throw new PaymentRequestConflictException(PAID_CANCEL_CONFLICT_MESSAGE);
+        }
+        return toOwnerDto(refreshed, clock.instant());
+    }
+
+    private OwnerPaymentRequestDTO resolveCancelRace(PaymentRequest after) {
+        PaymentRequestStatus afterStatus = after.effectiveStatus(clock.instant());
+        if (afterStatus == PaymentRequestStatus.CANCELLED || afterStatus == PaymentRequestStatus.CANCEL_PENDING) {
+            return toOwnerDto(after, clock.instant());
         }
         if (afterStatus == PaymentRequestStatus.PAID) {
-            // Settlement won the race after LND cancel returned; credit path remains authoritative.
             throw new PaymentRequestConflictException(PAID_CANCEL_CONFLICT_MESSAGE);
         }
         throw new PaymentRequestConflictException("Payment request is no longer payable and cannot be cancelled");
@@ -215,13 +201,6 @@ public class PaymentRequestsAdapter implements PaymentRequestsPort {
         PaymentRequest request = persistencePort.findByPublicId(publicId)
                 .orElseThrow(() -> new PaymentRequestNotFoundException(PAYMENT_REQUEST_NOT_FOUND_MESSAGE));
         return toPublicDto(request, clock.instant());
-    }
-
-    private OwnerPaymentRequestDTO replayOrConflict(PaymentRequest existing, String payloadHash) {
-        if (!payloadHash.equals(existing.idempotencyPayloadHash())) {
-            throw new PaymentRequestConflictException(IDEMPOTENCY_CONFLICT_MESSAGE);
-        }
-        return toOwnerDto(existing, clock.instant());
     }
 
     private void validateCreateRequest(CreatePaymentRequestDTO request) {
@@ -247,15 +226,7 @@ public class PaymentRequestsAdapter implements PaymentRequestsPort {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private String generatePublicId() {
-        byte[] bytes = new byte[16];
-        secureRandom.nextBytes(bytes);
-        return HexFormat.of().formatHex(bytes);
-    }
-
     private String payloadHash(CreatePaymentRequestDTO request) {
-        // Must match normalizeMemo used for LND memo + stored memo so whitespace-only
-        // and blank-vs-empty variants replay as the same idempotent payload.
         String memo = normalizeMemo(request.getMemo());
         String canonical = request.getAmountSats() + ":" + (memo == null ? "" : memo) + ":" + request.getExpiresInSeconds();
         try {

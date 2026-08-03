@@ -3,6 +3,7 @@ package com.aratiri.requests;
 import com.aratiri.errors.ApplicationException;
 import com.aratiri.infrastructure.web.context.AratiriContext;
 import com.aratiri.infrastructure.web.context.AratiriCtx;
+import com.aratiri.requests.application.CreatePaymentRequestResult;
 import com.aratiri.requests.application.dto.CreatePaymentRequestDTO;
 import com.aratiri.requests.application.dto.OwnerPaymentRequestDTO;
 import com.aratiri.requests.application.dto.PaymentRequestPageResponse;
@@ -20,7 +21,10 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 @RestController
@@ -30,6 +34,7 @@ public class PaymentRequestsAPI {
 
     private static final int IDEMPOTENCY_KEY_MAX_LENGTH = 255;
     private static final Pattern IDEMPOTENCY_KEY_PATTERN = Pattern.compile("^[\\x21-\\x7E]+$");
+    private static final Set<String> PENDING_STATUSES = Set.of("PROVISIONING", "CANCEL_PENDING");
 
     private final PaymentRequestsPort paymentRequestsPort;
 
@@ -38,15 +43,36 @@ public class PaymentRequestsAPI {
     }
 
     @PostMapping
-    @Operation(summary = "Create a payment request", description = "Creates a single-use Lightning payment link for a fixed satoshi amount. Requires Idempotency-Key.")
+    @Operation(
+            summary = "Create a payment request",
+            description = "Commits durable provisioning intent before LND AddInvoice. "
+                    + "Returns 201 when synchronously OPEN, 202 while PROVISIONING, "
+                    + "200 for same-key replay once OPEN/terminal, and 409 on payload conflict."
+    )
     public ResponseEntity<OwnerPaymentRequestDTO> create(
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody CreatePaymentRequestDTO request,
             @AratiriCtx AratiriContext ctx
     ) {
         validateIdempotencyKey(idempotencyKey);
-        OwnerPaymentRequestDTO response = paymentRequestsPort.create(ctx.user().getId(), idempotencyKey, request);
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
+        CreatePaymentRequestResult result = paymentRequestsPort.create(ctx.user().getId(), idempotencyKey, request);
+        OwnerPaymentRequestDTO body = result.body();
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{publicId}")
+                .buildAndExpand(body.getPublicId())
+                .toUri();
+
+        if (result.newlyCreated()) {
+            if ("OPEN".equals(body.getStatus())) {
+                return ResponseEntity.status(HttpStatus.CREATED).location(location).body(body);
+            }
+            return ResponseEntity.accepted().location(location).body(body);
+        }
+
+        if (PENDING_STATUSES.contains(body.getStatus())) {
+            return ResponseEntity.accepted().location(location).body(body);
+        }
+        return ResponseEntity.ok(body);
     }
 
     @GetMapping
@@ -74,14 +100,18 @@ public class PaymentRequestsAPI {
     @PostMapping("/{publicId}/cancel")
     @Operation(
             summary = "Cancel payment request",
-            description = "Cancels a payable payment request. Idempotent when already cancelled. "
-                    + "If settlement already credited the linked invoice, cancellation is rejected."
+            description = "Durably transitions OPEN/PROVISIONING to CANCEL_PENDING (202), "
+                    + "replays CANCEL_PENDING as 202, returns 200 once CANCELLED, and 409 for PAID/EXPIRED/FAILED."
     )
     public ResponseEntity<OwnerPaymentRequestDTO> cancel(
             @PathVariable String publicId,
             @AratiriCtx AratiriContext ctx
     ) {
-        return ResponseEntity.ok(paymentRequestsPort.cancel(ctx.user().getId(), publicId));
+        OwnerPaymentRequestDTO body = paymentRequestsPort.cancel(ctx.user().getId(), publicId);
+        if ("CANCELLED".equals(body.getStatus())) {
+            return ResponseEntity.ok(body);
+        }
+        return ResponseEntity.accepted().body(body);
     }
 
     private void validateIdempotencyKey(String idempotencyKey) {

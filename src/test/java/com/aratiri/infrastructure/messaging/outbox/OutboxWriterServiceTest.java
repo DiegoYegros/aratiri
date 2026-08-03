@@ -25,6 +25,8 @@ import tools.jackson.databind.json.JsonMapper;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,6 +56,8 @@ class OutboxWriterServiceTest {
                 "memo"
         );
         when(jsonMapper.writeValueAsString(eventPayload)).thenReturn("{\"invoice\":\"settled\"}");
+        when(outboxEventRepository.existsByAggregateTypeAndAggregateIdAndEventType(
+                "Invoice", "invoice-123", KafkaTopics.INVOICE_SETTLED.getCode())).thenReturn(false);
 
         outboxWriterService.publishInvoiceSettled("invoice-123", eventPayload);
 
@@ -62,6 +66,24 @@ class OutboxWriterServiceTest {
         assertEquals("invoice-123", event.getAggregateId());
         assertEquals(KafkaTopics.INVOICE_SETTLED.getCode(), event.getEventType());
         assertEquals("{\"invoice\":\"settled\"}", event.getPayload());
+    }
+
+    @Test
+    void publishInvoiceSettled_isIdempotentWhenRowAlreadyExists() throws Exception {
+        InvoiceSettledEvent eventPayload = new InvoiceSettledEvent(
+                "user-123",
+                1000L,
+                "payment-hash",
+                LocalDateTime.now(),
+                "memo"
+        );
+        when(outboxEventRepository.existsByAggregateTypeAndAggregateIdAndEventType(
+                "Invoice", "invoice-123", KafkaTopics.INVOICE_SETTLED.getCode())).thenReturn(true);
+
+        outboxWriterService.publishInvoiceSettled("invoice-123", eventPayload);
+
+        verify(outboxEventRepository, never()).save(any());
+        verify(jsonMapper, never()).writeValueAsString(any());
     }
 
     @Test

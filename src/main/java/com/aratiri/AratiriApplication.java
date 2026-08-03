@@ -1,6 +1,7 @@
 package com.aratiri;
 
 import com.aratiri.infrastructure.configuration.NodeOperationProperties;
+import com.aratiri.infrastructure.configuration.PaymentRequestSagaProperties;
 import com.aratiri.infrastructure.configuration.WebhookDestinationProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -15,7 +16,11 @@ import org.springframework.resilience.annotation.EnableResilientMethods;
 @EnableKafkaRetryTopic
 @EnableResilientMethods
 @EnableKafka
-@EnableConfigurationProperties({NodeOperationProperties.class, WebhookDestinationProperties.class})
+@EnableConfigurationProperties({
+        NodeOperationProperties.class,
+        PaymentRequestSagaProperties.class,
+        WebhookDestinationProperties.class
+})
 public class AratiriApplication {
 
     public static void main(String[] args) {

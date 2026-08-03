@@ -14,7 +14,9 @@ import com.aratiri.invoices.application.InvoiceStateUpdate;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.invoices.application.port.out.LightningNodePort;
 import com.aratiri.invoices.domain.InvoiceCancelOutcome;
+import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.invoices.domain.LightningInvoiceCreation;
+import com.aratiri.invoices.domain.LightningNodeInvoice;
 import com.aratiri.requests.application.dto.CreatePaymentRequestDTO;
 import com.aratiri.requests.application.dto.OwnerPaymentRequestDTO;
 import com.aratiri.requests.application.port.in.PaymentRequestsPort;
@@ -31,17 +33,13 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.zaxxer.hikari.HikariDataSource;
-
 import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -49,7 +47,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -87,9 +84,11 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
 
     private String ownerToken;
     private String otherToken;
+    private final ConcurrentHashMap<String, LightningNodeInvoice> lndInvoices = new ConcurrentHashMap<>();
 
     @BeforeEach
     void setUpUsersAndMocks() {
+        lndInvoices.clear();
         when(currencyConversionPort.getCurrentBtcPrice()).thenReturn(Map.of("usd", BigDecimal.valueOf(50000)));
         when(lightningAddressPort.generateTaprootAddress()).thenAnswer(invocation ->
                 "bc1p_payment_request_" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 20));
@@ -101,16 +100,40 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                     long expiry = invocation.getArgument(4);
                     byte[] hash = invocation.getArgument(3);
                     String paymentHash = bytesToHex(hash);
-                    return new LightningInvoiceCreation("lnbc" + amount + "req" + paymentHash, paymentHash, expiry);
+                    String bolt11 = "lnbc" + amount + "req" + paymentHash;
+                    lndInvoices.put(paymentHash, new LightningNodeInvoice(
+                            bolt11, LightningInvoice.InvoiceState.OPEN, 0L, amount));
+                    return new LightningInvoiceCreation(bolt11, paymentHash, expiry);
                 });
         when(lightningNodePort.createInvoice(anyLong(), anyString(), any(byte[].class), any(byte[].class)))
                 .thenAnswer(invocation -> {
                     long amount = invocation.getArgument(0);
                     byte[] hash = invocation.getArgument(3);
                     String paymentHash = bytesToHex(hash);
-                    return new LightningInvoiceCreation("lnbc" + amount + "req" + paymentHash, paymentHash, 3600L);
+                    String bolt11 = "lnbc" + amount + "req" + paymentHash;
+                    lndInvoices.put(paymentHash, new LightningNodeInvoice(
+                            bolt11, LightningInvoice.InvoiceState.OPEN, 0L, amount));
+                    return new LightningInvoiceCreation(bolt11, paymentHash, 3600L);
                 });
-        when(lightningNodePort.cancelInvoice(anyString())).thenReturn(InvoiceCancelOutcome.CANCELLED);
+        when(lightningNodePort.lookupInvoice(anyString())).thenAnswer(invocation ->
+                Optional.ofNullable(lndInvoices.get(invocation.getArgument(0))));
+        when(lightningNodePort.cancelInvoice(anyString())).thenAnswer(invocation -> {
+            String hash = invocation.getArgument(0);
+            LightningNodeInvoice existing = lndInvoices.get(hash);
+            if (existing == null) {
+                return InvoiceCancelOutcome.NOT_FOUND;
+            }
+            if (existing.state() == LightningInvoice.InvoiceState.SETTLED) {
+                return InvoiceCancelOutcome.ALREADY_SETTLED;
+            }
+            lndInvoices.put(hash, new LightningNodeInvoice(
+                    existing.paymentRequest(),
+                    LightningInvoice.InvoiceState.CANCELED,
+                    existing.amountPaidSats(),
+                    existing.valueSats()
+            ));
+            return InvoiceCancelOutcome.CANCELLED;
+        });
 
         ownerToken = registerAndVerify("owner-pr@example.com", "Owner PR", "ownerpr");
         otherToken = registerAndVerify("other-pr@example.com", "Other PR", "otherpr");
@@ -199,7 +222,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isOk()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
 
@@ -241,7 +264,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1600, "Coffee", 900))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isOk()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(trimmedReplay);
@@ -273,7 +296,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1700, "   ", 900))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isOk()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(whitespaceReplay);
@@ -285,7 +308,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1700, "", 900))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isOk()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(emptyReplay);
@@ -448,32 +471,35 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Cancel fails closed when LND cancel RPC fails")
-    void cancel_rpcFailureLeavesRequestOpen() {
+    @DisplayName("Cancel durably enters CANCEL_PENDING when LND cancel RPC fails; BOLT11 stays hidden")
+    void cancel_rpcFailureLeavesRequestCancelPending() {
         Map<?, ?> created = webTestClient().post().uri("/v1/payment-requests")
                 .header("Authorization", "Bearer " + ownerToken)
                 .header("Idempotency-Key", "cancel-rpc-fail-1")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(createBody(1300, "Stay open", 600))
+                .bodyValue(createBody(1300, "Stay pending", 600))
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(created);
         String publicId = (String) created.get("public_id");
-        PaymentRequestEntity entity = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
 
-        when(lightningNodePort.cancelInvoice(entity.getPaymentHash()))
+        when(lightningNodePort.cancelInvoice(anyString()))
                 .thenThrow(new com.aratiri.errors.ApplicationException("Error cancelling invoice on LND node", 502));
 
         webTestClient().post().uri("/v1/payment-requests/" + publicId + "/cancel")
                 .header("Authorization", "Bearer " + ownerToken)
                 .exchange()
-                .expectStatus().isEqualTo(502);
+                .expectStatus().isAccepted()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("CANCEL_PENDING")
+                .jsonPath("$.payment_request").doesNotExist();
 
-        PaymentRequestEntity stillOpen = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
-        assertEquals("OPEN", stillOpen.getStatus());
-        assertNull(stillOpen.getCancelledAt());
+        PaymentRequestEntity pending = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
+        assertEquals("CANCEL_PENDING", pending.getStatus());
+        assertNull(pending.getCancelledAt());
+        assertNotNull(pending.getCancelLastError());
     }
 
     @Test
@@ -492,9 +518,17 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
         String publicId = (String) created.get("public_id");
         PaymentRequestEntity entity = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
 
+        LightningNodeInvoice settled = new LightningNodeInvoice(
+                entity.getPaymentRequest(),
+                LightningInvoice.InvoiceState.SETTLED,
+                entity.getAmountSats(),
+                entity.getAmountSats()
+        );
+        lndInvoices.put(entity.getPaymentHash(), settled);
         when(lightningNodePort.cancelInvoice(entity.getPaymentHash()))
                 .thenReturn(InvoiceCancelOutcome.ALREADY_SETTLED);
 
+        // Durable cancel intent accepted; saga observes SETTLED and marks PAID.
         webTestClient().post().uri("/v1/payment-requests/" + publicId + "/cancel")
                 .header("Authorization", "Bearer " + ownerToken)
                 .exchange()
@@ -544,8 +578,18 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
         String publicId = (String) created.get("public_id");
         PaymentRequestEntity entity = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
 
-        AtomicBoolean transactionActiveDuringRpc = new AtomicBoolean(true);
-        when(lightningNodePort.cancelInvoice(entity.getPaymentHash())).thenAnswer(invocation -> {
+        AtomicBoolean transactionActiveDuringRpc = new AtomicBoolean(false);
+        AtomicBoolean cancelInvoked = new AtomicBoolean(false);
+        when(lightningNodePort.lookupInvoice(entity.getPaymentHash())).thenReturn(Optional.of(
+                new LightningNodeInvoice(
+                        entity.getPaymentRequest(),
+                        LightningInvoice.InvoiceState.OPEN,
+                        0L,
+                        entity.getAmountSats()
+                )
+        ));
+        when(lightningNodePort.cancelInvoice(anyString())).thenAnswer(invocation -> {
+            cancelInvoked.set(true);
             transactionActiveDuringRpc.set(
                     org.springframework.transaction.support.TransactionSynchronizationManager
                             .isActualTransactionActive()
@@ -561,6 +605,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
         assertNotNull(userId);
         OwnerPaymentRequestDTO cancelled = paymentRequestsPort.cancel(userId, publicId);
         assertEquals("CANCELLED", cancelled.getStatus());
+        assertTrue(cancelInvoked.get(), "LND cancel must be invoked by saga worker");
         assertFalse(transactionActiveDuringRpc.get(), "cancel must not hold a Spring transaction across LND RPC");
     }
 
@@ -651,18 +696,17 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
         assertNotNull(userId);
 
         AtomicInteger lndCreates = new AtomicInteger();
-        CountDownLatch firstEnteredMint = new CountDownLatch(1);
-        CountDownLatch releaseMint = new CountDownLatch(1);
         when(lightningNodePort.createInvoice(anyLong(), anyString(), any(byte[].class), any(byte[].class), anyLong()))
                 .thenAnswer(invocation -> {
                     lndCreates.incrementAndGet();
-                    firstEnteredMint.countDown();
-                    assertTrue(releaseMint.await(10, TimeUnit.SECONDS));
                     long amount = invocation.getArgument(0);
                     long expiry = invocation.getArgument(4);
                     byte[] hash = invocation.getArgument(3);
                     String paymentHash = bytesToHex(hash);
-                    return new LightningInvoiceCreation("lnbc" + amount + "req" + paymentHash, paymentHash, expiry);
+                    String bolt11 = "lnbc" + amount + "req" + paymentHash;
+                    lndInvoices.put(paymentHash, new LightningNodeInvoice(
+                            bolt11, LightningInvoice.InvoiceState.OPEN, 0L, amount));
+                    return new LightningInvoiceCreation(bolt11, paymentHash, expiry);
                 });
 
         CreatePaymentRequestDTO body = createBody(1800, "Concurrent", 900);
@@ -680,7 +724,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                     try {
                         start.await(10, TimeUnit.SECONDS);
                         readyToCreate.await(10, TimeUnit.SECONDS);
-                        OwnerPaymentRequestDTO created = paymentRequestsPort.create(userId, "concurrent-idem-1", body);
+                        OwnerPaymentRequestDTO created = paymentRequestsPort.create(userId, "concurrent-idem-1", body).body();
                         synchronized (successes) {
                             successes.add(created);
                         }
@@ -694,14 +738,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 });
             }
 
-            try {
-                start.countDown();
-                assertTrue(firstEnteredMint.await(10, TimeUnit.SECONDS), "winner never reached invoice mint");
-                int maxPoolWaiters = hikariMaximumPoolSize() - 1;
-                awaitAdvisoryLockWaiters(Math.min(threadCount - 1, maxPoolWaiters), 10, TimeUnit.SECONDS);
-            } finally {
-                releaseMint.countDown();
-            }
+            start.countDown();
             assertTrue(done.await(45, TimeUnit.SECONDS), "concurrent creates timed out");
 
             assertTrue(errors.isEmpty(), () -> "Unexpected errors: " + errors);
@@ -733,24 +770,25 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
         assertNotNull(userId);
 
         AtomicInteger lndCreates = new AtomicInteger();
-        CountDownLatch firstEnteredMint = new CountDownLatch(1);
-        CountDownLatch releaseMint = new CountDownLatch(1);
         when(lightningNodePort.createInvoice(anyLong(), anyString(), any(byte[].class), any(byte[].class), anyLong()))
                 .thenAnswer(invocation -> {
                     lndCreates.incrementAndGet();
-                    firstEnteredMint.countDown();
-                    assertTrue(releaseMint.await(10, TimeUnit.SECONDS));
                     long amount = invocation.getArgument(0);
                     long expiry = invocation.getArgument(4);
                     byte[] hash = invocation.getArgument(3);
                     String paymentHash = bytesToHex(hash);
-                    return new LightningInvoiceCreation("lnbc" + amount + "req" + paymentHash, paymentHash, expiry);
+                    String bolt11 = "lnbc" + amount + "req" + paymentHash;
+                    lndInvoices.put(paymentHash, new LightningNodeInvoice(
+                            bolt11, LightningInvoice.InvoiceState.OPEN, 0L, amount));
+                    return new LightningInvoiceCreation(bolt11, paymentHash, expiry);
                 });
 
         CreatePaymentRequestDTO firstBody = createBody(1900, "A", 900);
         CreatePaymentRequestDTO conflictBody = createBody(2900, "B", 900);
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
+            CountDownLatch start = new CountDownLatch(1);
+            CyclicBarrier ready = new CyclicBarrier(2);
             CountDownLatch done = new CountDownLatch(2);
             AtomicInteger createdCount = new AtomicInteger();
             AtomicInteger conflictCount = new AtomicInteger();
@@ -758,8 +796,28 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
 
             executor.submit(() -> {
                 try {
+                    start.await(10, TimeUnit.SECONDS);
+                    ready.await(10, TimeUnit.SECONDS);
                     paymentRequestsPort.create(userId, "concurrent-conflict-1", firstBody);
                     createdCount.incrementAndGet();
+                } catch (PaymentRequestConflictException _) {
+                    conflictCount.incrementAndGet();
+                } catch (Throwable t) {
+                    synchronized (unexpected) {
+                        unexpected.add(t);
+                    }
+                } finally {
+                    done.countDown();
+                }
+            });
+            executor.submit(() -> {
+                try {
+                    start.await(10, TimeUnit.SECONDS);
+                    ready.await(10, TimeUnit.SECONDS);
+                    paymentRequestsPort.create(userId, "concurrent-conflict-1", conflictBody);
+                    createdCount.incrementAndGet();
+                } catch (PaymentRequestConflictException _) {
+                    conflictCount.incrementAndGet();
                 } catch (Throwable t) {
                     synchronized (unexpected) {
                         unexpected.add(t);
@@ -769,27 +827,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 }
             });
 
-            try {
-                assertTrue(firstEnteredMint.await(10, TimeUnit.SECONDS), "winner never reached invoice mint");
-                executor.submit(() -> {
-                    try {
-                        paymentRequestsPort.create(userId, "concurrent-conflict-1", conflictBody);
-                        createdCount.incrementAndGet();
-                    } catch (PaymentRequestConflictException _) {
-                        conflictCount.incrementAndGet();
-                    } catch (Throwable t) {
-                        synchronized (unexpected) {
-                            unexpected.add(t);
-                        }
-                    } finally {
-                        done.countDown();
-                    }
-                });
-                awaitAdvisoryLockWaiters(1, 10, TimeUnit.SECONDS);
-            } finally {
-                releaseMint.countDown();
-            }
-
+            start.countDown();
             assertTrue(done.await(45, TimeUnit.SECONDS));
 
             assertTrue(unexpected.isEmpty(), () -> "Unexpected errors: " + unexpected);
@@ -806,45 +844,6 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 fail("interrupted while awaiting executor termination");
             }
         }
-    }
-
-    private int hikariMaximumPoolSize() {
-        assertNotNull(jdbcTemplate.getDataSource());
-        try {
-            return jdbcTemplate.getDataSource().unwrap(HikariDataSource.class).getMaximumPoolSize();
-        } catch (Exception e) {
-            throw new IllegalStateException("Expected HikariDataSource for pool-size-aware concurrency waits", e);
-        }
-    }
-
-    private void awaitAdvisoryLockWaiters(int minWaiters, long timeout, TimeUnit unit) throws Exception {
-        assertNotNull(jdbcTemplate.getDataSource());
-        HikariDataSource hikari = jdbcTemplate.getDataSource().unwrap(HikariDataSource.class);
-        long deadlineNanos = System.nanoTime() + unit.toNanos(timeout);
-        final long pollBackoffNanos = TimeUnit.MILLISECONDS.toNanos(10);
-        // Bypass the app pool so waiter observation cannot deadlock against held create transactions.
-        try (Connection connection = DriverManager.getConnection(
-                hikari.getJdbcUrl(), hikari.getUsername(), hikari.getPassword());
-             Statement statement = connection.createStatement()) {
-            while (System.nanoTime() < deadlineNanos) {
-                try (ResultSet rs = statement.executeQuery(
-                        "SELECT COUNT(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted")) {
-                    assertTrue(rs.next());
-                    if (rs.getInt(1) >= minWaiters) {
-                        return;
-                    }
-                }
-                long remainingNanos = deadlineNanos - System.nanoTime();
-                if (remainingNanos <= 0) {
-                    break;
-                }
-                LockSupport.parkNanos(Math.min(pollBackoffNanos, remainingNanos));
-                if (Thread.currentThread().isInterrupted()) {
-                    throw new InterruptedException("Interrupted while waiting for advisory lock waiters");
-                }
-            }
-        }
-        fail("Timed out waiting for at least " + minWaiters + " advisory lock waiter(s)");
     }
 
     private void settleLinkedInvoice(PaymentRequestEntity entity) {

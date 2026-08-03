@@ -45,6 +45,9 @@ public class PaymentRequestEntity {
     @Column(name = "payment_hash", length = 64, unique = true)
     private String paymentHash;
 
+    @Column(name = "preimage", columnDefinition = "TEXT")
+    private String preimage;
+
     @Column(name = "payment_request", columnDefinition = "TEXT")
     private String paymentRequest;
 
@@ -69,4 +72,34 @@ public class PaymentRequestEntity {
 
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
+
+    @Column(name = "provision_attempt_count", nullable = false)
+    private int provisionAttemptCount;
+
+    @Column(name = "provision_next_attempt_at")
+    private Instant provisionNextAttemptAt;
+
+    @Column(name = "provision_locked_until")
+    private Instant provisionLockedUntil;
+
+    @Column(name = "provision_locked_by", length = 128)
+    private String provisionLockedBy;
+
+    @Column(name = "provision_last_error", columnDefinition = "TEXT")
+    private String provisionLastError;
+
+    @Column(name = "cancel_attempt_count", nullable = false)
+    private int cancelAttemptCount;
+
+    @Column(name = "cancel_next_attempt_at")
+    private Instant cancelNextAttemptAt;
+
+    @Column(name = "cancel_locked_until")
+    private Instant cancelLockedUntil;
+
+    @Column(name = "cancel_locked_by", length = 128)
+    private String cancelLockedBy;
+
+    @Column(name = "cancel_last_error", columnDefinition = "TEXT")
+    private String cancelLastError;
 }

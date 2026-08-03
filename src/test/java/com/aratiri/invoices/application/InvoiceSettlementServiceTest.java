@@ -164,6 +164,41 @@ class InvoiceSettlementServiceTest {
         verify(linkedPaymentRequestPort).markPaidByPaymentHash("payment-hash", FIXED_INSTANT);
     }
 
+    @Test
+    void recordInvoiceStateUpdate_recoversOwnedProvisioningInvoiceByPaymentHash() {
+        when(lightningInvoicePersistencePort.findByPaymentHash("owned-hash")).thenReturn(Optional.empty());
+        when(lightningInvoicePersistencePort.findByPaymentRequest("lnbc-owned")).thenReturn(Optional.empty());
+        when(linkedPaymentRequestPort.findOwnedInvoiceSeedByPaymentHash("owned-hash"))
+                .thenReturn(Optional.of(new com.aratiri.invoices.application.port.out.OwnedPaymentRequestInvoiceSeed(
+                        "user-1",
+                        "owned-hash",
+                        "cHJlaW1hZ2U=",
+                        null,
+                        2_500L,
+                        "memo",
+                        600L
+                )));
+        when(lightningInvoicePersistencePort.save(any(LightningInvoice.class)))
+                .thenAnswer(invocation -> {
+                    LightningInvoice inv = invocation.getArgument(0);
+                    if (inv.id() == null) {
+                        return inv.withId("recovered-1");
+                    }
+                    return inv;
+                });
+
+        InvoiceStateUpdateResult result = service.recordInvoiceStateUpdate(new InvoiceStateUpdate(
+                "lnbc-owned",
+                "owned-hash",
+                InvoiceStateUpdate.State.SETTLED,
+                2_500L
+        ));
+
+        assertTrue(result.stateChanged());
+        assertTrue(result.settledPublication().isPresent());
+        verify(linkedPaymentRequestPort).markPaidByPaymentHash("owned-hash", FIXED_INSTANT);
+    }
+
     private LightningInvoice invoice(
             String userId,
             String paymentHash,

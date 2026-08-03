@@ -11,11 +11,14 @@ import com.aratiri.payments.domain.LightningInvoiceUpdate;
 import com.aratiri.errors.ApplicationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 
+/**
+ * Strictly ordered invoice subscription processor. Must be invoked synchronously on the
+ * listener thread; never {@code @Async}. Cursor advances only after a successful commit.
+ */
 @Service
 public class InvoiceProcessorService {
 
@@ -34,28 +37,29 @@ public class InvoiceProcessorService {
     }
 
     @Transactional
-    @Async
     public void processInvoiceUpdate(LightningInvoiceUpdate invoice) {
-        if (invoice.state() == LightningInvoiceUpdate.State.OPEN) {
-            return;
-        }
-
         InvoiceStateUpdateResult result = invoiceSettlementPort.recordInvoiceStateUpdate(new InvoiceStateUpdate(
                 invoice.paymentRequest(),
+                invoice.paymentHash(),
                 mapInvoiceState(invoice.state()),
                 invoice.amountPaidSat()
         ));
-        if (!result.stateChanged()) {
-            return;
+
+        if (result.stateChanged()) {
+            result.settledPublication().ifPresent(publication -> {
+                saveInvoiceSettledEvent(publication);
+                logger.info("Saved INVOICE_SETTLED event to outbox for invoiceId: {}", publication.invoiceId());
+            });
         }
 
-        result.settledPublication().ifPresent(publication -> {
-            saveInvoiceSettledEvent(publication);
-            logger.info("Saved INVOICE_SETTLED event to outbox for invoiceId: {}", publication.invoiceId());
-        });
-        InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton").orElse(InvoiceSubscriptionState.builder().id("singleton").build());
-        state.setAddIndex(invoice.addIndex());
-        state.setSettleIndex(invoice.settleIndex());
+        InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton")
+                .orElseGet(() -> InvoiceSubscriptionState.builder().id("singleton").addIndex(0).settleIndex(0).build());
+        if (invoice.addIndex() > state.getAddIndex()) {
+            state.setAddIndex(invoice.addIndex());
+        }
+        if (invoice.settleIndex() > state.getSettleIndex()) {
+            state.setSettleIndex(invoice.settleIndex());
+        }
         invoiceSubscriptionStateRepository.save(state);
     }
 

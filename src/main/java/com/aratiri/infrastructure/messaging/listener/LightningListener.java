@@ -4,7 +4,8 @@ import com.aratiri.infrastructure.persistence.jpa.entity.InvoiceSubscriptionStat
 import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.payments.application.invoice.InvoiceProcessorService;
 import com.aratiri.payments.domain.LightningInvoiceUpdate;
-import io.grpc.stub.StreamObserver;
+import io.grpc.stub.ClientCallStreamObserver;
+import io.grpc.stub.ClientResponseObserver;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lnrpc.Invoice;
@@ -17,8 +18,11 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.HexFormat;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Component
 public class LightningListener {
@@ -28,9 +32,12 @@ public class LightningListener {
     private final AtomicBoolean isListening = new AtomicBoolean(false);
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(false);
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
+    private final AtomicLong streamEpoch = new AtomicLong(0);
     private final InvoiceProcessorService invoiceProcessorService;
     private final InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
-    private StreamObserver<Invoice> invoiceStreamObserver;
+    private final AtomicReference<ClientCallStreamObserver<InvoiceSubscription>> invoiceRequestStream =
+            new AtomicReference<>();
+    private final AtomicLong activeStreamEpoch = new AtomicLong(-1L);
 
     public LightningListener(LightningGrpc.LightningStub lightningAsyncStub, InvoiceProcessorService invoiceProcessorService, InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.lightningAsyncStub = lightningAsyncStub;
@@ -49,15 +56,7 @@ public class LightningListener {
         logger.info("Stopping Lightning Invoice Listener...");
         isListening.set(false);
         shouldReconnect.set(false);
-
-        if (invoiceStreamObserver != null) {
-            try {
-                invoiceStreamObserver.onCompleted();
-            } catch (Exception e) {
-                logger.debug("Error completing stream observer during shutdown: {}", e.getMessage());
-            }
-        }
-
+        cancelActiveStream("shutdown");
         shutdownLatch.countDown();
     }
 
@@ -73,59 +72,89 @@ public class LightningListener {
             return;
         }
 
+        // Ensure any prior stream is cancelled before opening a new one (no overlapping streams).
+        cancelActiveStream("replacing stream before subscribe");
+
         try {
-            logger.info("Establishing invoice subscription stream");
-            isListening.set(true);
-            InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton").orElse(InvoiceSubscriptionState.builder().id("singleton").build());
-            logger.info("Subscribing with addIndex [{}] and settleIndex [{}]", state.getAddIndex(), state.getSettleIndex());
-            InvoiceSubscription subscriptionRequest = InvoiceSubscription.newBuilder()
-                    .setAddIndex(state.getAddIndex())
-                    .setSettleIndex(state.getSettleIndex())
-                    .build();
-
-            invoiceStreamObserver = new StreamObserver<>() {
-                @Override
-                public void onNext(Invoice invoice) {
-                    if (!isListening.get()) {
-                        logger.warn("Invoice received during shutdown, ignoring: {}", invoice.getPaymentRequest());
-                        return;
-                    }
-                    try {
-                        invoiceProcessorService.processInvoiceUpdate(toDomain(invoice));
-                    } catch (Exception e) {
-                        logger.error("Unhandled exception in handleInvoiceUpdate for payment request: {}",
-                                invoice != null ? invoice.getPaymentRequest() : "unknown", e);
-                    }
-                }
-
-                @Override
-                public void onError(Throwable throwable) {
-                    logger.error("Error in invoice subscription stream, message: {}", throwable.getMessage(), throwable);
-                    isListening.set(false);
-                    if (shutdownLatch.getCount() > 0) {
-                        shouldReconnect.set(true);
-                    }
-                }
-
-                @Override
-                public void onCompleted() {
-                    logger.info("Invoice subscription stream completed");
-                    isListening.set(false);
-                    if (shutdownLatch.getCount() > 0) {
-                        shouldReconnect.set(true);
-                    }
-                }
-            };
-
-            lightningAsyncStub.subscribeInvoices(subscriptionRequest, invoiceStreamObserver);
-            logger.info("Successfully subscribed to invoice updates");
-
+            establishSubscription();
         } catch (Exception e) {
             logger.error("Failed to establish invoice subscription", e);
             isListening.set(false);
-            if (shutdownLatch.getCount() > 0) {
-                shouldReconnect.set(true);
+            cancelActiveStream("subscribe failure");
+            requestReconnectIfRunning();
+        }
+    }
+
+    private void establishSubscription() {
+        logger.info("Establishing invoice subscription stream");
+        long epoch = streamEpoch.incrementAndGet();
+        activeStreamEpoch.set(epoch);
+        isListening.set(true);
+        InvoiceSubscriptionState state = invoiceSubscriptionStateRepository.findById("singleton")
+                .orElse(InvoiceSubscriptionState.builder().id("singleton").build());
+        logger.info("Subscribing with addIndex [{}] and settleIndex [{}]", state.getAddIndex(), state.getSettleIndex());
+        InvoiceSubscription subscriptionRequest = InvoiceSubscription.newBuilder()
+                .setAddIndex(state.getAddIndex())
+                .setSettleIndex(state.getSettleIndex())
+                .build();
+
+        lightningAsyncStub.subscribeInvoices(subscriptionRequest, newInvoiceStreamObserver(epoch));
+        logger.info("Successfully subscribed to invoice updates");
+    }
+
+    private ClientResponseObserver<InvoiceSubscription, Invoice> newInvoiceStreamObserver(long epoch) {
+        return new ClientResponseObserver<>() {
+            @Override
+            public void beforeStart(ClientCallStreamObserver<InvoiceSubscription> requestStream) {
+                invoiceRequestStream.set(requestStream);
             }
+
+            @Override
+            public void onNext(Invoice invoice) {
+                handleInvoiceOnNext(invoice, epoch);
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                logger.error("Error in invoice subscription stream, message: {}", throwable.getMessage(), throwable);
+                failActiveStream(epoch, "stream error");
+            }
+
+            @Override
+            public void onCompleted() {
+                logger.info("Invoice subscription stream completed");
+                failActiveStream(epoch, "stream completed");
+            }
+        };
+    }
+
+    private void handleInvoiceOnNext(Invoice invoice, long epoch) {
+        if (activeStreamEpoch.get() != epoch || !isListening.get()) {
+            logger.warn("Invoice received on inactive/cancelled stream epoch={}, ignoring", epoch);
+            return;
+        }
+        try {
+            // Synchronous ordered processing: failure must stop the stream before N+1.
+            invoiceProcessorService.processInvoiceUpdate(toDomain(invoice));
+        } catch (Exception e) {
+            logger.error("Invoice update processing failed; cancelling stream to reconnect from last committed cursor. paymentRequest={}",
+                    invoice != null ? invoice.getPaymentRequest() : "unknown", e);
+            failActiveStream(epoch, "processing failure");
+        }
+    }
+
+    private void failActiveStream(long epoch, String reason) {
+        if (activeStreamEpoch.get() != epoch) {
+            return;
+        }
+        isListening.set(false);
+        requestReconnectIfRunning();
+        cancelActiveStream(reason);
+    }
+
+    private void requestReconnectIfRunning() {
+        if (shutdownLatch.getCount() > 0) {
+            shouldReconnect.set(true);
         }
     }
 
@@ -138,9 +167,27 @@ public class LightningListener {
         }
     }
 
+    /**
+     * Cancels the server stream via the client call observer. Calling the response
+     * observer's {@code onCompleted()} only toggles local callbacks and does not cancel LND.
+     */
+    void cancelActiveStream(String reason) {
+        ClientCallStreamObserver<InvoiceSubscription> stream = invoiceRequestStream.getAndSet(null);
+        activeStreamEpoch.set(-1L);
+        if (stream == null) {
+            return;
+        }
+        try {
+            stream.cancel(reason, null);
+        } catch (Exception e) {
+            logger.debug("Error cancelling invoice stream ({}): {}", reason, e.getMessage());
+        }
+    }
+
     private LightningInvoiceUpdate toDomain(Invoice invoice) {
         return new LightningInvoiceUpdate(
                 invoice.getPaymentRequest(),
+                HexFormat.of().formatHex(invoice.getRHash().toByteArray()),
                 toDomainState(invoice.getState()),
                 invoice.getAmtPaidSat(),
                 invoice.getAddIndex(),

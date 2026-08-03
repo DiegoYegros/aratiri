@@ -4,6 +4,7 @@ import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.invoices.application.port.out.LightningInvoicePersistencePort;
 import com.aratiri.invoices.application.port.out.LinkedPaymentRequestPort;
+import com.aratiri.invoices.application.port.out.OwnedPaymentRequestInvoiceSeed;
 import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.errors.ApplicationException;
 import org.slf4j.Logger;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class InvoiceSettlementService implements InvoiceSettlementPort {
@@ -65,9 +67,26 @@ public class InvoiceSettlementService implements InvoiceSettlementPort {
     @Override
     @Transactional
     public InvoiceStateUpdateResult recordInvoiceStateUpdate(InvoiceStateUpdate update) {
-        Optional<LightningInvoice> optionalInvoice = lightningInvoicePersistencePort.findByPaymentRequest(update.paymentRequest());
+        Optional<LightningInvoice> optionalInvoice = findInvoice(update);
         if (optionalInvoice.isEmpty()) {
-            logger.debug("Invoice not found in database, skipping: {}", update.paymentRequest());
+            optionalInvoice = recoverOwnedInvoice(update);
+        }
+        if (optionalInvoice.isEmpty()) {
+            if (update.state() == InvoiceStateUpdate.State.SETTLED && update.paymentHash() != null) {
+                Optional<OwnedPaymentRequestInvoiceSeed> owned =
+                        linkedPaymentRequestPort.findOwnedInvoiceSeedByPaymentHash(update.paymentHash());
+                if (owned.isPresent()) {
+                    throw new ApplicationException(
+                            "Owned payment-request invoice is settled on LND but could not be recovered locally for hash "
+                                    + update.paymentHash()
+                    );
+                }
+            }
+            logger.debug(
+                    "Invoice not found in database, skipping: paymentRequest={} paymentHash={}",
+                    update.paymentRequest(),
+                    update.paymentHash()
+            );
             return InvoiceStateUpdateResult.ignored();
         }
 
@@ -77,13 +96,15 @@ public class InvoiceSettlementService implements InvoiceSettlementPort {
             return InvoiceStateUpdateResult.ignored();
         }
 
-        logger.info("Invoice state changed from {} to {} for payment request: {}",
-                invoice.invoiceState(), newState, update.paymentRequest());
+        logger.info("Invoice state changed from {} to {} for payment hash: {}",
+                invoice.invoiceState(), newState, invoice.paymentHash());
 
         if (newState == LightningInvoice.InvoiceState.SETTLED) {
-            LightningInvoice settledInvoice = lightningInvoicePersistencePort.save(invoice.settle(update.amountPaidSat(), LocalDateTime.now(clock)));
+            LightningInvoice settledInvoice = lightningInvoicePersistencePort.save(
+                    invoice.settle(update.amountPaidSat(), LocalDateTime.now(clock))
+            );
             linkedPaymentRequestPort.markPaidByPaymentHash(settledInvoice.paymentHash(), clock.instant());
-            logger.info("Invoice settled for {} sats: {}", update.amountPaidSat(), update.paymentRequest());
+            logger.info("Invoice settled for {} sats: {}", update.amountPaidSat(), settledInvoice.paymentHash());
             InvoiceSettledEvent eventPayload = new InvoiceSettledEvent(
                     settledInvoice.userId(),
                     settledInvoice.amountSats(),
@@ -96,6 +117,63 @@ public class InvoiceSettlementService implements InvoiceSettlementPort {
 
         lightningInvoicePersistencePort.save(invoice.withState(newState));
         return InvoiceStateUpdateResult.changed();
+    }
+
+    private Optional<LightningInvoice> findInvoice(InvoiceStateUpdate update) {
+        if (update.paymentHash() != null && !update.paymentHash().isBlank()) {
+            Optional<LightningInvoice> byHash = lightningInvoicePersistencePort.findByPaymentHash(update.paymentHash());
+            if (byHash.isPresent()) {
+                return byHash;
+            }
+        }
+        if (update.paymentRequest() != null && !update.paymentRequest().isBlank()) {
+            return lightningInvoicePersistencePort.findByPaymentRequest(update.paymentRequest());
+        }
+        return Optional.empty();
+    }
+
+    private Optional<LightningInvoice> recoverOwnedInvoice(InvoiceStateUpdate update) {
+        if (update.paymentHash() == null || update.paymentHash().isBlank()) {
+            return Optional.empty();
+        }
+        Optional<OwnedPaymentRequestInvoiceSeed> seed =
+                linkedPaymentRequestPort.findOwnedInvoiceSeedByPaymentHash(update.paymentHash());
+        if (seed.isEmpty()) {
+            return Optional.empty();
+        }
+        OwnedPaymentRequestInvoiceSeed owned = seed.get();
+        String bolt11 = update.paymentRequest() != null && !update.paymentRequest().isBlank()
+                ? update.paymentRequest()
+                : owned.paymentRequest();
+        if (bolt11 == null || bolt11.isBlank()) {
+            logger.error(
+                    "Cannot recover owned invoice without BOLT11 for paymentHash={}",
+                    update.paymentHash()
+            );
+            return Optional.empty();
+        }
+        LightningInvoice created = new LightningInvoice(
+                UUID.randomUUID().toString(),
+                owned.userId(),
+                owned.paymentHash(),
+                owned.preimage(),
+                bolt11,
+                LightningInvoice.InvoiceState.OPEN,
+                owned.amountSats(),
+                LocalDateTime.now(clock),
+                owned.expirySeconds(),
+                0,
+                null,
+                owned.memo(),
+                null,
+                null
+        );
+        LightningInvoice saved = lightningInvoicePersistencePort.save(created);
+        logger.warn(
+                "Recovered missing local lightning invoice for owned payment request hash={}",
+                owned.paymentHash()
+        );
+        return Optional.of(saved);
     }
 
     private LightningInvoice.InvoiceState mapInvoiceState(InvoiceStateUpdate.State invoiceState) {

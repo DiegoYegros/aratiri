@@ -1,5 +1,6 @@
 package com.aratiri.requests.application.port.in;
 
+import com.aratiri.requests.application.CreatePaymentRequestResult;
 import com.aratiri.requests.application.dto.CreatePaymentRequestDTO;
 import com.aratiri.requests.application.dto.OwnerPaymentRequestDTO;
 import com.aratiri.requests.application.dto.PaymentRequestPageResponse;
@@ -7,7 +8,7 @@ import com.aratiri.requests.application.dto.PublicPaymentRequestDTO;
 
 public interface PaymentRequestsPort {
 
-    OwnerPaymentRequestDTO create(String userId, String idempotencyKey, CreatePaymentRequestDTO request);
+    CreatePaymentRequestResult create(String userId, String idempotencyKey, CreatePaymentRequestDTO request);
 
     OwnerPaymentRequestDTO getOwned(String userId, String publicId);
 

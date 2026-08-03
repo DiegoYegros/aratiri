@@ -120,6 +120,23 @@ class OutboxWriterPersistenceIntegrationTest extends AbstractIntegrationTest {
         assertTrue(events.stream().allMatch(event -> event.getCreatedAt() != null));
     }
 
+    @Test
+    @DisplayName("Duplicate invoice.settled publishes collapse to a single outbox row")
+    void publishInvoiceSettled_duplicatePaths_oneRow() {
+        InvoiceSettledEvent event = new InvoiceSettledEvent(
+                "user-123", 1_000L, "payment-hash", LocalDateTime.now(), "memo");
+        outboxWriter.publishInvoiceSettled("invoice-dup-1", event);
+        outboxWriter.publishInvoiceSettled("invoice-dup-1", event);
+        outboxWriter.publishInvoiceSettled("invoice-dup-1", event);
+        outboxEventRepository.flush();
+
+        List<OutboxEventEntity> events = outboxEventRepository.findAll().stream()
+                .filter(e -> "invoice-dup-1".equals(e.getAggregateId()))
+                .toList();
+        assertEquals(1, events.size());
+        assertEquals(KafkaTopics.INVOICE_SETTLED.getCode(), events.getFirst().getEventType());
+    }
+
     private void assertOutboxEvent(
             List<OutboxEventEntity> events,
             String aggregateType,
