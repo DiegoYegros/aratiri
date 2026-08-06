@@ -1,6 +1,7 @@
 package com.aratiri;
 
 import com.aratiri.infrastructure.configuration.NodeOperationProperties;
+import com.aratiri.infrastructure.configuration.OutboxProperties;
 import com.aratiri.infrastructure.configuration.PaymentRequestSagaProperties;
 import com.aratiri.infrastructure.configuration.WebhookDestinationProperties;
 import org.springframework.boot.SpringApplication;
@@ -18,6 +19,7 @@ import org.springframework.resilience.annotation.EnableResilientMethods;
 @EnableKafka
 @EnableConfigurationProperties({
         NodeOperationProperties.class,
+        OutboxProperties.class,
         PaymentRequestSagaProperties.class,
         WebhookDestinationProperties.class
 })

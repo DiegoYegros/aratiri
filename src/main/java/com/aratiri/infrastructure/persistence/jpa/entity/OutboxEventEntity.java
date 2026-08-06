@@ -56,11 +56,23 @@ public class OutboxEventEntity {
 
     private Instant nextAttemptAt;
 
+    @Column(name = "locked_until")
+    private Instant lockedUntil;
+
+    @Column(name = "locked_by", length = 128)
+    private String lockedBy;
+
+    public void claim(String lockedBy, Instant lockedUntil) {
+        this.lockedBy = lockedBy;
+        this.lockedUntil = lockedUntil;
+    }
+
     public void markPublished(Instant publishedAt) {
         this.processedAt = publishedAt;
         this.publishStatus = OutboxPublishStatus.PUBLISHED;
         this.lastError = null;
         this.nextAttemptAt = null;
+        clearLease();
     }
 
     public void markPublishFailed(String errorMessage, Instant failedAt) {
@@ -68,11 +80,18 @@ public class OutboxEventEntity {
         this.publishAttempts++;
         this.lastError = errorMessage;
         this.nextAttemptAt = failedAt.plus(RETRY_DELAY);
+        clearLease();
     }
 
     public void markInvalid(String errorMessage) {
         this.publishStatus = OutboxPublishStatus.INVALID;
         this.lastError = errorMessage;
         this.nextAttemptAt = null;
+        clearLease();
+    }
+
+    private void clearLease() {
+        this.lockedBy = null;
+        this.lockedUntil = null;
     }
 }
