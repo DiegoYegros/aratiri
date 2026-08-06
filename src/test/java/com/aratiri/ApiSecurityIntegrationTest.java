@@ -97,6 +97,10 @@ class ApiSecurityIntegrationTest extends AbstractApiSecurityIntegrationTest {
         webTestClient().get().uri("/v1/payment-requests")
                 .exchange()
                 .expectStatus().isUnauthorized();
+
+        webTestClient().post().uri("/v1/notifications/ws-ticket")
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 
     @Test

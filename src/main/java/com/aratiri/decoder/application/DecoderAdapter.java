@@ -6,12 +6,14 @@ import com.aratiri.decoder.application.port.out.InvoiceDecodingPort;
 import com.aratiri.decoder.application.port.out.LnurlPort;
 import com.aratiri.decoder.application.port.out.NostrPort;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
+import com.aratiri.infrastructure.http.destination.OutboundDestinationRejectedException;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.errors.ApplicationException;
 import com.aratiri.bitcoin.Bech32;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ExecutionException;
@@ -23,6 +25,9 @@ import java.util.concurrent.TimeoutException;
 public class DecoderAdapter implements DecoderPort {
 
     private static final Logger logger = LoggerFactory.getLogger(DecoderAdapter.class);
+    private static final String DISALLOWED_OUTBOUND = OutboundDestinationRejectedException.PUBLIC_MESSAGE;
+    private static final String INVALID_OR_DISALLOWED_LNURL = "Invalid or disallowed LNURL";
+    private static final String COULD_NOT_RESOLVE_NPUB = "Could not resolve npub.";
 
     private final InvoiceDecodingPort invoiceDecodingPort;
     private final LnurlPort lnurlPort;
@@ -58,8 +63,12 @@ public class DecoderAdapter implements DecoderPort {
                     ? lnurlPort.getInternalMetadata(decodedUrl.substring(decodedUrl.lastIndexOf('/') + 1))
                     : lnurlPort.getExternalMetadata(decodedUrl);
             return success("lnurl_params", lnurlMetadata);
-        } catch (Exception e) {
-            return error(e.getMessage());
+        } catch (OutboundDestinationRejectedException _) {
+            return error(DISALLOWED_OUTBOUND);
+        } catch (ApplicationException e) {
+            return isOutboundDisallowed(e) ? error(DISALLOWED_OUTBOUND) : error(INVALID_OR_DISALLOWED_LNURL);
+        } catch (Exception _) {
+            return error(INVALID_OR_DISALLOWED_LNURL);
         }
     }
 
@@ -82,9 +91,15 @@ public class DecoderAdapter implements DecoderPort {
             return error("No Lightning Address found for this npub.");
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
-            return error("Could not resolve npub.");
-        } catch (ExecutionException _) {
-            return error("Could not resolve npub.");
+            return error(COULD_NOT_RESOLVE_NPUB);
+        } catch (ExecutionException e) {
+            return isOutboundDisallowedCause(e.getCause())
+                    ? error(DISALLOWED_OUTBOUND)
+                    : error(COULD_NOT_RESOLVE_NPUB);
+        } catch (OutboundDestinationRejectedException _) {
+            return error(DISALLOWED_OUTBOUND);
+        } catch (ApplicationException e) {
+            return isOutboundDisallowed(e) ? error(DISALLOWED_OUTBOUND) : error(COULD_NOT_RESOLVE_NPUB);
         }
     }
 
@@ -104,34 +119,59 @@ public class DecoderAdapter implements DecoderPort {
             logger.info("Trying alias lookup: {}", aliasOnly);
             return success("alias", lnurlPort.getInternalMetadata(aliasOnly));
         } catch (ApplicationException _) {
-            if (input.contains("@")) {
-                try {
-                    return resolveLightningAddress(input);
-                } catch (Exception _) {
-                    logger.debug("Failed to resolve '{}' as Lightning Address. Trying NIP-05...", input);
-                }
+            if (!input.contains("@")) {
+                return null;
             }
+            return tryLightningAddressOrContinue(input);
         }
-        return null;
+    }
+
+    private DecodedResultDTO tryLightningAddressOrContinue(String input) {
+        try {
+            return resolveLightningAddress(input);
+        } catch (OutboundDestinationRejectedException _) {
+            return error(DISALLOWED_OUTBOUND);
+        } catch (ApplicationException e) {
+            if (isOutboundDisallowed(e)) {
+                return error(DISALLOWED_OUTBOUND);
+            }
+            logger.debug("Failed to resolve '{}' as Lightning Address. Trying NIP-05...", input);
+            return null;
+        } catch (Exception _) {
+            logger.debug("Failed to resolve '{}' as Lightning Address. Trying NIP-05...", input);
+            return null;
+        }
     }
 
     private DecodedResultDTO tryNip05(String input) {
+        if (!input.contains(".") || input.contains(" ")) {
+            return null;
+        }
+        String nip05Identifier = input.contains("@") ? input : "_@" + input;
         try {
-            if (input.contains(".") && !input.contains(" ")) {
-                String nip05Identifier = input.contains("@") ? input : "_@" + input;
-                logger.info("Trying NIP-05 lookup: {}", nip05Identifier);
-                String lightningAddress = nostrPort.resolveNip05ToLud16(nip05Identifier).get(3, TimeUnit.SECONDS);
-                if (lightningAddress != null && !lightningAddress.isEmpty()) {
-                    return resolveLightningAddress(lightningAddress);
-                }
+            logger.info("Trying NIP-05 lookup: {}", nip05Identifier);
+            String lightningAddress = nostrPort.resolveNip05ToLud16(nip05Identifier).get(3, TimeUnit.SECONDS);
+            if (lightningAddress != null && !lightningAddress.isEmpty()) {
+                return resolveLightningAddress(lightningAddress);
             }
+            return null;
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
             logger.debug("Interrupted while resolving '{}' as NIP-05", input);
-        } catch (ExecutionException | TimeoutException ex) {
+            return null;
+        } catch (ExecutionException ex) {
+            return isOutboundDisallowedCause(ex.getCause()) ? error(DISALLOWED_OUTBOUND) : null;
+        } catch (TimeoutException ex) {
             logger.debug("Failed to resolve '{}' as NIP-05: {}", input, ex.getMessage());
+            return null;
+        } catch (OutboundDestinationRejectedException _) {
+            return error(DISALLOWED_OUTBOUND);
+        } catch (ApplicationException e) {
+            if (isOutboundDisallowed(e)) {
+                return error(DISALLOWED_OUTBOUND);
+            }
+            throw e;
         }
-        return null;
     }
 
     private DecodedResultDTO resolveLightningAddress(String lightningAddress) {
@@ -142,6 +182,20 @@ public class DecoderAdapter implements DecoderPort {
             return success("lnurl_params", lnurlPort.getExternalMetadata(lnurlpUrl));
         }
         throw new ApplicationException("Invalid Lightning Address format.");
+    }
+
+    private static boolean isOutboundDisallowed(ApplicationException e) {
+        return OutboundDestinationRejectedException.PUBLIC_MESSAGE.equals(e.getMessage())
+                || (e.getStatus() != null && e.getStatus() == HttpStatus.BAD_REQUEST.value()
+                && e.getCause() instanceof OutboundDestinationRejectedException);
+    }
+
+    private static boolean isOutboundDisallowedCause(Throwable cause) {
+        if (cause instanceof OutboundDestinationRejectedException) {
+            return true;
+        }
+        return cause instanceof ApplicationException applicationException
+                && isOutboundDisallowed(applicationException);
     }
 
     private DecodedResultDTO success(String type, Object data) {

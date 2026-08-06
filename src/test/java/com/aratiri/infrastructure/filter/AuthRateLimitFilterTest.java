@@ -156,8 +156,28 @@ class AuthRateLimitFilterTest {
         verify(filterChain, times(2)).doFilter(any(), any());
     }
 
+    @Test
+    void shortCircuitsWsTicketMintWhenExceeded() throws Exception {
+        MockHttpServletRequest first = sensitivePath("10.0.0.1", "/v1/notifications/ws-ticket");
+        MockHttpServletRequest second = sensitivePath("10.0.0.1", "/v1/notifications/ws-ticket");
+        MockHttpServletRequest third = sensitivePath("10.0.0.1", "/v1/notifications/ws-ticket");
+
+        filter.doFilter(first, new MockHttpServletResponse(), filterChain);
+        filter.doFilter(second, new MockHttpServletResponse(), filterChain);
+
+        MockHttpServletResponse denied = new MockHttpServletResponse();
+        filter.doFilter(third, denied, filterChain);
+
+        verify(filterChain, times(2)).doFilter(any(), any());
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS.value(), denied.getStatus());
+    }
+
     private static MockHttpServletRequest sensitiveLogin(String remoteAddr) {
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/auth/login");
+        return sensitivePath(remoteAddr, "/v1/auth/login");
+    }
+
+    private static MockHttpServletRequest sensitivePath(String remoteAddr, String path) {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
         request.setRemoteAddr(remoteAddr);
         return request;
     }

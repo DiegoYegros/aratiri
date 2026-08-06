@@ -135,6 +135,9 @@ class OutboxKafkaIntegrationTest extends AbstractIntegrationTest {
 
         OutboxEventEntity processed = outboxEventRepository.findById(event.getId()).orElseThrow();
         assertNotNull(processed.getProcessedAt());
+        assertEquals(OutboxPublishStatus.PUBLISHED, processed.getPublishStatus());
+        assertNull(processed.getLockedBy());
+        assertNull(processed.getLockedUntil());
     }
 
     @Test

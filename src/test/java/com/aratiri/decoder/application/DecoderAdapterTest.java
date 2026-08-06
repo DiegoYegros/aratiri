@@ -5,6 +5,7 @@ import com.aratiri.decoder.application.port.out.InvoiceDecodingPort;
 import com.aratiri.decoder.application.port.out.LnurlPort;
 import com.aratiri.decoder.application.port.out.NostrPort;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
+import com.aratiri.infrastructure.http.destination.OutboundDestinationRejectedException;
 import com.aratiri.invoices.application.dto.DecodedInvoicetDTO;
 import com.aratiri.lnurl.application.dto.LnurlpResponseDTO;
 import com.aratiri.errors.ApplicationException;
@@ -16,6 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -168,6 +170,127 @@ class DecoderAdapterTest {
     void decode_lnurl_exception() {
         DecodedResultDTO result = decoderAdapter.decode(Bech32.encodeLnurl("https://error.example.com"));
         assertEquals("error", result.getType());
+        assertEquals("Invalid or disallowed LNURL", result.getError());
+    }
+
+    @Test
+    void decode_lnurl_policyReject_usesStableMessageWithoutIpLeak() {
+        String url = "https://127.0.0.1/secret";
+        when(aratiriProperties.getAratiriBaseUrl()).thenReturn("https://aratiri.example.com");
+        when(lnurlPort.getExternalMetadata(url)).thenThrow(new ApplicationException(
+                OutboundDestinationRejectedException.PUBLIC_MESSAGE,
+                HttpStatus.BAD_REQUEST.value(),
+                new OutboundDestinationRejectedException()));
+
+        DecodedResultDTO result = decoderAdapter.decode(Bech32.encodeLnurl(url));
+        assertEquals("error", result.getType());
+        assertEquals(OutboundDestinationRejectedException.PUBLIC_MESSAGE, result.getError());
+        assertFalse(result.getError().contains("127.0.0.1"));
+        assertFalse(result.getError().contains("169.254"));
+        assertFalse(result.getError().contains("SECRET"));
+    }
+
+    @Test
+    void decode_lnurl_rawOutboundReject_usesStableMessage() {
+        String url = "https://10.0.0.1/secret";
+        when(aratiriProperties.getAratiriBaseUrl()).thenReturn("https://aratiri.example.com");
+        when(lnurlPort.getExternalMetadata(url)).thenThrow(new OutboundDestinationRejectedException());
+
+        DecodedResultDTO result = decoderAdapter.decode(Bech32.encodeLnurl(url));
+        assertEquals("error", result.getType());
+        assertEquals(OutboundDestinationRejectedException.PUBLIC_MESSAGE, result.getError());
+    }
+
+    @Test
+    void decode_lnurl_nonOutboundApplicationException_usesGenericMessage() {
+        String url = "https://external.example.com/lnurl";
+        when(aratiriProperties.getAratiriBaseUrl()).thenReturn("https://aratiri.example.com");
+        when(lnurlPort.getExternalMetadata(url))
+                .thenThrow(new ApplicationException("gateway blew up", HttpStatus.BAD_GATEWAY.value()));
+
+        DecodedResultDTO result = decoderAdapter.decode(Bech32.encodeLnurl(url));
+        assertEquals("error", result.getType());
+        assertEquals("Invalid or disallowed LNURL", result.getError());
+        assertFalse(result.getError().contains("gateway blew up"));
+    }
+
+    @Test
+    void decode_npub_outboundRejectViaExecutionException() {
+        CompletableFuture<String> future = new CompletableFuture<>();
+        future.completeExceptionally(new OutboundDestinationRejectedException());
+        when(nostrPort.getLud16FromNpub("npub1ssrf")).thenReturn(future);
+
+        DecodedResultDTO result = decoderAdapter.decode("npub1ssrf");
+        assertEquals("error", result.getType());
+        assertEquals(OutboundDestinationRejectedException.PUBLIC_MESSAGE, result.getError());
+    }
+
+    @Test
+    void decode_npub_outboundRejectFromLightningAddressResolve() {
+        when(nostrPort.getLud16FromNpub("npub1addr"))
+                .thenReturn(CompletableFuture.completedFuture("user@10.0.0.2"));
+        when(lnurlPort.getExternalMetadata("https://10.0.0.2/.well-known/lnurlp/user"))
+                .thenThrow(new OutboundDestinationRejectedException());
+
+        DecodedResultDTO result = decoderAdapter.decode("npub1addr");
+        assertEquals("error", result.getType());
+        assertEquals(OutboundDestinationRejectedException.PUBLIC_MESSAGE, result.getError());
+    }
+
+    @Test
+    void decode_lightningAddress_rawOutboundReject_usesStableMessage() {
+        when(lnurlPort.getInternalMetadata("user")).thenThrow(new ApplicationException("not found"));
+        when(lnurlPort.getExternalMetadata("https://192.168.0.5/.well-known/lnurlp/user"))
+                .thenThrow(new OutboundDestinationRejectedException());
+
+        DecodedResultDTO result = decoderAdapter.decode("user@192.168.0.5");
+        assertEquals("error", result.getType());
+        assertEquals(OutboundDestinationRejectedException.PUBLIC_MESSAGE, result.getError());
+    }
+
+    @Test
+    void decode_nip05_outboundRejectFromLightningAddressResolve() {
+        when(lnurlPort.getInternalMetadata("test.domain"))
+                .thenThrow(new ApplicationException("not found"));
+        when(nostrPort.resolveNip05ToLud16("_@test.domain"))
+                .thenReturn(CompletableFuture.completedFuture("user@10.1.1.1"));
+        when(lnurlPort.getExternalMetadata("https://10.1.1.1/.well-known/lnurlp/user"))
+                .thenThrow(new ApplicationException(
+                        OutboundDestinationRejectedException.PUBLIC_MESSAGE,
+                        HttpStatus.BAD_REQUEST.value(),
+                        new OutboundDestinationRejectedException()));
+
+        DecodedResultDTO result = decoderAdapter.decode("test.domain");
+        assertEquals("error", result.getType());
+        assertEquals(OutboundDestinationRejectedException.PUBLIC_MESSAGE, result.getError());
+    }
+
+    @Test
+    void decode_lightningAddress_policyReject_usesStableMessage() {
+        when(lnurlPort.getInternalMetadata("user")).thenThrow(new ApplicationException("not found"));
+        when(lnurlPort.getExternalMetadata("https://169.254.169.254/.well-known/lnurlp/user"))
+                .thenThrow(new ApplicationException(
+                        OutboundDestinationRejectedException.PUBLIC_MESSAGE,
+                        HttpStatus.BAD_REQUEST.value(),
+                        new OutboundDestinationRejectedException()));
+
+        DecodedResultDTO result = decoderAdapter.decode("user@169.254.169.254");
+        assertEquals("error", result.getType());
+        assertEquals(OutboundDestinationRejectedException.PUBLIC_MESSAGE, result.getError());
+        assertFalse(result.getError().contains("169.254"));
+    }
+
+    @Test
+    void decode_nip05_policyReject_usesStableMessage() {
+        when(lnurlPort.getInternalMetadata("test.domain"))
+                .thenThrow(new ApplicationException("not found"));
+        CompletableFuture<String> future = new CompletableFuture<>();
+        future.completeExceptionally(new OutboundDestinationRejectedException());
+        when(nostrPort.resolveNip05ToLud16("_@test.domain")).thenReturn(future);
+
+        DecodedResultDTO result = decoderAdapter.decode("test.domain");
+        assertEquals("error", result.getType());
+        assertEquals(OutboundDestinationRejectedException.PUBLIC_MESSAGE, result.getError());
     }
 
     @Test

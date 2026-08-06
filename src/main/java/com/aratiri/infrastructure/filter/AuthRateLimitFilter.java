@@ -54,7 +54,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             "/v1/auth/reset-password",
             "/v1/auth/refresh",
             "/v1/auth/exchange",
-            "/v1/auth/sso/google"
+            "/v1/auth/sso/google",
+            "/v1/notifications/ws-ticket"
     );
 
     private static final String RATE_LIMIT_MESSAGE = "Too many requests. Please try again later.";

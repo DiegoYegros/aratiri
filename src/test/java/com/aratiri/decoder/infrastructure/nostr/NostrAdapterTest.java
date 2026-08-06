@@ -1,5 +1,7 @@
 package com.aratiri.decoder.infrastructure.nostr;
 
+import com.aratiri.infrastructure.http.destination.OutboundDestinationPolicy;
+import com.aratiri.infrastructure.http.destination.OutboundDestinationRejectedException;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,9 +13,14 @@ import org.springframework.web.client.RestTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,12 +32,15 @@ class NostrAdapterTest {
     @Mock
     private NostrClient nostrClient;
 
+    @Mock
+    private OutboundDestinationPolicy outboundDestinationPolicy;
+
     private NostrAdapter adapter;
     private JsonMapper jsonMapper = new JsonMapper();
 
     @BeforeEach
     void setUp() {
-        adapter = new NostrAdapter(restTemplate, nostrClient, jsonMapper);
+        adapter = new NostrAdapter(restTemplate, nostrClient, jsonMapper, outboundDestinationPolicy);
     }
 
     @Test
@@ -96,6 +106,10 @@ class NostrAdapterTest {
 
         CompletableFuture<String> result = adapter.resolveNip05ToLud16(nip05);
         assertEquals(nip05, result.join());
+        verify(outboundDestinationPolicy, times(1))
+                .validate("https://test.com/.well-known/nostr.json?name=user");
+        verify(restTemplate, times(1))
+                .getForObject("https://test.com/.well-known/nostr.json?name=user", String.class);
     }
 
     @Test
@@ -123,5 +137,26 @@ class NostrAdapterTest {
 
         CompletableFuture<String> result = adapter.resolveNip05ToLud16(nip05);
         assertNull(result.join());
+    }
+
+    @Test
+    void resolveNip05ToLud16_rethrowsPolicyReject() {
+        doThrow(new OutboundDestinationRejectedException())
+                .when(outboundDestinationPolicy)
+                .validate("https://127.0.0.1/.well-known/nostr.json?name=user");
+
+        CompletableFuture<String> future = adapter.resolveNip05ToLud16("user@127.0.0.1");
+        CompletionException ex = assertThrows(CompletionException.class, future::join);
+        assertInstanceOf(OutboundDestinationRejectedException.class, ex.getCause());
+        verify(restTemplate, never()).getForObject(anyString(), eq(String.class));
+    }
+
+    @Test
+    void resolveNip05ToLud16_rejectsUnsafeDomainBeforeHttp() {
+        CompletableFuture<String> future = adapter.resolveNip05ToLud16("user@evil.com/path");
+        CompletionException ex = assertThrows(CompletionException.class, future::join);
+        assertInstanceOf(OutboundDestinationRejectedException.class, ex.getCause());
+        verify(outboundDestinationPolicy, never()).validate(anyString());
+        verify(restTemplate, never()).getForObject(anyString(), eq(String.class));
     }
 }
