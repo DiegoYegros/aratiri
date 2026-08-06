@@ -109,6 +109,9 @@ aratiri:
       cancel-max-attempts: ${ARATIRI_PAYMENT_REQUESTS_SAGA_CANCEL_MAX_ATTEMPTS:10}
       backoff-base-ms: ${ARATIRI_PAYMENT_REQUESTS_SAGA_BACKOFF_BASE_MS:1000}
       backoff-max-ms: ${ARATIRI_PAYMENT_REQUESTS_SAGA_BACKOFF_MAX_MS:60000}
+  notifications:
+    ws-ticket-ttl-seconds: ${ARATIRI_NOTIFICATIONS_WS_TICKET_TTL_SECONDS:60}
+    ws-ticket-mints-per-minute: ${ARATIRI_NOTIFICATIONS_WS_TICKET_MINTS_PER_MINUTE:30}
   cors:
     allowed:
       origins: ${ARATIRI_CORS_ALLOWED_ORIGINS}
