@@ -161,20 +161,34 @@ HTTP contract notes:
 - Cancel: `202` for `CANCEL_PENDING` (including replay), `200` once `CANCELLED`, `409` for `PAID`/`EXPIRED`/`FAILED`.
 - BOLT11 appears only while effective status is `OPEN`. Preimage, lease fields, and diagnostics are never exposed on owner/public DTOs.
 
+## Outbound destination policy
+
+Shared fail-closed SSRF policy for **webhooks**, **LNURL** (metadata, Lightning Address well-known, pay callbacks), and **NIP-05** outbound HTTP.
+
+| Property / Variable | Default | Purpose |
+| --- | --- | --- |
+| `aratiri.outbound.destination.allow-http` / `ARATIRI_OUTBOUND_DESTINATION_ALLOW_HTTP` | `false` | **Unsafe / lab-only.** When `true`, allows `http://` destinations. Production must keep `false` (HTTPS only). |
+| `aratiri.outbound.destination.allow-private-networks` / `ARATIRI_OUTBOUND_DESTINATION_ALLOW_PRIVATE_NETWORKS` | `false` | **Unsafe / lab-only.** When `true`, skips rejection of loopback, RFC1918, link-local, CGNAT, ULA, and other special ranges. Production must keep `false`. Opens **all** consumers of this policy (webhooks + LNURL + NIP-05). |
+| `aratiri.outbound.destination.allowed-hosts` | empty | Optional allowlist of exact hosts or `*.suffix` wildcard suffixes (not regex). **Empty (default) allows any public host** that passes scheme/structure/private checks — required for Lightning Address / LNURL / NIP-05 against the open Lightning ecosystem. Non-empty is mainly for locked-down webhook labs; a global allowlist would break decode/pay to arbitrary public LNURL hosts. Compared after host normalization (IDN/punycode, case, trailing dots, optional IPv6 brackets). Malformed entries are ignored per request (fail closed for matching), not at startup. Narrows which names may be chosen; does **not** pin DNS or prevent rebinding of an allowlisted/compromised name. |
+
+> **Rename:** previously `aratiri.webhooks.destination.*` / `ARATIRI_WEBHOOKS_DESTINATION_*`.
+> Prefer `aratiri.outbound.destination.*` / `ARATIRI_OUTBOUND_DESTINATION_*`.
+> `application.yml` still falls back to the old env names for `allow-http` / `allow-private-networks` for one release if the new vars are unset.
+> If you used `aratiri.webhooks.destination.allowed-hosts`, migrate that list to `aratiri.outbound.destination.allowed-hosts` manually (no automatic fallback; empty remain default for Lightning Address / LNURL / NIP-05).
+
+Policy is enforced when admins create/update webhook endpoints, immediately before every webhook delivery, and before every user-influenced LNURL/NIP-05 GET. Invalid destinations are fail-closed: webhook create/update returns HTTP 400 without persisting; delivery performs no HTTP send and enters the normal failure/retry path; LNURL pay/metadata policy rejects return HTTP 400 with a stable public message; decoder returns a stable error string without echoing resolved IPs or upstream bodies. User-influenced GETs use a dedicated RestTemplate with redirects disabled.
+
+Default policy permits ordinary public HTTPS destinations and rejects internal/special destinations (loopback, RFC1918, link-local/cloud metadata, multicast, IPv6 ULA, IPv4-mapped/compatible private/special addresses, NAT64 `64:ff9b::/32`, 6to4 `2002::/16`, Teredo `2001:0::/32`, CGNAT `100.64.0.0/10`, documentation/benchmarking/reserved ranges, userinfo, fragments, zone/scope ids, non-absolute URIs, and ambiguous/alternative IP literals).
+
+**DNS rebinding residual:** Java HTTP clients re-resolve the hostname at connect time and do not provide a portable way to pin the validated addresses while preserving TLS hostname verification/SNI. Validation reduces the TOCTOU window but does not eliminate rebinding. A non-empty `allowed-hosts` list only restricts which names may be chosen; it does not pin DNS and does not stop an allowlisted or compromised name from rebinding between validation and connect.
+
 ## Webhooks
 
 | Property / Variable | Default | Purpose |
 | --- | --- | --- |
 | `aratiri.webhooks.delivery.fixed-delay-ms` | `5000` | Delivery worker schedule. |
-| `aratiri.webhooks.destination.allow-http` | `false` | **Unsafe / lab-only.** When `true`, allows `http://` webhook URLs. Production must keep `false` (HTTPS only). |
-| `aratiri.webhooks.destination.allow-private-networks` | `false` | **Unsafe / lab-only.** When `true`, skips rejection of loopback, RFC1918, link-local, CGNAT, ULA, and other special ranges. Production must keep `false`. |
-| `aratiri.webhooks.destination.allowed-hosts` | empty | Optional allowlist of exact hosts or `*.suffix` wildcard suffixes (not regex). When non-empty, destinations outside the list are rejected. Compared after host normalization (IDN/punycode, case, trailing dots, optional IPv6 brackets). Malformed entries are ignored per request (fail closed for matching), not at startup. Narrows which names may be chosen; does **not** pin DNS or prevent rebinding of an allowlisted/compromised name. |
 
-Destination policy is enforced when admins create/update endpoints and again immediately before every outbound delivery. Invalid destinations are fail-closed: create/update returns HTTP 400 without persisting; delivery performs no HTTP send and enters the normal failure/retry path.
-
-Default policy permits ordinary public HTTPS webhooks and rejects internal/special destinations (loopback, RFC1918, link-local/cloud metadata, multicast, IPv6 ULA, IPv4-mapped/compatible private/special addresses, NAT64 `64:ff9b::/32`, 6to4 `2002::/16`, Teredo `2001:0::/32`, CGNAT `100.64.0.0/10`, documentation/benchmarking/reserved ranges, userinfo, fragments, zone/scope ids, non-absolute URIs, and ambiguous/alternative IP literals).
-
-**DNS rebinding residual:** Java `HttpClient` re-resolves the hostname at connect time and does not provide a portable way to pin the validated addresses while preserving TLS hostname verification/SNI. Send-time validation reduces the TOCTOU window but does not eliminate rebinding. A non-empty `allowed-hosts` list only restricts which names may be configured; it does not pin DNS and does not stop an allowlisted or compromised name from rebinding between validation and connect.
+Webhook destinations use the shared [Outbound destination policy](#outbound-destination-policy) above.
 
 Delivery requests include:
 

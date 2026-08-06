@@ -1,4 +1,4 @@
-package com.aratiri.webhooks.application.destination;
+package com.aratiri.infrastructure.http.destination;
 
 import org.springframework.stereotype.Component;
 
@@ -8,7 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @Component
-public class JdkWebhookHostResolver implements WebhookHostResolver {
+public class JdkOutboundHostResolver implements OutboundHostResolver {
 
   @Override
   public List<InetAddress> resolveAll(String host) throws UnknownHostException {

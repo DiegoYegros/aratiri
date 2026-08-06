@@ -15,6 +15,7 @@ import com.aratiri.payments.application.dto.PaymentResponseDTO;
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.bitcoin.BitcoinAmounts;
 import com.aratiri.errors.ApplicationException;
+import com.aratiri.infrastructure.http.destination.OutboundDestinationRejectedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -70,6 +71,11 @@ public class LnurlAdapter implements LnurlApplicationPort {
     public LnurlpResponseDTO getExternalLnurlMetadata(String url) {
         try {
             return lnurlRemotePort.fetchMetadata(url);
+        } catch (OutboundDestinationRejectedException e) {
+            throw new ApplicationException(
+                    OutboundDestinationRejectedException.PUBLIC_MESSAGE,
+                    HttpStatus.BAD_REQUEST.value(),
+                    e);
         } catch (Exception _) {
             throw new ApplicationException("Failed to fetch LNURL metadata from external URL.", HttpStatus.BAD_GATEWAY.value());
         }
@@ -107,6 +113,11 @@ public class LnurlAdapter implements LnurlApplicationPort {
         LnurlCallbackResponseDTO callbackResponse;
         try {
             callbackResponse = lnurlRemotePort.fetchCallbackInvoice(finalCallbackUrl);
+        } catch (OutboundDestinationRejectedException e) {
+            throw new ApplicationException(
+                    OutboundDestinationRejectedException.PUBLIC_MESSAGE,
+                    HttpStatus.BAD_REQUEST.value(),
+                    e);
         } catch (Exception _) {
             throw new ApplicationException("Failed to fetch invoice from LNURL callback.", HttpStatus.BAD_GATEWAY.value());
         }

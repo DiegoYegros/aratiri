@@ -4,6 +4,7 @@ import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.invoices.application.dto.GenerateInvoiceDTO;
 import com.aratiri.invoices.application.port.in.InvoicesPort;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
+import com.aratiri.infrastructure.http.destination.OutboundDestinationRejectedException;
 import com.aratiri.lnurl.application.command.LnurlPaymentCommandService;
 import com.aratiri.lnurl.application.dto.LnurlCallbackResponseDTO;
 import com.aratiri.lnurl.application.dto.LnurlPayRequestDTO;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import java.util.function.Supplier;
 
@@ -88,7 +90,21 @@ class LnurlAdapterTest {
     void getExternalLnurlMetadata_throwsOnRemoteFailure() {
         when(lnurlRemotePort.fetchMetadata("https://ext.com")).thenThrow(new RuntimeException("error"));
 
-        assertThrows(ApplicationException.class, () -> adapter.getExternalLnurlMetadata("https://ext.com"));
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> adapter.getExternalLnurlMetadata("https://ext.com"));
+        assertEquals(HttpStatus.BAD_GATEWAY.value(), ex.getStatus());
+    }
+
+    @Test
+    void getExternalLnurlMetadata_mapsPolicyRejectToBadRequest() {
+        when(lnurlRemotePort.fetchMetadata("https://127.0.0.1/lnurl"))
+                .thenThrow(new OutboundDestinationRejectedException());
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> adapter.getExternalLnurlMetadata("https://127.0.0.1/lnurl"));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
+        assertEquals(OutboundDestinationRejectedException.PUBLIC_MESSAGE, ex.getMessage());
+        assertFalse(ex.getMessage().contains("127.0.0.1"));
     }
 
     @Test
@@ -182,7 +198,30 @@ class LnurlAdapterTest {
 
         when(lnurlRemotePort.fetchCallbackInvoice(anyString())).thenThrow(new RuntimeException("remote error"));
 
-        assertThrows(ApplicationException.class, () -> adapter.handlePayRequest(request, "user-1", "key-1"));
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> adapter.handlePayRequest(request, "user-1", "key-1"));
+        assertEquals(HttpStatus.BAD_GATEWAY.value(), ex.getStatus());
+    }
+
+    @Test
+    void executeLnurlPayment_mapsPolicyRejectToBadRequest() {
+        LnurlPayRequestDTO request = new LnurlPayRequestDTO();
+        request.setCallback("https://192.168.1.1/callback");
+        request.setAmountMsat(5_000_000L);
+
+        doAnswer(invocation -> {
+            Supplier<PaymentResponseDTO> supplier = invocation.getArgument(3);
+            return supplier.get();
+        }).when(lnurlPaymentCommand).execute(eq("user-1"), eq("key-1"), eq(request), any());
+
+        when(lnurlRemotePort.fetchCallbackInvoice(anyString()))
+                .thenThrow(new OutboundDestinationRejectedException());
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> adapter.handlePayRequest(request, "user-1", "key-1"));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
+        assertEquals(OutboundDestinationRejectedException.PUBLIC_MESSAGE, ex.getMessage());
+        assertFalse(ex.getMessage().contains("192.168"));
     }
 
     @Test

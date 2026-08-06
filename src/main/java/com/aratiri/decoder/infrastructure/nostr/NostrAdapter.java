@@ -2,6 +2,8 @@ package com.aratiri.decoder.infrastructure.nostr;
 
 import com.aratiri.decoder.application.port.out.NostrPort;
 import com.aratiri.errors.ApplicationException;
+import com.aratiri.infrastructure.http.destination.OutboundDestinationPolicy;
+import com.aratiri.infrastructure.http.destination.OutboundDestinationRejectedException;
 import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +12,8 @@ import org.springframework.web.client.RestTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 
 @AllArgsConstructor
@@ -22,6 +26,7 @@ public class NostrAdapter implements NostrPort {
     private RestTemplate restTemplate;
     private NostrClient nostrClient;
     private JsonMapper jsonMapper;
+    private OutboundDestinationPolicy outboundDestinationPolicy;
 
     @Override
     public CompletableFuture<String> getLud16FromNpub(String npub) {
@@ -67,9 +72,14 @@ public class NostrAdapter implements NostrPort {
                 }
                 String name = parts[0];
                 String domain = parts[1];
+                if (!isSafeNip05Domain(domain) || !isSafeNip05Name(name)) {
+                    throw new OutboundDestinationRejectedException();
+                }
 
-                String url = "https://" + domain + "/.well-known/nostr.json?name=" + name;
-                logger.info("Fetching NIP-05 data from: {}", url);
+                String encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8);
+                String url = "https://" + domain + "/.well-known/nostr.json?name=" + encodedName;
+                outboundDestinationPolicy.validate(url);
+                logger.info("Fetching NIP-05 data for host {}", domain);
 
                 String response = restTemplate.getForObject(url, String.class);
                 JsonNode root = jsonMapper.readTree(response);
@@ -82,10 +92,30 @@ public class NostrAdapter implements NostrPort {
                 logger.info("Found pubkey for {}: {}", nip05Identifier, pubkey);
                 return getLud16FromPubkey(pubkey).join();
 
+            } catch (OutboundDestinationRejectedException e) {
+                throw e;
             } catch (Exception e) {
                 logger.warn("Failed to resolve NIP-05 identifier '{}': {}", nip05Identifier, e.getMessage());
                 return null;
             }
         });
+    }
+
+    private static boolean isSafeNip05Domain(String domain) {
+        return domain != null
+                && !domain.isBlank()
+                && domain.indexOf('/') < 0
+                && domain.indexOf('@') < 0
+                && domain.indexOf(' ') < 0
+                && domain.indexOf('\\') < 0;
+    }
+
+    private static boolean isSafeNip05Name(String name) {
+        return name != null
+                && !name.isBlank()
+                && name.indexOf('/') < 0
+                && name.indexOf('@') < 0
+                && name.indexOf(' ') < 0
+                && name.indexOf('\\') < 0;
     }
 }

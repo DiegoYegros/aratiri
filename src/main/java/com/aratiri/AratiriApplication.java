@@ -2,7 +2,7 @@ package com.aratiri;
 
 import com.aratiri.infrastructure.configuration.NodeOperationProperties;
 import com.aratiri.infrastructure.configuration.PaymentRequestSagaProperties;
-import com.aratiri.infrastructure.configuration.WebhookDestinationProperties;
+import com.aratiri.infrastructure.http.destination.OutboundDestinationProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -19,7 +19,7 @@ import org.springframework.resilience.annotation.EnableResilientMethods;
 @EnableConfigurationProperties({
         NodeOperationProperties.class,
         PaymentRequestSagaProperties.class,
-        WebhookDestinationProperties.class
+        OutboundDestinationProperties.class
 })
 public class AratiriApplication {
 
