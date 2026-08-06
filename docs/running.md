@@ -91,7 +91,7 @@ The backend listens on `http://localhost:2100` by default. The Compose file also
 - OpenAPI JSON: `http://localhost:2100/v3/api-docs` when `ARATIRI_SECURITY_API_DOCS_ENABLED=true`
 - H2 console: permitted only in `dev`, `development`, or `test` profiles unless `aratiri.security.dev-endpoints.h2-console-enabled=true`
 - LNURL metadata example: `http://localhost:2100/.well-known/lnurlp/{alias}`
-- WebSocket notifications: `ws://localhost:2100/v1/notifications/subscribe?token={jwt}`
+- WebSocket notifications: mint with `POST /v1/notifications/ws-ticket` (Bearer JWT), then connect `ws://localhost:2100/v1/notifications/subscribe` with `Sec-WebSocket-Protocol: aratiri.notifications.v1, <ticket>`
 
 ## Tests And Verification
 
