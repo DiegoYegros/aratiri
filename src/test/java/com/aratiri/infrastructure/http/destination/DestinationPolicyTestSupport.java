@@ -1,6 +1,5 @@
-package com.aratiri.webhooks.application.destination;
+package com.aratiri.infrastructure.http.destination;
 
-import com.aratiri.infrastructure.configuration.WebhookDestinationProperties;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -15,24 +14,24 @@ final class DestinationPolicyTestSupport {
   private DestinationPolicyTestSupport() {
   }
 
-  static WebhookDestinationProperties defaultProperties() {
-    return new WebhookDestinationProperties();
+  static OutboundDestinationProperties defaultProperties() {
+    return new OutboundDestinationProperties();
   }
 
-  static WebhookDestinationProperties labProperties() {
-    WebhookDestinationProperties properties = new WebhookDestinationProperties();
+  static OutboundDestinationProperties labProperties() {
+    OutboundDestinationProperties properties = new OutboundDestinationProperties();
     properties.setAllowHttp(true);
     properties.setAllowPrivateNetworks(true);
     return properties;
   }
 
-  static WebhookDestinationPolicy policy(
-      WebhookDestinationProperties properties,
-      WebhookHostResolver resolver) {
-    return new WebhookDestinationPolicy(properties, resolver);
+  static OutboundDestinationPolicy policy(
+      OutboundDestinationProperties properties,
+      OutboundHostResolver resolver) {
+    return new OutboundDestinationPolicy(properties, resolver);
   }
 
-  static WebhookDestinationPolicy policyWithResolver(WebhookHostResolver resolver) {
+  static OutboundDestinationPolicy policyWithResolver(OutboundHostResolver resolver) {
     return policy(defaultProperties(), resolver);
   }
 
@@ -52,7 +51,7 @@ final class DestinationPolicyTestSupport {
     }
   }
 
-  static final class FakeResolver implements WebhookHostResolver {
+  static final class FakeResolver implements OutboundHostResolver {
     private final Map<String, List<InetAddress>> answers = new ConcurrentHashMap<>();
     private final Map<String, UnknownHostException> failures = new ConcurrentHashMap<>();
     private final AtomicInteger resolveCount = new AtomicInteger();

@@ -1,6 +1,9 @@
 package com.aratiri.decoder.infrastructure.nostr;
 
 import com.aratiri.decoder.application.port.out.NostrPort;
+import com.aratiri.infrastructure.configuration.WebConfig;
+import com.aratiri.infrastructure.http.destination.OutboundDestinationPolicy;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,11 +24,12 @@ public class NostrConfiguration {
     @Bean
     public NostrPort nostrPort(
             NostrClient nostrClient,
-            RestTemplate restTemplate,
+            @Qualifier(WebConfig.OUTBOUND_USER_HTTP) RestTemplate restTemplate,
             JsonMapper jsonMapper,
+            OutboundDestinationPolicy outboundDestinationPolicy,
             @Value("${nostr.active:false}") boolean active) {
         if (active) {
-            return new NostrAdapter(restTemplate, nostrClient, jsonMapper);
+            return new NostrAdapter(restTemplate, nostrClient, jsonMapper, outboundDestinationPolicy);
         } else {
             return new NoopNostrAdapter();
         }

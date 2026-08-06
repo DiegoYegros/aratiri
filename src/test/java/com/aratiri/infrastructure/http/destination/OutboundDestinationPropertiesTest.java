@@ -1,4 +1,4 @@
-package com.aratiri.infrastructure.configuration;
+package com.aratiri.infrastructure.http.destination;
 
 import org.junit.jupiter.api.Test;
 
@@ -8,11 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class WebhookDestinationPropertiesTest {
+class OutboundDestinationPropertiesTest {
 
   @Test
   void defaultsAreFailClosed() {
-    WebhookDestinationProperties properties = new WebhookDestinationProperties();
+    OutboundDestinationProperties properties = new OutboundDestinationProperties();
     assertFalse(properties.isAllowHttp());
     assertFalse(properties.isAllowPrivateNetworks());
     assertTrue(properties.getAllowedHosts().isEmpty());
@@ -20,7 +20,7 @@ class WebhookDestinationPropertiesTest {
 
   @Test
   void escapeHatchesAreExplicitlySettable() {
-    WebhookDestinationProperties properties = new WebhookDestinationProperties();
+    OutboundDestinationProperties properties = new OutboundDestinationProperties();
     properties.setAllowHttp(true);
     properties.setAllowPrivateNetworks(true);
     properties.setAllowedHosts(List.of("hooks.example.com", "*.trusted.example"));

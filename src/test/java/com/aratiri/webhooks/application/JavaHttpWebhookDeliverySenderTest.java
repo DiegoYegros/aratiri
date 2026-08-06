@@ -1,11 +1,12 @@
 package com.aratiri.webhooks.application;
 
-import com.aratiri.infrastructure.configuration.WebhookDestinationProperties;
+import com.aratiri.infrastructure.http.destination.OutboundDestinationPolicy;
+import com.aratiri.infrastructure.http.destination.OutboundDestinationProperties;
+import com.aratiri.infrastructure.http.destination.OutboundHostResolver;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookDeliveryEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookDeliveryStatus;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointEntity;
 import com.aratiri.webhooks.application.destination.WebhookDestinationPolicy;
-import com.aratiri.webhooks.application.destination.WebhookHostResolver;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 
@@ -336,11 +337,49 @@ class JavaHttpWebhookDeliverySenderTest {
   }
 
   @Test
+  void send_doesNotFollowRedirectToPrivate() throws Exception {
+    AtomicInteger privateHits = new AtomicInteger();
+    HttpServer privateServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    privateServer.createContext("/", exchange -> {
+      privateHits.incrementAndGet();
+      byte[] body = "SECRET".getBytes();
+      exchange.sendResponseHeaders(200, body.length);
+      exchange.getResponseBody().write(body);
+      exchange.close();
+    });
+    privateServer.start();
+
+    HttpServer publicServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    int privatePort = privateServer.getAddress().getPort();
+    publicServer.createContext("/hook", exchange -> {
+      exchange.getResponseHeaders().add("Location", "http://127.0.0.1:" + privatePort + "/");
+      exchange.sendResponseHeaders(302, -1);
+      exchange.close();
+    });
+    publicServer.start();
+
+    try {
+      int publicPort = publicServer.getAddress().getPort();
+      JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(labPolicy());
+      WebhookSendResult result = sender.send(
+          delivery("{}"),
+          endpoint("http://127.0.0.1:" + publicPort + "/hook"));
+
+      assertEquals(302, result.statusCode());
+      assertFalse(result.successful());
+      assertEquals(0, privateHits.get());
+    } finally {
+      publicServer.stop(0);
+      privateServer.stop(0);
+    }
+  }
+
+  @Test
   void send_rejectsInvalidDestinationWithoutCallingHttpClient() throws Exception {
     HttpClient httpClient = mock(HttpClient.class);
-    WebhookDestinationProperties properties = new WebhookDestinationProperties();
-    WebhookHostResolver resolver = host -> List.of(InetAddress.getByName("10.0.0.1"));
-    WebhookDestinationPolicy policy = new WebhookDestinationPolicy(properties, resolver);
+    OutboundDestinationProperties properties = new OutboundDestinationProperties();
+    OutboundHostResolver resolver = host -> List.of(InetAddress.getByName("10.0.0.1"));
+    WebhookDestinationPolicy policy = webhookPolicy(properties, resolver);
     JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(httpClient, policy);
 
     WebhookEndpointEntity endpoint = endpoint("https://internal.example.com/webhook?token=secret");
@@ -355,12 +394,12 @@ class JavaHttpWebhookDeliverySenderTest {
   void send_revalidatesChangedResolutionAndSkipsSend() throws Exception {
     AtomicInteger resolves = new AtomicInteger();
     HttpClient httpClient = mock(HttpClient.class);
-    WebhookDestinationProperties properties = new WebhookDestinationProperties();
-    WebhookHostResolver resolver = host -> {
+    OutboundDestinationProperties properties = new OutboundDestinationProperties();
+    OutboundHostResolver resolver = host -> {
       resolves.incrementAndGet();
       return List.of(InetAddress.getByName("127.0.0.1"));
     };
-    WebhookDestinationPolicy policy = new WebhookDestinationPolicy(properties, resolver);
+    WebhookDestinationPolicy policy = webhookPolicy(properties, resolver);
     JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(httpClient, policy);
 
     IOException ex = assertThrows(IOException.class,
@@ -379,9 +418,9 @@ class JavaHttpWebhookDeliverySenderTest {
     when(response.body()).thenReturn("");
     when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
 
-    WebhookDestinationProperties properties = new WebhookDestinationProperties();
-    WebhookHostResolver resolver = host -> List.of(InetAddress.getByName("93.184.216.34"));
-    WebhookDestinationPolicy policy = new WebhookDestinationPolicy(properties, resolver);
+    OutboundDestinationProperties properties = new OutboundDestinationProperties();
+    OutboundHostResolver resolver = host -> List.of(InetAddress.getByName("93.184.216.34"));
+    WebhookDestinationPolicy policy = webhookPolicy(properties, resolver);
     JavaHttpWebhookDeliverySender sender = new JavaHttpWebhookDeliverySender(httpClient, policy);
 
     WebhookSendResult result = sender.send(
@@ -394,11 +433,17 @@ class JavaHttpWebhookDeliverySenderTest {
   }
 
   private static WebhookDestinationPolicy labPolicy() {
-    WebhookDestinationProperties properties = new WebhookDestinationProperties();
+    OutboundDestinationProperties properties = new OutboundDestinationProperties();
     properties.setAllowHttp(true);
     properties.setAllowPrivateNetworks(true);
-    WebhookHostResolver resolver = host -> List.of(InetAddress.getByName(host));
-    return new WebhookDestinationPolicy(properties, resolver);
+    OutboundHostResolver resolver = host -> List.of(InetAddress.getByName(host));
+    return webhookPolicy(properties, resolver);
+  }
+
+  private static WebhookDestinationPolicy webhookPolicy(
+      OutboundDestinationProperties properties,
+      OutboundHostResolver resolver) {
+    return new WebhookDestinationPolicy(new OutboundDestinationPolicy(properties, resolver));
   }
 
   private WebhookEndpointEntity endpoint(String url) {
