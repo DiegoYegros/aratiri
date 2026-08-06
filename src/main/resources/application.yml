@@ -95,6 +95,7 @@ aratiri:
   outbox:
     batch-size: ${ARATIRI_OUTBOX_BATCH_SIZE:200}
     fixed-delay-ms: ${ARATIRI_OUTBOX_FIXED_DELAY_MS:1000}
+    lease-seconds: ${ARATIRI_OUTBOX_LEASE_SECONDS:30}
   reconciliation:
     batch-size: ${ARATIRI_RECONCILIATION_BATCH_SIZE:100}
   invoices:

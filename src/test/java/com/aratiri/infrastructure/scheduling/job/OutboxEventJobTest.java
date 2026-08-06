@@ -3,31 +3,26 @@ package com.aratiri.infrastructure.scheduling.job;
 import com.aratiri.infrastructure.messaging.KafkaTopics;
 import com.aratiri.infrastructure.messaging.producer.OutboxEventProducer;
 import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.OutboxPublishStatus;
-import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Pageable;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-import java.time.Instant;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class OutboxEventJobTest {
 
     @Mock
-    private OutboxEventRepository outboxEventRepository;
+    private OutboxEventClaimer outboxEventClaimer;
 
     @Mock
     private OutboxEventProducer outboxEventProducer;
@@ -36,66 +31,36 @@ class OutboxEventJobTest {
 
     @BeforeEach
     void setUp() {
-        outboxEventJob = new OutboxEventJob(outboxEventRepository, outboxEventProducer);
-        ReflectionTestUtils.setField(outboxEventJob, "batchSize", 200);
+        outboxEventJob = new OutboxEventJob(outboxEventClaimer, outboxEventProducer);
     }
 
     @Test
     void processOutboxEvents_shouldDoNothingWhenNoEvents() {
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(Collections.emptyList());
+        when(outboxEventClaimer.claimBatch()).thenReturn(Collections.emptyList());
 
         outboxEventJob.processOutboxEvents();
 
         verify(outboxEventProducer, never()).sendEvent(any(), any(), any());
-    }
-
-    @Test
-    void processOutboxEvents_queriesWithConfiguredBatchSize() {
-        ReflectionTestUtils.setField(outboxEventJob, "batchSize", 2);
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(Collections.emptyList());
-
-        outboxEventJob.processOutboxEvents();
-
-        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(outboxEventRepository).findPublishableEvents(any(Instant.class), anyCollection(), pageableCaptor.capture());
-        assertEquals(0, pageableCaptor.getValue().getPageNumber());
-        assertEquals(2, pageableCaptor.getValue().getPageSize());
+        verify(outboxEventClaimer, never()).markPublished(any());
     }
 
     @Test
     void processOutboxEvents_shouldProcessInvoiceSettledEvent() {
-        OutboxEventEntity event = OutboxEventEntity.builder()
-                .id(UUID.randomUUID()).aggregateId("agg-1")
-                .eventType(KafkaTopics.INVOICE_SETTLED.getCode())
-                .payload("{\"test\": \"payload\"}")
-                .build();
-
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(List.of(event));
+        OutboxEventEntity event = claimedEvent(KafkaTopics.INVOICE_SETTLED.getCode(), "agg-1", "{\"test\": \"payload\"}");
+        when(outboxEventClaimer.claimBatch()).thenReturn(List.of(event));
+        when(outboxEventClaimer.markPublished(event)).thenReturn(1);
 
         outboxEventJob.processOutboxEvents();
 
         verify(outboxEventProducer).sendEvent(KafkaTopics.INVOICE_SETTLED, "agg-1", "{\"test\": \"payload\"}");
-
-        ArgumentCaptor<OutboxEventEntity> captor = ArgumentCaptor.forClass(OutboxEventEntity.class);
-        verify(outboxEventRepository).save(captor.capture());
-        assertNotNull(captor.getValue().getProcessedAt());
-        assertEquals(OutboxPublishStatus.PUBLISHED, captor.getValue().getPublishStatus());
-        assertNull(captor.getValue().getLastError());
+        verify(outboxEventClaimer).markPublished(event);
     }
 
     @Test
     void processOutboxEvents_shouldProcessPaymentInitiatedEvent() {
-        OutboxEventEntity event = OutboxEventEntity.builder()
-                .id(UUID.randomUUID()).aggregateId("agg-1")
-                .eventType(KafkaTopics.PAYMENT_INITIATED.getCode())
-                .payload("{\"payment\": \"data\"}")
-                .build();
-
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(List.of(event));
+        OutboxEventEntity event = claimedEvent(KafkaTopics.PAYMENT_INITIATED.getCode(), "agg-1", "{\"payment\": \"data\"}");
+        when(outboxEventClaimer.claimBatch()).thenReturn(List.of(event));
+        when(outboxEventClaimer.markPublished(event)).thenReturn(1);
 
         outboxEventJob.processOutboxEvents();
 
@@ -104,14 +69,9 @@ class OutboxEventJobTest {
 
     @Test
     void processOutboxEvents_shouldProcessOnChainPaymentEvent() {
-        OutboxEventEntity event = OutboxEventEntity.builder()
-                .id(UUID.randomUUID()).aggregateId("agg-1")
-                .eventType(KafkaTopics.ONCHAIN_PAYMENT_INITIATED.getCode())
-                .payload("{\"onchain\": \"data\"}")
-                .build();
-
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(List.of(event));
+        OutboxEventEntity event = claimedEvent(KafkaTopics.ONCHAIN_PAYMENT_INITIATED.getCode(), "agg-1", "{\"onchain\": \"data\"}");
+        when(outboxEventClaimer.claimBatch()).thenReturn(List.of(event));
+        when(outboxEventClaimer.markPublished(event)).thenReturn(1);
 
         outboxEventJob.processOutboxEvents();
 
@@ -120,14 +80,9 @@ class OutboxEventJobTest {
 
     @Test
     void processOutboxEvents_shouldProcessInternalTransferInitiatedEvent() {
-        OutboxEventEntity event = OutboxEventEntity.builder()
-                .id(UUID.randomUUID()).aggregateId("agg-1")
-                .eventType(KafkaTopics.INTERNAL_TRANSFER_INITIATED.getCode())
-                .payload("{\"transfer\": \"data\"}")
-                .build();
-
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(List.of(event));
+        OutboxEventEntity event = claimedEvent(KafkaTopics.INTERNAL_TRANSFER_INITIATED.getCode(), "agg-1", "{\"transfer\": \"data\"}");
+        when(outboxEventClaimer.claimBatch()).thenReturn(List.of(event));
+        when(outboxEventClaimer.markPublished(event)).thenReturn(1);
 
         outboxEventJob.processOutboxEvents();
 
@@ -136,14 +91,9 @@ class OutboxEventJobTest {
 
     @Test
     void processOutboxEvents_shouldProcessInternalTransferCompletedEvent() {
-        OutboxEventEntity event = OutboxEventEntity.builder()
-                .id(UUID.randomUUID()).aggregateId("agg-1")
-                .eventType(KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode())
-                .payload("{\"completed\": \"data\"}")
-                .build();
-
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(List.of(event));
+        OutboxEventEntity event = claimedEvent(KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode(), "agg-1", "{\"completed\": \"data\"}");
+        when(outboxEventClaimer.claimBatch()).thenReturn(List.of(event));
+        when(outboxEventClaimer.markPublished(event)).thenReturn(1);
 
         outboxEventJob.processOutboxEvents();
 
@@ -152,14 +102,9 @@ class OutboxEventJobTest {
 
     @Test
     void processOutboxEvents_shouldProcessPaymentSentEvent() {
-        OutboxEventEntity event = OutboxEventEntity.builder()
-                .id(UUID.randomUUID()).aggregateId("agg-1")
-                .eventType(KafkaTopics.PAYMENT_SENT.getCode())
-                .payload("{\"sent\": \"data\"}")
-                .build();
-
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(List.of(event));
+        OutboxEventEntity event = claimedEvent(KafkaTopics.PAYMENT_SENT.getCode(), "agg-1", "{\"sent\": \"data\"}");
+        when(outboxEventClaimer.claimBatch()).thenReturn(List.of(event));
+        when(outboxEventClaimer.markPublished(event)).thenReturn(1);
 
         outboxEventJob.processOutboxEvents();
 
@@ -168,14 +113,9 @@ class OutboxEventJobTest {
 
     @Test
     void processOutboxEvents_shouldProcessOnChainTransactionReceivedEvent() {
-        OutboxEventEntity event = OutboxEventEntity.builder()
-                .id(UUID.randomUUID()).aggregateId("agg-1")
-                .eventType(KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED.getCode())
-                .payload("{\"received\": \"data\"}")
-                .build();
-
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(List.of(event));
+        OutboxEventEntity event = claimedEvent(KafkaTopics.ONCHAIN_TRANSACTION_RECEIVED.getCode(), "agg-1", "{\"received\": \"data\"}");
+        when(outboxEventClaimer.claimBatch()).thenReturn(List.of(event));
+        when(outboxEventClaimer.markPublished(event)).thenReturn(1);
 
         outboxEventJob.processOutboxEvents();
 
@@ -184,14 +124,9 @@ class OutboxEventJobTest {
 
     @Test
     void processOutboxEvents_shouldProcessInternalInvoiceCancelEvent() {
-        OutboxEventEntity event = OutboxEventEntity.builder()
-                .id(UUID.randomUUID()).aggregateId("agg-1")
-                .eventType(KafkaTopics.INTERNAL_INVOICE_CANCEL.getCode())
-                .payload("{\"paymentHash\": \"abc\"}")
-                .build();
-
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(List.of(event));
+        OutboxEventEntity event = claimedEvent(KafkaTopics.INTERNAL_INVOICE_CANCEL.getCode(), "agg-1", "{\"paymentHash\": \"abc\"}");
+        when(outboxEventClaimer.claimBatch()).thenReturn(List.of(event));
+        when(outboxEventClaimer.markPublished(event)).thenReturn(1);
 
         outboxEventJob.processOutboxEvents();
 
@@ -200,47 +135,60 @@ class OutboxEventJobTest {
 
     @Test
     void processOutboxEvents_shouldMarkUnknownEventTypeInvalid() {
-        OutboxEventEntity event = OutboxEventEntity.builder()
-                .id(UUID.randomUUID()).aggregateId("agg-1")
-                .eventType("unknown.event.type")
-                .payload("{\"unknown\": \"data\"}")
-                .build();
-
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(List.of(event));
+        OutboxEventEntity event = claimedEvent("unknown.event.type", "agg-1", "{\"unknown\": \"data\"}");
+        when(outboxEventClaimer.claimBatch()).thenReturn(List.of(event));
+        when(outboxEventClaimer.markInvalid(event, "Unknown outbox event type: unknown.event.type")).thenReturn(1);
 
         outboxEventJob.processOutboxEvents();
 
         verify(outboxEventProducer, never()).sendEvent(any(), any(), any());
-        ArgumentCaptor<OutboxEventEntity> captor = ArgumentCaptor.forClass(OutboxEventEntity.class);
-        verify(outboxEventRepository).save(captor.capture());
-        assertEquals(OutboxPublishStatus.INVALID, captor.getValue().getPublishStatus());
-        assertNull(captor.getValue().getProcessedAt());
-        assertTrue(captor.getValue().getLastError().contains("unknown.event.type"));
+        verify(outboxEventClaimer).markInvalid(event, "Unknown outbox event type: unknown.event.type");
+        verify(outboxEventClaimer, never()).markPublished(any());
     }
 
     @Test
     void processOutboxEvents_shouldRecordFailureWithoutMarkingProcessedSoItCanRetry() {
-        OutboxEventEntity event = OutboxEventEntity.builder()
-                .id(UUID.randomUUID()).aggregateId("agg-1")
-                .eventType(KafkaTopics.PAYMENT_INITIATED.getCode())
-                .payload("{\"payment\": \"data\"}")
-                .build();
-
-        when(outboxEventRepository.findPublishableEvents(any(Instant.class), anyCollection(), any(Pageable.class)))
-                .thenReturn(List.of(event));
+        OutboxEventEntity event = claimedEvent(KafkaTopics.PAYMENT_INITIATED.getCode(), "agg-1", "{\"payment\": \"data\"}");
+        when(outboxEventClaimer.claimBatch()).thenReturn(List.of(event));
         doThrow(new IllegalStateException("kafka unavailable"))
                 .when(outboxEventProducer).sendEvent(KafkaTopics.PAYMENT_INITIATED, "agg-1", "{\"payment\": \"data\"}");
+        when(outboxEventClaimer.markPublishFailed(event, "kafka unavailable")).thenReturn(1);
 
         outboxEventJob.processOutboxEvents();
 
-        ArgumentCaptor<OutboxEventEntity> captor = ArgumentCaptor.forClass(OutboxEventEntity.class);
-        verify(outboxEventRepository).save(captor.capture());
-        OutboxEventEntity failed = captor.getValue();
-        assertEquals(OutboxPublishStatus.FAILED, failed.getPublishStatus());
-        assertEquals(1, failed.getPublishAttempts());
-        assertNull(failed.getProcessedAt());
-        assertEquals("kafka unavailable", failed.getLastError());
-        assertNotNull(failed.getNextAttemptAt());
+        verify(outboxEventClaimer).markPublishFailed(event, "kafka unavailable");
+        verify(outboxEventClaimer, never()).markPublished(any());
+    }
+
+    @Test
+    void processOutboxEvents_sendsKafkaOutsideClaimTransaction() {
+        OutboxEventEntity event = claimedEvent(KafkaTopics.PAYMENT_SENT.getCode(), "agg-1", "{\"sent\": \"data\"}");
+        when(outboxEventClaimer.claimBatch()).thenAnswer(invocation -> {
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+            return List.of(event);
+        });
+        doAnswer(invocation -> {
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+            return null;
+        }).when(outboxEventProducer).sendEvent(any(), any(), any());
+        when(outboxEventClaimer.markPublished(event)).thenReturn(1);
+
+        outboxEventJob.processOutboxEvents();
+
+        InOrder inOrder = inOrder(outboxEventClaimer, outboxEventProducer);
+        inOrder.verify(outboxEventClaimer).claimBatch();
+        inOrder.verify(outboxEventProducer).sendEvent(KafkaTopics.PAYMENT_SENT, "agg-1", "{\"sent\": \"data\"}");
+        inOrder.verify(outboxEventClaimer).markPublished(event);
+    }
+
+    private static OutboxEventEntity claimedEvent(String eventType, String aggregateId, String payload) {
+        OutboxEventEntity event = OutboxEventEntity.builder()
+                .id(UUID.randomUUID())
+                .aggregateId(aggregateId)
+                .eventType(eventType)
+                .payload(payload)
+                .build();
+        event.claim("outbox-test-token", java.time.Instant.now().plusSeconds(30));
+        return event;
     }
 }
