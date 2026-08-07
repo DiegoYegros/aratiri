@@ -18,6 +18,8 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.util.List;
 import java.util.Map;
@@ -94,6 +96,19 @@ class MdcFilterTest {
                 new MockHttpServletRequest("GET", "/profile"), new MockHttpServletResponse());
 
         assertEquals("user-42", mdc.get("userId"));
+    }
+
+    @Test
+    void putsUserIdFromJwtAuthenticationTokenNameNotPrincipalToString() throws Exception {
+        Jwt jwt = Jwt.withTokenValue("tok").header("alg", "none").subject("u-1").build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new JwtAuthenticationToken(jwt, List.of(), "bob@example.com"));
+        Map<String, String> mdc = captureMdcDuringChain(emptyTracerFilter,
+                new MockHttpServletRequest("GET", "/account"), new MockHttpServletResponse());
+
+        assertEquals("bob@example.com", mdc.get("userId"));
+        assertFalse(mdc.get("userId").contains("Jwt@"),
+                "userId must be the token name (email), not Jwt#toString");
     }
 
     @Test

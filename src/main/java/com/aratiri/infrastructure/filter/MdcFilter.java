@@ -83,10 +83,13 @@ public class MdcFilter extends OncePerRequestFilter {
         if (authentication instanceof AnonymousAuthenticationToken) {
             return;
         }
-        Object principal = authentication.getPrincipal();
-        if (principal == null || principal.toString().equals("anonymous")) {
+        // The Aratiri converter builds JwtAuthenticationToken with the
+        // resolved user email as name; use it instead of principal.toString()
+        // (the raw Jwt object).
+        String userId = authentication.getName();
+        if (userId == null || userId.equals("anonymous")) {
             return;
         }
-        MDC.put("userId", principal.toString());
+        MDC.put("userId", userId);
     }
 }
