@@ -214,6 +214,10 @@ management:
       # Anonymous callers must not see component/dependency topology.
       show-details: never
       show-components: never
+  health:
+    # Mail is optional for the payment path; empty SMTP creds must not mark the app DOWN.
+    mail:
+      enabled: ${MANAGEMENT_HEALTH_MAIL_ENABLED:false}
   metrics:
     export:
       prometheus:
