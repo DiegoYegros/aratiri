@@ -146,3 +146,13 @@ jwt:
   secret: test-integration-jwt-secret-key-must-be-at-least-256-bits-long
   expiration: 8400
   refresh-expiration: 2592000
+
+management:
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+  health:
+    # Avoid DOWN→503 from unused mail SMTP in tests; security tests expect reachable health JSON.
+    mail:
+      enabled: false

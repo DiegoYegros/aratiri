@@ -20,8 +20,8 @@ polls GHCR and redeploys on image change.
 The live stack already exists at `~/aratiri-deploy` (postgres + kafka + lnd +
 backend + frontend + admin). It is NOT redesigned — only the three `build:`
 sections are replaced by GHCR image refs (see `docker-compose.prod.yml`,
-which is that converted file). Preserve the exposure exactly: `:2100/:3000/:3001`
-bind `0.0.0.0`, LND p2p `:9735`, kafka/db bind `127.0.0.1`.
+which is that converted file). Preserve the exposure exactly: app HTTP binds
+`127.0.0.1:{2100,3100,3101}`, LND p2p `:9735`, kafka/db have no host ports.
 
 ```
 ~/aratiri-deploy/

@@ -36,6 +36,8 @@ for arg in "$@"; do
 done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib_image_refs.sh
+source "${SCRIPT_DIR}/lib_image_refs.sh"
 # Script lives at <compose-dir>/ops/deploy/deploy.sh, so climb two levels.
 COMPOSE_DIR="${ARATIRI_COMPOSE_DIR:-$(dirname "$(dirname "${SCRIPT_DIR}")")}"
 COMPOSE_FILE="${COMPOSE_FILE_ARG:-${COMPOSE_DIR}/docker-compose.yml}"
@@ -45,7 +47,8 @@ ENV_FILE="${COMPOSE_DIR}/.env"
 LOCK_FILE="${COMPOSE_DIR}/.deploy.lock"
 LOG_TAG="aratiri-deploy"
 
-# Image refs whose digest change triggers a redeploy.
+# Image refs whose digest change triggers a redeploy. Must match the qualified
+# GHCR names asserted from the active compose file (see lib_image_refs.sh).
 IMAGES=(
   "ghcr.io/diegoyegros/aratiri:latest"
   "ghcr.io/diegoyegros/aratiri-frontend:latest"
@@ -101,6 +104,16 @@ fi
 
 if [ ! -f "${COMPOSE_FILE}" ]; then
   log "compose file not found: ${COMPOSE_FILE}"
+  exit 1
+fi
+
+# Fail-closed before pull/redeploy: local/unqualified tags never soft-fail.
+# Soft-fail on compose pull remains only for valid GHCR refs (network/auth).
+if ! assert_out="$(assert_compose_aratiri_ghcr_images "${COMPOSE_FILE}")"; then
+  while IFS= read -r line; do
+    [ -n "${line}" ] && log "${line}"
+  done <<< "${assert_out}"
+  log "refusing pull/redeploy until compose uses qualified GHCR image refs"
   exit 1
 fi
 

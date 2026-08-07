@@ -209,6 +209,11 @@ management:
     web:
       exposure:
         include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      # Anonymous callers must not see component/dependency topology.
+      show-details: never
+      show-components: never
   metrics:
     export:
       prometheus:

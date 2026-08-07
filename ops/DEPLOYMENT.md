@@ -22,6 +22,26 @@ Hetzner, 2 GB RAM, user `daya`, reachable over Tailscale at 100.124.162.6).
 - `ops/deploy/` — poller script + systemd units (installed at
   `~/.config/systemd/user` or system level as `aratiri-deploy.{service,timer}`).
 
+## LND (Bitcoin mainnet)
+
+Runtime config lives in `~/aratiri-deploy/lnd-data/lnd.conf` (bind-mounted).
+Keep production on mainnet with a public peer URI:
+
+- `bitcoin.mainnet=true` (not testnet/regtest), `bitcoin.node=neutrino`
+- `externalip=<server public IPv4>` under `[Application Options]` so
+  `lncli getinfo` reports `uris` like `pubkey@<ip>:9735`
+- Optional `[Neutrino]` `neutrino.addpeer=...` lines for mainnet peers
+
+Backend secrets at `~/aratiri-deploy/secrets/` must match the live node:
+
+- `admin.macaroon` — **hex-encoded** (`xxd -p … | tr -d '\n'`), not raw
+  binary; must decode to the same bytes as
+  `lnd-data/data/chain/bitcoin/mainnet/admin.macaroon`
+- `tls.cert` — byte-identical to `lnd-data/tls.cert`
+
+After rotating either file, `docker compose restart aratiri-app` so the
+read-only `/run/secrets` mount is re-read.
+
 ## Network isolation (supply-chain / botnet hardening)
 
 Compose defines four networks so compromised dependencies cannot freely scan
@@ -34,8 +54,42 @@ the internet or the data plane:
 | `aratiri_backend_egress` | no | backend only | SMTP, currency APIs, LNURL, Nostr, webhooks |
 | `aratiri_lnd_egress` | no | lnd only | Lightning/Bitcoin peer traffic (`:9735`) |
 
+App HTTP binds loopback only (Cloudflare Tunnel → Caddy):
+`127.0.0.1:2100` (backend), `127.0.0.1:3100` (frontend), `127.0.0.1:3101` (admin).
+
 Browser clients still call `https://api.aratiri.net` (Cloudflare Tunnel → Caddy
 → `127.0.0.1:2100`). Frontend containers do not need to reach the backend.
+
+Backend host publish stays loopback-only (`127.0.0.1:2100`). Unauthenticated
+process probes are intentional for ops:
+
+- `GET /actuator/health` — liveness/readiness (status-only JSON; no details)
+- `GET /actuator/prometheus` — Prometheus scrape text
+
+`/actuator/metrics`, `/actuator/info`, and other actuator routes stay JWT-authenticated.
+Public scrape must be denied at the edge (Caddy), not relied on for JWT 401 alone.
+
+### Caddy: deny public actuator scrape on `api.aratiri.net`
+
+Add (or keep) a deny before the reverse_proxy so Cloudflare/internet cannot
+scrape metrics. Prefer `respond 403` (or `404`) for these paths:
+
+```caddy
+api.aratiri.net {
+	# Deny public metrics scrape; scrape only via Tailscale/SSH loopback.
+	@deny_actuator path /actuator/prometheus /actuator/metrics /actuator/metrics/*
+	respond @deny_actuator 403
+
+	reverse_proxy 127.0.0.1:2100
+}
+```
+
+Prometheus scrape path (server-local / Tailscale SSH tunnel):
+
+```text
+http://127.0.0.1:2100/actuator/prometheus
+```
+
 
 After every deploy (and on boot via systemd), re-apply the edge egress block then verify:
 
@@ -78,6 +132,37 @@ ssh daya@100.124.162.6 '~/aratiri-deploy/ops/deploy/deploy.sh --dry-run'
 
 # timer state + logs
 ssh daya@100.124.162.6 'systemctl list-timers aratiri-deploy.timer; journalctl -u aratiri-deploy.service -n 50'
+```
+
+## One-time server cutover (local tags → GHCR)
+
+`deploy.sh` fail-closes before pull/redeploy if any Aratiri app `image:` in the
+active compose file is not a qualified
+`ghcr.io/diegoyegros/{aratiri,aratiri-frontend,aratiri-admin}` ref (tag or
+`@sha256:` pin). Soft-fail on `compose pull` remains only for those valid GHCR
+refs when the registry is unreachable or auth fails.
+
+If `~/aratiri-deploy/docker-compose.yml` still uses local/unqualified tags
+(e.g. `aratiri-admin:…`), cut over once:
+
+```bash
+# 1. Replace the three app image: lines with GHCR refs from this repo's
+#    ops/docker-compose.prod.yml:
+#      ghcr.io/diegoyegros/aratiri:latest
+#      ghcr.io/diegoyegros/aratiri-frontend:latest
+#      ghcr.io/diegoyegros/aratiri-admin:latest
+#    Keep container_name, ports (127.0.0.1:{2100,3100,3101}), env, and volumes.
+
+# 2. Sync the poller from this repo
+mkdir -p ~/aratiri-deploy/ops
+cp -r ops/deploy ~/aratiri-deploy/ops/
+
+# 3. Validate without touching containers
+~/aratiri-deploy/ops/deploy/deploy.sh --dry-run
+
+# 4. Enable / recover the timer
+sudo systemctl enable --now aratiri-deploy.timer
+sudo systemctl reset-failed aratiri-deploy.service || true
 ```
 
 ## Rollback

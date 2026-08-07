@@ -15,6 +15,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.TestPropertySource;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 abstract class AbstractApiSecurityIntegrationTest extends AbstractIntegrationTest {
 
@@ -99,6 +100,33 @@ class ApiSecurityIntegrationTest extends AbstractApiSecurityIntegrationTest {
                 .expectStatus().isUnauthorized();
 
         webTestClient().post().uri("/v1/notifications/ws-ticket")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @DisplayName("Actuator health and prometheus are public; other actuator stays authenticated")
+    void actuator_health_and_prometheus_public_metrics_protected() {
+        webTestClient().get().uri("/actuator/health")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.status").exists()
+                .jsonPath("$.components").doesNotExist();
+
+        webTestClient().get().uri("/actuator/prometheus")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertTrue(
+                        body.contains("# HELP") || body.contains("# TYPE") || body.contains("jvm_"),
+                        "prometheus body should look like metrics text"));
+
+        webTestClient().get().uri("/actuator/metrics")
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        webTestClient().get().uri("/actuator/info")
                 .exchange()
                 .expectStatus().isUnauthorized();
     }
