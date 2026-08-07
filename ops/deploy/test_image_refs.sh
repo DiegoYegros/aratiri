@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Non-interactive unit tests for ops/deploy/lib_image_refs.sh (no Docker).
+# Non-interactive unit tests for ops/deploy libs (no Docker).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib_image_refs.sh
 source "${SCRIPT_DIR}/lib_image_refs.sh"
+# shellcheck source=lib_deploy_hold.sh
+source "${SCRIPT_DIR}/lib_deploy_hold.sh"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "ok: $*"; }
@@ -82,5 +84,19 @@ if [ -f "${prod}" ]; then
   assert_compose_aratiri_ghcr_images "${prod}" || fail "ops/docker-compose.prod.yml should pass"
   pass "assert ops/docker-compose.prod.yml"
 fi
+
+# --- is_deploy_hold_active (env + hold file) ---
+unset ARATIRI_DEPLOY_HOLD || true
+is_deploy_hold_active "${tmpdir}" && fail "no hold should be inactive"
+touch "${tmpdir}/.deploy.hold"
+is_deploy_hold_active "${tmpdir}" || fail "hold file should be active"
+rm -f "${tmpdir}/.deploy.hold"
+is_deploy_hold_active "${tmpdir}" && fail "removed hold file should be inactive"
+ARATIRI_DEPLOY_HOLD=1
+is_deploy_hold_active "${tmpdir}" || fail "ARATIRI_DEPLOY_HOLD=1 should be active"
+ARATIRI_DEPLOY_HOLD=0
+is_deploy_hold_active "${tmpdir}" && fail "ARATIRI_DEPLOY_HOLD=0 should be inactive"
+unset ARATIRI_DEPLOY_HOLD || true
+pass "is_deploy_hold_active"
 
 echo "all tests passed"

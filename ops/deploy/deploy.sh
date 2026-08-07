@@ -20,8 +20,12 @@
 #
 # Environment (also read from the systemd EnvironmentFile):
 #   ARATIRI_COMPOSE_DIR   compose + .env directory (override auto-detection)
+#   ARATIRI_DEPLOY_HOLD   if set to 1, exit 0 without pulling (timer-safe pause)
 #   GHCR_USERNAME         GHCR login username (optional if already logged in)
 #   GHCR_TOKEN            GHCR fine-grained PAT (optional if already logged in)
+#
+# Hold file (also pauses without env):
+#   <compose-dir>/.deploy.hold   presence alone skips pull/redeploy (exit 0)
 
 set -euo pipefail
 
@@ -38,6 +42,8 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib_image_refs.sh
 source "${SCRIPT_DIR}/lib_image_refs.sh"
+# shellcheck source=lib_deploy_hold.sh
+source "${SCRIPT_DIR}/lib_deploy_hold.sh"
 # Script lives at <compose-dir>/ops/deploy/deploy.sh, so climb two levels.
 COMPOSE_DIR="${ARATIRI_COMPOSE_DIR:-$(dirname "$(dirname "${SCRIPT_DIR}")")}"
 COMPOSE_FILE="${COMPOSE_FILE_ARG:-${COMPOSE_DIR}/docker-compose.yml}"
@@ -56,6 +62,12 @@ IMAGES=(
 )
 
 log() { echo "$(date -Is) [$LOG_TAG] $*"; }
+
+# Pause pull/redeploy so the timer can stay enabled while GHCR catches up.
+if is_deploy_hold_active "${COMPOSE_DIR}"; then
+  log "deploy hold active; skipping"
+  exit 0
+fi
 
 # Digest of the image the running container was created from.
 deployed_digest() {

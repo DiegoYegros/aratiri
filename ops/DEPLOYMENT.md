@@ -184,3 +184,34 @@ For a Tailscale-only Prometheus + Grafana pack (bind
 [`ops/observability/`](observability/) and its README
 (`~/aratiri-observability` on the server). Do not expose those UIs on the
 public internet or through Caddy/Tunnel.
+
+## Re-enable continuous deploy
+
+The timer may be left enabled while GHCR `:latest` lags newer locally-loaded
+Batch images: place `~/aratiri-deploy/.deploy.hold` (or set
+`ARATIRI_DEPLOY_HOLD=1` in the unit env). `deploy.sh` then logs
+`deploy hold active; skipping` and exits 0 without `compose pull`.
+
+When GHCR is current and continuous deploy should resume:
+
+1. **Publish current images to GHCR** (either path):
+   - Merge `feat/orch-batch-2` → `master`/`main` so CI (`deploy.yml`,
+     `permissions: packages: write`) pushes `:latest`, **or**
+   - From a host that has the local Batch images:
+     `ops/deploy/publish-images.sh <aratiri-ref> <frontend-ref> <admin-ref>`
+     with a PAT that has `write:packages` (push fails closed on
+     `permission_denied` / insufficient scope).
+2. **Server auth for pull** — put `GHCR_USERNAME` / `GHCR_TOKEN` in
+   `~/aratiri-deploy/.env` if packages are still private (read is enough for
+   the poller; write is only needed for `publish-images.sh`).
+3. **Clear the hold** — remove `~/aratiri-deploy/.deploy.hold` and unset
+   `ARATIRI_DEPLOY_HOLD` if set.
+4. **Enable the timer**:
+   `sudo systemctl enable --now aratiri-deploy.timer`
+5. **Verify**:
+   ```bash
+   ~/aratiri-deploy/ops/deploy/deploy.sh --dry-run
+   journalctl -u aratiri-deploy.service -n 50
+   ```
+
+Do not invent or commit GHCR tokens.
