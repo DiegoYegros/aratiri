@@ -43,9 +43,11 @@ public class TokenRefreshAdapter implements TokenRefreshPort {
             refreshTokenPort.deleteRefreshToken(refreshTokenValue);
             throw new ApplicationException("Refresh token was expired. Please make a new sign-in request", HttpStatus.BAD_REQUEST.value());
         }
-        AuthUser user = loadUserPort.findById(refreshToken.userId())
+        RefreshToken rotated = refreshTokenPort.rotateRefreshToken(refreshTokenValue)
+                .orElseThrow(() -> new ApplicationException("Refresh token is not in database!", HttpStatus.BAD_REQUEST.value()));
+        AuthUser user = loadUserPort.findById(rotated.userId())
                 .orElseThrow(() -> new ApplicationException("User not found", HttpStatus.NOT_FOUND.value()));
         String accessToken = accessTokenPort.generateAccessToken(user.email());
-        return new AuthTokens(accessToken, refreshTokenValue);
+        return new AuthTokens(accessToken, rotated.token());
     }
 }

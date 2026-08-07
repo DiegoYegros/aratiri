@@ -10,6 +10,7 @@ import com.aratiri.infrastructure.persistence.jpa.repository.UserRepository;
 import com.aratiri.errors.ApplicationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -62,6 +63,23 @@ public class RefreshTokenRepositoryAdapter implements RefreshTokenPort {
     @Override
     public void deleteRefreshToken(String refreshToken) {
         refreshTokenRepository.findByToken(refreshToken).ifPresent(refreshTokenRepository::delete);
+    }
+
+    @Override
+    @Transactional
+    public Optional<RefreshToken> rotateRefreshToken(String presentedToken) {
+        Optional<RefreshTokenEntity> existing = refreshTokenRepository.findByToken(presentedToken);
+        if (existing.isEmpty()) {
+            return Optional.empty();
+        }
+        String userId = existing.get().getUser().getId();
+        String newTokenValue = UUID.randomUUID().toString();
+        Instant expiry = Instant.now().plusSeconds(properties.getJwtRefreshExpiration());
+        int updated = refreshTokenRepository.rotatePresentedToken(presentedToken, newTokenValue, expiry);
+        if (updated == 0) {
+            return Optional.empty();
+        }
+        return Optional.of(new RefreshToken(newTokenValue, userId, expiry));
     }
 
     private RefreshToken toDomain(RefreshTokenEntity entity) {

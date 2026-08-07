@@ -48,15 +48,18 @@ class TokenRefreshAdapterTest {
     @Test
     void refreshAccessToken_returnsTokensWhenValid() {
         RefreshToken refreshToken = new RefreshToken("refresh-token", "user-1", Instant.parse("2025-01-01T01:00:00Z"));
+        RefreshToken rotated = new RefreshToken("new-refresh-token", "user-1", Instant.parse("2025-01-02T00:00:00Z"));
         AuthUser user = new AuthUser("user-1", "Test", "test@test.com", AuthProvider.LOCAL, Role.USER);
         when(refreshTokenPort.findByToken("refresh-token")).thenReturn(Optional.of(refreshToken));
+        when(refreshTokenPort.rotateRefreshToken("refresh-token")).thenReturn(Optional.of(rotated));
         when(loadUserPort.findById("user-1")).thenReturn(Optional.of(user));
         when(accessTokenPort.generateAccessToken("test@test.com")).thenReturn("new-access-token");
 
         AuthTokens result = adapter.refreshAccessToken("refresh-token");
 
         assertEquals("new-access-token", result.accessToken());
-        assertEquals("refresh-token", result.refreshToken());
+        assertEquals("new-refresh-token", result.refreshToken());
+        assertNotEquals("refresh-token", result.refreshToken());
     }
 
     @Test
@@ -64,6 +67,15 @@ class TokenRefreshAdapterTest {
         when(refreshTokenPort.findByToken("unknown")).thenReturn(Optional.empty());
 
         assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("unknown"));
+    }
+
+    @Test
+    void refreshAccessToken_throwsWhenRotateLosesRace() {
+        RefreshToken refreshToken = new RefreshToken("refresh-token", "user-1", Instant.parse("2025-01-01T01:00:00Z"));
+        when(refreshTokenPort.findByToken("refresh-token")).thenReturn(Optional.of(refreshToken));
+        when(refreshTokenPort.rotateRefreshToken("refresh-token")).thenReturn(Optional.empty());
+
+        assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("refresh-token"));
     }
 
     @Test

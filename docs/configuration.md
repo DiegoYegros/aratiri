@@ -69,20 +69,49 @@ If `LND_TLS_CERT_PATH` is blank and TLS is active, the app uses default transpor
 
 Trusted issuer/token exchange settings:
 
-| Variable | Default | Purpose |
+Trusted issuers are **opt-in and fail-closed**. Default `aratiri.security.trusted-issuers` is an empty list — no localhost JWKS decoder and no auto-provision path is registered until you add an issuer explicitly.
+
+| Variable / property | Default | Purpose |
 | --- | --- | --- |
 | `ARATIRI_SECURITY_DEFAULT_PRINCIPAL_CLAIM` | `email` | Claim used as principal when issuer-specific config does not override it. |
 | `ARATIRI_TOKEN_EXCHANGE_ENABLED` | `false` | Enables `POST /v1/auth/exchange`. |
 | `ARATIRI_TOKEN_EXCHANGE_CLIENT_ID` | blank | Basic auth client id for token exchange. |
 | `ARATIRI_TOKEN_EXCHANGE_CLIENT_SECRET` | blank | Basic auth client secret for token exchange. |
-| `ARATIRI_TRUSTED_ISSUER` | `http://localhost:8000` | Trusted issuer string. |
-| `ARATIRI_TRUSTED_ISSUER_JWK_SET_URI` | `http://localhost:8000/jwks.json` | JWKS endpoint. |
-| `ARATIRI_TRUSTED_ISSUER_PRINCIPAL_CLAIM` | `email` | Principal claim for this issuer. |
-| `ARATIRI_TRUSTED_ISSUER_NAME_CLAIM` | `name` | Display name claim for auto-provisioned users. |
-| `ARATIRI_TRUSTED_ISSUER_AUTO_PROVISION` | `true` | Creates missing users from trusted tokens. |
-| `ARATIRI_TRUSTED_ISSUER_AUTO_ACCOUNT` | `true` | Creates accounts for auto-provisioned users. |
-| `ARATIRI_TRUSTED_ISSUER_PROVIDER` | `EXTERNAL` | Stored auth provider for trusted issuer users. |
-| `ARATIRI_TRUSTED_ISSUER_DEFAULT_ROLE` | `USER` | Default role for auto-provisioned users. |
+| `aratiri.security.trusted-issuers` | `[]` | List of trusted issuers. Empty by default (no JWKS decoder). |
+
+Add an issuer via YAML (recommended for local/dev/prod):
+
+```yaml
+aratiri:
+  security:
+    trusted-issuers:
+      - issuer: https://idp.example.com
+        jwk-set-uri: https://idp.example.com/jwks.json
+        principal-claim: email
+        name-claim: name
+        auto-provision-user: false
+        auto-provision-account: false
+        audience:
+          - aratiri-api
+        provider: EXTERNAL
+        default-role: USER
+```
+
+Or via Spring Boot indexed environment variables (same binding):
+
+| Variable | Purpose |
+| --- | --- |
+| `ARATIRI_SECURITY_TRUSTED_ISSUERS_0_ISSUER` | Trusted issuer string (`iss` claim). |
+| `ARATIRI_SECURITY_TRUSTED_ISSUERS_0_JWK_SET_URI` | JWKS endpoint. |
+| `ARATIRI_SECURITY_TRUSTED_ISSUERS_0_PRINCIPAL_CLAIM` | Principal claim (default `email` when unset on the issuer). |
+| `ARATIRI_SECURITY_TRUSTED_ISSUERS_0_NAME_CLAIM` | Display name claim (default `name`). |
+| `ARATIRI_SECURITY_TRUSTED_ISSUERS_0_AUTO_PROVISION_USER` | Creates missing users from trusted tokens (default `true` on each issuer object when set). |
+| `ARATIRI_SECURITY_TRUSTED_ISSUERS_0_AUTO_PROVISION_ACCOUNT` | Creates accounts for auto-provisioned users (default `true` on each issuer object when set). |
+| `ARATIRI_SECURITY_TRUSTED_ISSUERS_0_PROVIDER` | Stored auth provider (default `EXTERNAL`). |
+| `ARATIRI_SECURITY_TRUSTED_ISSUERS_0_DEFAULT_ROLE` | Default role (default `USER`). |
+| `ARATIRI_SECURITY_TRUSTED_ISSUERS_0_AUDIENCE_0` | Allowed audience entry (repeat `_1`, `_2`, …). |
+
+Issuer-object field defaults (`auto-provision-user`, etc.) apply only after an issuer is configured; they do not register a decoder by themselves.
 
 For local trusted issuer testing, see [Trusted Issuer Local Testing](trusted-issuers-local-testing.md).
 

@@ -38,7 +38,9 @@ The second command keeps running so that `http://localhost:8000/jwks.json` remai
 
 ## 3. Configure Aratiri
 
-Set up the configuration so the app trusts the new issuer and enables the token exchange endpoint.
+Trusted issuers are **not** enabled by default (`trusted-issuers: []` in `application.yml`). You must opt in with an explicit issuer entry (YAML override, profile-specific config, or indexed env vars — see [configuration.md](configuration.md)).
+
+Set up the configuration so the app trusts the new issuer and enables the token exchange endpoint. For example, put this in `application-local.yml` (or merge into your running config):
 
 ```yaml
 aratiri:
@@ -56,6 +58,19 @@ aratiri:
           - aratiri-local
         auto-provision-user: true
         auto-provision-account: false
+```
+
+Equivalent env-style binding for a single issuer:
+
+```bash
+export ARATIRI_SECURITY_TRUSTED_ISSUERS_0_ISSUER=http://localhost:8000
+export ARATIRI_SECURITY_TRUSTED_ISSUERS_0_JWK_SET_URI=http://localhost:8000/jwks.json
+export ARATIRI_SECURITY_TRUSTED_ISSUERS_0_AUTO_PROVISION_USER=true
+export ARATIRI_SECURITY_TRUSTED_ISSUERS_0_AUTO_PROVISION_ACCOUNT=false
+export ARATIRI_SECURITY_TRUSTED_ISSUERS_0_AUDIENCE_0=aratiri-local
+export ARATIRI_TOKEN_EXCHANGE_ENABLED=true
+export ARATIRI_TOKEN_EXCHANGE_CLIENT_ID=tester
+export ARATIRI_TOKEN_EXCHANGE_CLIENT_SECRET=changeit
 ```
 
 ## 4. Mint a test JWT

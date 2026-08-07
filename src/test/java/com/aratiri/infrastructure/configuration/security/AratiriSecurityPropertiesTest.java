@@ -14,6 +14,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class AratiriSecurityPropertiesTest {
 
     @Test
+    void trustedIssuers_defaultToEmptyList() {
+        AratiriSecurityProperties props = new AratiriSecurityProperties();
+        assertNotNull(props.getTrustedIssuers());
+        assertTrue(props.getTrustedIssuers().isEmpty());
+    }
+
+    @Test
     void resolveByIssuer_findsMatchingIssuer() {
         AratiriSecurityProperties props = new AratiriSecurityProperties();
         AratiriSecurityProperties.TrustedIssuer issuer = new AratiriSecurityProperties.TrustedIssuer();

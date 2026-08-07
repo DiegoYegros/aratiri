@@ -158,7 +158,7 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Refresh token flow works end-to-end")
+    @DisplayName("Refresh rotates token: new refresh returned, old refresh rejected")
     void refresh_token_flow() {
         String email = "refresh-test@example.com";
         String password = "SecurePass123!";
@@ -188,17 +188,48 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .returnResult().getResponseBody();
 
         assertNotNull(verifiedTokens);
+        String presentedRefreshToken = verifiedTokens.getRefreshToken();
+        assertNotNull(presentedRefreshToken);
 
         com.aratiri.auth.application.dto.RefreshTokenRequestDTO refreshRequest = new com.aratiri.auth.application.dto.RefreshTokenRequestDTO();
-        refreshRequest.setRefreshToken(verifiedTokens.getRefreshToken());
+        refreshRequest.setRefreshToken(presentedRefreshToken);
 
-        webTestClient().post().uri("/v1/auth/refresh")
+        AuthResponseDTO rotated = webTestClient().post().uri("/v1/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(refreshRequest)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(AuthResponseDTO.class)
-                .value(response -> assertNotNull(response.getAccessToken()));
+                .returnResult().getResponseBody();
+
+        assertNotNull(rotated);
+        assertNotNull(rotated.getAccessToken());
+        assertNotNull(rotated.getRefreshToken());
+        assertNotEquals(presentedRefreshToken, rotated.getRefreshToken());
+
+        webTestClient().post().uri("/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(refreshRequest)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.message").isEqualTo("Refresh token is not in database!");
+
+        com.aratiri.auth.application.dto.RefreshTokenRequestDTO secondRefreshRequest =
+                new com.aratiri.auth.application.dto.RefreshTokenRequestDTO();
+        secondRefreshRequest.setRefreshToken(rotated.getRefreshToken());
+
+        webTestClient().post().uri("/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(secondRefreshRequest)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AuthResponseDTO.class)
+                .value(response -> {
+                    assertNotNull(response.getAccessToken());
+                    assertNotNull(response.getRefreshToken());
+                    assertNotEquals(rotated.getRefreshToken(), response.getRefreshToken());
+                });
     }
 
     @Test
