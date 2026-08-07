@@ -1,32 +1,64 @@
 # Production deployment of the Aratiri stack from GHCR images.
 #
-# This is the CONVERTED version of the server's ~/aratiri-deploy/docker-compose.yml:
-# identical services, container names, ports, env, healthchecks and memory tuning
-# (KAFKA_HEAP_OPTS -Xms256m -Xmx256m, JAVA_TOOL_OPTIONS=-Xmx384m, hikari 10) — only
-# the three `build:` sections are replaced by their GHCR image refs.
+# Network model (botnet / supply-chain hardening):
+#   aratiri_data           — internal:true  — postgres, kafka, lnd gRPC, backend east-west (no internet)
+#   aratiri_edge           — bridge, FE/admin only — no data-plane membership; host DOCKER-USER
+#                            rules (ops/apply-edge-egress-block.sh) drop NEW internet egress.
+#                            (Docker "internal:true" cannot be used here: it breaks host port publish.)
+#   aratiri_backend_egress — bridge         — backend outbound (SMTP, currency, LNURL, Nostr, webhooks)
+#   aratiri_lnd_egress     — bridge         — LND Bitcoin/Lightning peer traffic only
 #
-# Public exposure is preserved exactly: :2100/:3000/:3001 bind 0.0.0.0, LND p2p on
-# :9735, kafka/db bind 127.0.0.1.
+# App HTTP binds loopback only (Cloudflare Tunnel → Caddy):
+#   backend 127.0.0.1:2100, frontend 127.0.0.1:3100, admin 127.0.0.1:3101
+# LND p2p published on :9735. Postgres/Kafka have no host ports.
 #
 # Usage (on the server):
-#   docker compose -f docker-compose.prod.yml --env-file .env pull
 #   docker compose -f docker-compose.prod.yml --env-file .env up -d
+#   ./ops/verify-network-isolation.sh
 #
-# Or automated via ops/deploy/deploy.sh (systemd timer).
+# Or automated via ops/deploy/deploy.sh (systemd timer) once GHCR images are current.
 name: aratiri
+
+networks:
+  aratiri_data:
+    name: aratiri_data
+    internal: true
+    enable_ipv6: false
+  aratiri_edge:
+    name: aratiri_edge
+    # Not internal:true — that disables host port publishing for Caddy/Tunnel.
+    # Egress is blocked by ops/apply-edge-egress-block.sh (DOCKER-USER).
+    enable_ipv6: false
+  aratiri_backend_egress:
+    name: aratiri_backend_egress
+    enable_ipv6: false
+  aratiri_lnd_egress:
+    name: aratiri_lnd_egress
+    enable_ipv6: false
+
 services:
   db:
     image: postgres:16-alpine
     container_name: aratiri-postgres
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+      - FOWNER
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - aratiri_data
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
@@ -37,17 +69,16 @@ services:
     image: confluentinc/cp-kafka:7.5.0
     container_name: aratiri-kafka
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:9092:9092"
-      - "127.0.0.1:9093:9093"
+    security_opt:
+      - no-new-privileges:true
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT'
-      KAFKA_LISTENERS: 'INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://kafka:9093'
-      KAFKA_ADVERTISED_LISTENERS: 'INTERNAL://kafka:29092,EXTERNAL://localhost:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT'
+      KAFKA_LISTENERS: 'INTERNAL://0.0.0.0:29092,CONTROLLER://kafka:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'INTERNAL://kafka:29092'
       KAFKA_INTER_BROKER_LISTENER_NAME: 'INTERNAL'
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -58,8 +89,10 @@ services:
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
     volumes:
       - kafka_data:/var/lib/kafka/data
+    networks:
+      - aratiri_data
     healthcheck:
-      test: [ "CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1" ]
+      test: [ "CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092 >/dev/null 2>&1 || exit 1" ]
       interval: 10s
       timeout: 10s
       retries: 12
@@ -69,10 +102,15 @@ services:
     image: lightninglabs/lnd:v0.20.2-beta
     container_name: aratiri-lnd
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "9735:9735"
     volumes:
       - ./lnd-data:/root/.lnd
+    networks:
+      aratiri_data: {}
+      aratiri_lnd_egress: {}
     healthcheck:
       test: [ "CMD-SHELL", "lncli --lnddir=/root/.lnd getinfo >/dev/null 2>&1 || exit 1" ]
       interval: 15s
@@ -84,8 +122,16 @@ services:
     image: ghcr.io/diegoyegros/aratiri:latest
     container_name: aratiri-backend
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Secrets are host-uid owned mode 0600; without DAC_OVERRIDE even euid 0
+    # cannot read them after cap_drop ALL.
+    cap_add:
+      - DAC_OVERRIDE
     ports:
-      - "2100:2100"
+      - "127.0.0.1:2100:2100"
     environment:
       - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
       - SERVER_PORT=${SERVER_PORT:-2100}
@@ -95,6 +141,7 @@ services:
       - SPRING_JPA_DATABASE_PLATFORM=${SPRING_JPA_DATABASE_PLATFORM}
       - SPRING_JPA_DDL_AUTO=${SPRING_JPA_DDL_AUTO}
       - ARATIRI_BASE_URL=${ARATIRI_BASE_URL}
+      - ARATIRI_FRONTEND_BASE_URL=${ARATIRI_FRONTEND_BASE_URL:-https://aratiri.net}
       - ARATIRI_CORS_ALLOWED_ORIGINS=${ARATIRI_CORS_ALLOWED_ORIGINS}
       - ARATIRI_PAYMENT_DEFAULT_FEE_LIMIT_SAT=${ARATIRI_PAYMENT_DEFAULT_FEE_LIMIT_SAT:-50}
       - ARATIRI_PAYMENT_DEFAULT_TIMEOUT_SECONDS=${ARATIRI_PAYMENT_DEFAULT_TIMEOUT_SECONDS:-200}
@@ -121,6 +168,9 @@ services:
       - JAVA_TOOL_OPTIONS=-Xmx384m
     volumes:
       - ./secrets:/run/secrets:ro
+    networks:
+      aratiri_data: {}
+      aratiri_backend_egress: {}
     depends_on:
       db:
         condition: service_healthy
@@ -133,19 +183,37 @@ services:
     image: ghcr.io/diegoyegros/aratiri-frontend:latest
     container_name: aratiri-frontend
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     environment:
       - PORT=3000
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3100:3000"
+    networks:
+      - aratiri_edge
 
   aratiri-admin:
     image: ghcr.io/diegoyegros/aratiri-admin:latest
     container_name: aratiri-admin
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     environment:
       - PORT=3001
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3101:3001"
+    networks:
+      - aratiri_edge
 
 volumes:
   kafka_data:

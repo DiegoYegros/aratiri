@@ -1,4 +1,16 @@
 name: aratiri
+
+# Local/full-stack uses the same isolation model as prod (see ops/DEPLOYMENT.md).
+networks:
+  aratiri_data:
+    name: aratiri_data
+    internal: true
+  aratiri_edge:
+    name: aratiri_edge
+    # Egress blocked on prod via ops/apply-edge-egress-block.sh (internal:true breaks port publish).
+  aratiri_backend_egress:
+    name: aratiri_backend_egress
+
 services:
   db:
     image: postgres:16-alpine
@@ -11,6 +23,8 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - aratiri_data
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
@@ -42,6 +56,8 @@ services:
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
     volumes:
       - kafka_data:/var/lib/kafka/data
+    networks:
+      - aratiri_data
     profiles:
       - kafka-only
       - full-stack
@@ -54,6 +70,9 @@ services:
     container_name: aratiri-backend
     ports:
       - "127.0.0.1:2100:2100"
+    networks:
+      aratiri_data: {}
+      aratiri_backend_egress: {}
     environment:
       - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
       - SERVER_PORT=${SERVER_PORT:-2100}
@@ -116,6 +135,8 @@ services:
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
     ports:
       - "127.0.0.1:3001:3001"
+    networks:
+      - aratiri_edge
   aratiri-frontend:
     image: diegoyegros/aratiri-frontend:latest
     restart: unless-stopped
@@ -125,6 +146,8 @@ services:
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
     ports:
       - "127.0.0.1:3000:3000"
+    networks:
+      - aratiri_edge
 volumes:
   kafka_data:
   postgres_data:

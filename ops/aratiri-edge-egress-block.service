@@ -1,0 +1,15 @@
+[Unit]
+Description=Block NEW egress from Aratiri edge Docker network
+Documentation=file:///home/daya/aratiri-deploy/ops/DEPLOYMENT.md
+After=docker.service
+Requires=docker.service
+# Wait until compose has created aratiri_edge (best-effort; script exits non-zero if missing)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/daya/aratiri-deploy/ops/apply-edge-egress-block.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

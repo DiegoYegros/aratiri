@@ -1,0 +1,12 @@
+[Unit]
+Description=Re-apply Aratiri edge egress block periodically / after docker events
+Documentation=file:///home/daya/aratiri-deploy/ops/DEPLOYMENT.md
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=aratiri-edge-egress-block.service
+
+[Install]
+WantedBy=timers.target
