@@ -5,9 +5,11 @@
     <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="aratiri"/>
     <springProperty scope="context" name="LOG_FORMAT" source="logging.format" defaultValue="json"/>
 
-    <springProfile name="json-logging | !dev">
+    <springProfile name="json-logging">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>requestId</includeMdcKeyName>
+                <includeMdcKeyName>path</includeMdcKeyName>
                 <includeMdcKeyName>userId</includeMdcKeyName>
                 <includeMdcKeyName>paymentId</includeMdcKeyName>
                 <includeMdcKeyName>transactionId</includeMdcKeyName>
@@ -17,7 +19,7 @@
         </appender>
     </springProfile>
 
-    <springProfile name="dev | !json-logging">
+    <springProfile name="!json-logging">
         <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
     </springProfile>
 

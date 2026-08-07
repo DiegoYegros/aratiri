@@ -1,0 +1,71 @@
+# Promtail: ships the aratiri-backend container logs (docker json-file) to Loki.
+#
+# Docker service discovery reads /var/run/docker.sock; only the
+# aratiri-backend container is kept. Labels stay low-cardinality: level and
+# stream only — never traceId/userId.
+server:
+  http_listen_address: 127.0.0.1
+  http_listen_port: 9080
+
+positions:
+  filename: /var/lib/promtail/positions.yml
+
+clients:
+  - url: http://${TAILSCALE_IP}:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: aratiri-backend
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+    relabel_configs:
+      # Only the Aratiri backend container (drop everything else). Docker
+      # reports container names with a leading slash (e.g. /aratiri-backend),
+      # so the match is unanchored; the replace actions below sanitize the
+      # labels for this container.
+      - source_labels:
+          - __meta_docker_container_name
+        regex: '.*aratiri-backend'
+        action: keep
+      # Sanitize the target labels for the backend container. Docker reports
+      # names with a leading slash (e.g. /aratiri-backend) — strip it so the
+      # resulting `container` label matches the documented Loki selectors.
+      - source_labels: [__meta_docker_container_name]
+        regex: '/(.*)'
+        replacement: '$1'
+        target_label: container
+        action: replace
+      - source_labels: [__meta_docker_image]
+        target_label: image
+        action: replace
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        target_label: compose_project
+        action: replace
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: compose_service
+        action: replace
+      - source_labels: [__meta_docker_container_log_stream]
+        target_label: stream
+        action: replace
+    pipeline_stages:
+      # Parse the docker json-file envelope ({log, stream, time}); the docker
+      # stage sets the `stream` label and the `time` timestamp.
+      - docker: {}
+      # Parse the Logstash JSON payload. The encoder emits underscore names
+      # (trace_id, span_id, ...); camelCase spellings are accepted when present.
+      - json:
+          expressions:
+            level: level
+            message: message
+            logger_name: logger_name
+            trace_id: trace_id
+            traceId: traceId
+            request_id: request_id
+            requestId: requestId
+            user_id: user_id
+            userId: userId
+            path: path
+      # Only low-cardinality labels become index labels. Timestamps come from
+      # the docker envelope (no explicit timestamp stage).
+      - labels:
+          level: level

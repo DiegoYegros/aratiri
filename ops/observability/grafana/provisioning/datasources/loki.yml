@@ -1,0 +1,14 @@
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    # Loki listens on Tailscale only (see docker-compose.yml).
+    url: http://100.124.162.6:3100
+    # Prometheus stays the default; Loki is reached from Explore.
+    isDefault: false
+    editable: false
+    jsonData:
+      maxLines: 1000

@@ -179,11 +179,22 @@ Pin the previous image SHA in the compose file (`image: ghcr.io/...@sha256:...`)
 then `docker compose up -d`. SHAs are visible in the GHCR package page and in
 this repo's CI runs.
 
-For a Tailscale-only Prometheus + Grafana pack (bind
-`100.124.162.6:9090` / `:3002`, scrape the loopback actuator above), see
+For a Tailscale-only Prometheus + Loki + Grafana pack (bind
+`100.124.162.6:9090` / `:3002` / `:3100`, scrape the loopback actuator above,
+ship `aratiri-backend` container logs), see
 [`ops/observability/`](observability/) and its README
-(`~/aratiri-observability` on the server). Do not expose those UIs on the
-public internet or through Caddy/Tunnel.
+(`~/aratiri-observability` on the server). Loki replaces nothing — metrics stay
+on Prometheus, logs land in Loki. What listens where:
+
+- Prometheus — `100.124.162.6:9090` (scrape `127.0.0.1:2100/actuator/prometheus`)
+- Grafana — `100.124.162.6:3002`
+- Loki — `100.124.162.6:3100` (push + query API; TLS-less, Tailscale only)
+- Promtail — `127.0.0.1:9080` (loopback, no UI)
+
+Promtail needs `/var/run/docker.sock` (mounted read-only) for Docker service
+discovery; it ships only the `aratiri-backend` container. Do not expose those
+UIs on the public internet or through Caddy/Tunnel; keep the Caddy deny for
+`/actuator/prometheus`.
 
 ## Re-enable continuous deploy
 
