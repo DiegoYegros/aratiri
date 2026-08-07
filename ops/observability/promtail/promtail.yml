@@ -51,19 +51,17 @@ scrape_configs:
       # Parse the docker json-file envelope ({log, stream, time}); the docker
       # stage sets the `stream` label and the `time` timestamp.
       - docker: {}
-      # Parse the Logstash JSON payload. The encoder emits underscore names
-      # (trace_id, span_id, ...); camelCase spellings are accepted when present.
+      # Parse the Logstash JSON payload. The encoder emits the correlated MDC
+      # keys in camelCase (traceId, requestId, userId, path); remap them to
+      # snake_case so LogQL filters are stable and match the docs.
       - json:
           expressions:
             level: level
             message: message
             logger_name: logger_name
-            trace_id: trace_id
-            traceId: traceId
-            request_id: request_id
-            requestId: requestId
-            user_id: user_id
-            userId: userId
+            trace_id: traceId
+            request_id: requestId
+            user_id: userId
             path: path
       # Only low-cardinality labels become index labels. Timestamps come from
       # the docker envelope (no explicit timestamp stage).
