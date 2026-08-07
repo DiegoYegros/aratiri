@@ -146,6 +146,18 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Login rejects unknown user with 401")
+    void login_rejects_unknown_user() {
+        webTestClient().post().uri("/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(createLoginRequest("nobody@example.com", "AnyPassword123!"))
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.message").isEqualTo("Invalid username or password");
+    }
+
+    @Test
     @DisplayName("Refresh token flow works end-to-end")
     void refresh_token_flow() {
         String email = "refresh-test@example.com";

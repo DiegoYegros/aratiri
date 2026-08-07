@@ -12,12 +12,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -68,6 +70,19 @@ class AuthAdapterTest {
                 () -> authAdapter.login("test@example.com", "password"));
 
         assertTrue(ex.getMessage().contains("federated"));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
+    }
+
+    @Test
+    void login_shouldRejectUnknownUserWithUnauthorized() {
+        when(loadUserPort.findByEmail("unknown@example.com")).thenReturn(Optional.empty());
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> authAdapter.login("unknown@example.com", "password"));
+
+        assertEquals("Invalid username or password", ex.getMessage());
+        assertEquals(HttpStatus.UNAUTHORIZED.value(), ex.getStatus());
+        verifyNoInteractions(authenticationPort);
     }
 
     @Test
@@ -85,7 +100,21 @@ class AuthAdapterTest {
     void getCurrentUser_shouldThrowWhenNotAuthenticated() {
         when(authenticatedUserPort.getCurrentUserEmail()).thenReturn(Optional.empty());
 
-        assertThrows(ApplicationException.class, () -> authAdapter.getCurrentUser());
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> authAdapter.getCurrentUser());
+
+        assertEquals("User not authenticated", ex.getMessage());
+        assertEquals(HttpStatus.UNAUTHORIZED.value(), ex.getStatus());
+    }
+
+    @Test
+    void getCurrentUser_shouldThrowWhenUserNotFound() {
+        when(authenticatedUserPort.getCurrentUserEmail()).thenReturn(Optional.of("missing@example.com"));
+        when(loadUserPort.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> authAdapter.getCurrentUser());
+
+        assertEquals("User not found", ex.getMessage());
+        assertEquals(HttpStatus.NOT_FOUND.value(), ex.getStatus());
     }
 
     @Test

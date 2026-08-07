@@ -1,0 +1,13 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    # Prometheus listens on Tailscale only (see docker-compose.yml).
+    url: http://100.124.162.6:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s

@@ -1,0 +1,66 @@
+# Aratiri observability pack — Prometheus + Grafana (Tailscale-only).
+#
+# Scrapes the host loopback actuator (127.0.0.1:2100). Prometheus uses
+# network_mode: host so it can reach that bind; Grafana uses host mode so it
+# can talk to Prometheus on the Tailscale listen address without a bridge hop.
+#
+# Neither service binds 0.0.0.0 — UI/API listen on the Tailscale IP only.
+#
+# Usage (on the Tailscale host):
+#   mkdir -p ~/aratiri-observability && cp -a ops/observability/. ~/aratiri-observability/
+#   cp .env.example .env   # set GRAFANA_ADMIN_PASSWORD
+#   docker compose --env-file .env up -d
+#
+# Images are from Docker Hub (no GHCR dependency).
+name: aratiri-observability
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: aratiri-prometheus
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=512MB
+      - --web.listen-address=${TAILSCALE_IP:-100.124.162.6}:9090
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    mem_limit: 384m
+    cpus: 0.50
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: aratiri-grafana
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_SERVER_HTTP_ADDR: ${TAILSCALE_IP:-100.124.162.6}
+      GF_SERVER_HTTP_PORT: "3002"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    mem_limit: 384m
+    cpus: 0.50
+
+volumes:
+  prometheus_data:
+  grafana_data:

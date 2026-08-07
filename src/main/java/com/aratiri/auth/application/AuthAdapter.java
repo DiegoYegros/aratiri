@@ -34,15 +34,15 @@ public class AuthAdapter implements AuthPort {
     @Override
     public AuthUser getCurrentUser() {
         String email = authenticatedUserPort.getCurrentUserEmail()
-                .orElseThrow(() -> new ApplicationException("User not authenticated"));
+                .orElseThrow(() -> new ApplicationException("User not authenticated", HttpStatus.UNAUTHORIZED.value()));
         return loadUserPort.findByEmail(email)
-                .orElseThrow(() -> new ApplicationException("User not found"));
+                .orElseThrow(() -> new ApplicationException("User not found", HttpStatus.NOT_FOUND.value()));
     }
 
     @Override
     public AuthTokens login(String username, String password) {
         AuthUser user = loadUserPort.findByEmail(username)
-                .orElseThrow(() -> new ApplicationException("Invalid username or password"));
+                .orElseThrow(() -> new ApplicationException("Invalid username or password", HttpStatus.UNAUTHORIZED.value()));
         if (user.provider() != AuthProvider.LOCAL) {
             throw new ApplicationException("Please log in using your federated identity provider.", HttpStatus.BAD_REQUEST.value());
         }

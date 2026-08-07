@@ -62,8 +62,8 @@ If `LND_TLS_CERT_PATH` is blank and TLS is active, the app uses default transpor
 | `JWT_EXPIRATION` | `8400` | Access token lifetime in seconds. |
 | `JWT_REFRESH_EXPIRATION` | `2592000` | Refresh token lifetime in seconds. |
 | `GOOGLE_OAUTH_CLIENT_ID` | blank | Google SSO client ID. |
-| `EMAIL_USERNAME` | none | SMTP username for verification and password reset emails. |
-| `EMAIL_PASSWORD` | none | SMTP password. |
+| `EMAIL_USERNAME` | none | SMTP username for verification and password reset emails. Required (with password) for register/reset; blank values fail closed with HTTP 503. |
+| `EMAIL_PASSWORD` | none | SMTP password. Required with username for register/reset; blank values fail closed with HTTP 503. |
 | `ARATIRI_MAIL_HOST` | `smtp.gmail.com` | SMTP server host. Configure if using a different email service. |
 | `ARATIRI_MAIL_PORT` | `587` | SMTP server port. |
 

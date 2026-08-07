@@ -112,6 +112,14 @@ User-influenced HTTP is additionally gated by `OutboundDestinationPolicy`.
 Optional hardening: host `DOCKER-USER` rules blocking RFC1918/metadata from
 Docker bridge CIDRs.
 
+## Email (register / password reset)
+
+Production must set non-empty `EMAIL_USERNAME` and `EMAIL_PASSWORD` in
+`~/aratiri-deploy/.env` (mapped into the backend container). Without both,
+`POST /v1/auth/register` and password-reset initiation fail closed with HTTP
+503 ("Email delivery is not configured") instead of pretending mail was sent.
+Do not invent or commit SMTP secrets — use real provider credentials only.
+
 ## Resource limits (2 GB box — do not raise without checking RAM)
 
 - Kafka: `KAFKA_HEAP_OPTS=-Xms256m -Xmx256m`
@@ -170,3 +178,9 @@ sudo systemctl reset-failed aratiri-deploy.service || true
 Pin the previous image SHA in the compose file (`image: ghcr.io/...@sha256:...`),
 then `docker compose up -d`. SHAs are visible in the GHCR package page and in
 this repo's CI runs.
+
+For a Tailscale-only Prometheus + Grafana pack (bind
+`100.124.162.6:9090` / `:3002`, scrape the loopback actuator above), see
+[`ops/observability/`](observability/) and its README
+(`~/aratiri-observability` on the server). Do not expose those UIs on the
+public internet or through Caddy/Tunnel.

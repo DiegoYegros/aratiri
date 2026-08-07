@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: aratiri
+    orgId: 1
+    folder: Aratiri
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 60
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false
