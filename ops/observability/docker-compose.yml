@@ -1,10 +1,12 @@
-# Aratiri observability pack — Prometheus + Grafana (Tailscale-only).
+# Aratiri observability pack — Prometheus + Loki + Grafana (Tailscale-only).
 #
-# Scrapes the host loopback actuator (127.0.0.1:2100). Prometheus uses
-# network_mode: host so it can reach that bind; Grafana uses host mode so it
-# can talk to Prometheus on the Tailscale listen address without a bridge hop.
+# Prometheus scrapes the host loopback actuator (127.0.0.1:2100); Promtail
+# discovers the aratiri-backend container via the docker socket and ships its
+# json-file logs into Loki (single-binary, filesystem storage). Prometheus,
+# Grafana and Loki use network_mode: host so the UI/API listen on the Tailscale
+# address only; Promtail listens on loopback (no UI).
 #
-# Neither service binds 0.0.0.0 — UI/API listen on the Tailscale IP only.
+# Nothing binds 0.0.0.0. UI/API listen on the Tailscale IP or loopback only.
 #
 # Usage (on the Tailscale host):
 #   mkdir -p ~/aratiri-observability && cp -a ops/observability/. ~/aratiri-observability/
@@ -12,6 +14,7 @@
 #   docker compose --env-file .env up -d
 #
 # Images are from Docker Hub (no GHCR dependency).
+# Memory budget: Prometheus 384m + Grafana 384m + Loki 256m + Promtail 128m.
 name: aratiri-observability
 
 services:
@@ -61,6 +64,52 @@ services:
     mem_limit: 384m
     cpus: 0.50
 
+  loki:
+    image: grafana/loki:3.7.6
+    container_name: aratiri-loki
+    restart: unless-stopped
+    network_mode: host
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TAILSCALE_IP: ${TAILSCALE_IP:-100.124.162.6}
+    command:
+      - -config.file=/etc/loki/loki.yaml
+      - -config.expand-env=true
+    volumes:
+      - ./loki:/etc/loki:ro
+      - loki_data:/loki
+    mem_limit: 256m
+    cpus: 0.50
+
+  promtail:
+    image: grafana/promtail:3.6.11
+    container_name: aratiri-promtail
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - loki
+    environment:
+      TAILSCALE_IP: ${TAILSCALE_IP:-100.124.162.6}
+    command:
+      - -config.file=/etc/promtail/config.yml
+      - -config.expand-env=true
+    volumes:
+      - ./promtail/promtail.yml:/etc/promtail/config.yml:ro
+      # Docker service discovery needs the socket (read-only; the docker
+      # stage only ever reads json-file logs).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_data:/var/lib/promtail
+    mem_limit: 128m
+    cpus: 0.25
+
 volumes:
   prometheus_data:
   grafana_data:
+  loki_data:
+  promtail_data:
