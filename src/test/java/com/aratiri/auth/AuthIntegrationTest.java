@@ -213,7 +213,8 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
-                .jsonPath("$.message").isEqualTo("Refresh token is not in database!");
+                .jsonPath("$.message").isEqualTo(
+                        com.aratiri.auth.application.TokenRefreshAdapter.INVALID_REFRESH_MESSAGE);
 
         com.aratiri.auth.application.dto.RefreshTokenRequestDTO secondRefreshRequest =
                 new com.aratiri.auth.application.dto.RefreshTokenRequestDTO();
@@ -296,7 +297,8 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
-                .jsonPath("$.message").isEqualTo("Refresh token is not in database!");
+                .jsonPath("$.message").isEqualTo(
+                        com.aratiri.auth.application.TokenRefreshAdapter.INVALID_REFRESH_MESSAGE);
 
         webTestClient().get().uri("/v1/auth/me")
                 .exchange()

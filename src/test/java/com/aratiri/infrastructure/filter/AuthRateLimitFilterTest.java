@@ -172,6 +172,29 @@ class AuthRateLimitFilterTest {
         assertEquals(HttpStatus.TOO_MANY_REQUESTS.value(), denied.getStatus());
     }
 
+    @Test
+    void shortCircuitsLogoutWhenExceeded() throws Exception {
+        MockHttpServletRequest first = sensitivePath("10.0.0.1", "/v1/auth/logout");
+        MockHttpServletRequest second = sensitivePath("10.0.0.1", "/v1/auth/logout");
+        MockHttpServletRequest third = sensitivePath("10.0.0.1", "/v1/auth/logout");
+
+        filter.doFilter(first, new MockHttpServletResponse(), filterChain);
+        filter.doFilter(second, new MockHttpServletResponse(), filterChain);
+
+        MockHttpServletResponse denied = new MockHttpServletResponse();
+        filter.doFilter(third, denied, filterChain);
+
+        verify(filterChain, times(2)).doFilter(any(), any());
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS.value(), denied.getStatus());
+        assertEquals("30", denied.getHeader(HttpHeaders.RETRY_AFTER));
+        assertEquals("application/json", denied.getContentType());
+
+        JsonNode body = objectMapper.readTree(denied.getContentAsString());
+        assertEquals("Too many requests. Please try again later.", body.get("message").asText());
+        assertEquals(429, body.get("status").asInt());
+        assertTrue(body.hasNonNull("timestamp"));
+    }
+
     private static MockHttpServletRequest sensitiveLogin(String remoteAddr) {
         return sensitivePath(remoteAddr, "/v1/auth/login");
     }

@@ -69,6 +69,8 @@ class TokenRefreshAdapterTest {
 
         ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("unknown"));
         assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
+        assertEquals(TokenRefreshAdapter.INVALID_REFRESH_MESSAGE, ex.getMessage());
+        assertFalse(ex.getMessage().toLowerCase().contains("database"));
     }
 
     @Test
@@ -79,6 +81,8 @@ class TokenRefreshAdapterTest {
 
         ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("refresh-token"));
         assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
+        assertEquals(TokenRefreshAdapter.INVALID_REFRESH_MESSAGE, ex.getMessage());
+        assertFalse(ex.getMessage().toLowerCase().contains("database"));
     }
 
     @Test
@@ -88,6 +92,8 @@ class TokenRefreshAdapterTest {
 
         ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("expired-token"));
         assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
+        assertEquals(TokenRefreshAdapter.INVALID_REFRESH_MESSAGE, ex.getMessage());
+        assertFalse(ex.getMessage().toLowerCase().contains("database"));
         verify(refreshTokenPort).deleteRefreshToken("expired-token");
     }
 }

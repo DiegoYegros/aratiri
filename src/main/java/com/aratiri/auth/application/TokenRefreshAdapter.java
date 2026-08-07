@@ -17,6 +17,10 @@ import java.time.Instant;
 @Service
 public class TokenRefreshAdapter implements TokenRefreshPort {
 
+    /** Stable client-facing copy for missing, expired, and rotate-race refresh failures. */
+    public static final String INVALID_REFRESH_MESSAGE =
+            "Invalid or expired refresh token. Please sign in again.";
+
     private final RefreshTokenPort refreshTokenPort;
     private final AccessTokenPort accessTokenPort;
     private final LoadUserPort loadUserPort;
@@ -37,17 +41,21 @@ public class TokenRefreshAdapter implements TokenRefreshPort {
     @Override
     public AuthTokens refreshAccessToken(String refreshTokenValue) {
         RefreshToken refreshToken = refreshTokenPort.findByToken(refreshTokenValue)
-                .orElseThrow(() -> new ApplicationException("Refresh token is not in database!", HttpStatus.BAD_REQUEST.value()));
+                .orElseThrow(() -> invalidRefresh());
         Instant now = Instant.now(clock);
         if (refreshToken.isExpired(now)) {
             refreshTokenPort.deleteRefreshToken(refreshTokenValue);
-            throw new ApplicationException("Refresh token was expired. Please make a new sign-in request", HttpStatus.BAD_REQUEST.value());
+            throw invalidRefresh();
         }
         RefreshToken rotated = refreshTokenPort.rotateRefreshToken(refreshTokenValue)
-                .orElseThrow(() -> new ApplicationException("Refresh token is not in database!", HttpStatus.BAD_REQUEST.value()));
+                .orElseThrow(() -> invalidRefresh());
         AuthUser user = loadUserPort.findById(rotated.userId())
                 .orElseThrow(() -> new ApplicationException("User not found", HttpStatus.NOT_FOUND.value()));
         String accessToken = accessTokenPort.generateAccessToken(user.email());
         return new AuthTokens(accessToken, rotated.token());
+    }
+
+    private static ApplicationException invalidRefresh() {
+        return new ApplicationException(INVALID_REFRESH_MESSAGE, HttpStatus.BAD_REQUEST.value());
     }
 }
