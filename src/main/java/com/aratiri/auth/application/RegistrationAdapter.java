@@ -56,10 +56,10 @@ public class RegistrationAdapter implements RegistrationPort {
     @Override
     public void initiateRegistration(RegistrationCommand command) {
         loadUserPort.findByEmail(command.email()).ifPresent(user -> {
-            throw new ApplicationException("Email is already in use", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Email is already in use", HttpStatus.CONFLICT.value());
         });
         if (command.alias() != null && !command.alias().isBlank() && accountsPort.existsByAlias(command.alias())) {
-            throw new ApplicationException("Alias is already in use", HttpStatus.BAD_REQUEST.value());
+            throw new ApplicationException("Alias is already in use", HttpStatus.CONFLICT.value());
         }
         String code = generateVerificationCode();
         RegistrationDraft draft = new RegistrationDraft(

@@ -12,7 +12,7 @@ Aratiri is configured through Spring Boot properties, usually supplied as enviro
 | `ARATIRI_CORS_ALLOWED_ORIGINS` | Comma-separated allowed browser origins (HTTP CORS and notification WebSocket). |
 | `ARATIRI_NOTIFICATIONS_WS_TICKET_TTL_SECONDS` | Notification WebSocket ticket TTL in seconds (default `60`, hard-capped at `120`). |
 | `ARATIRI_NOTIFICATIONS_WS_TICKET_MINTS_PER_MINUTE` | Per-user mint rate limit (default `30`). |
-| `JWT_SECRET` | HMAC signing secret for locally issued access tokens. Use a strong 256-bit-or-larger secret. |
+| `JWT_SECRET` | HMAC signing secret for locally issued access tokens (`jwt.secret`). Must be at least **32 UTF-8 bytes** (HS256 floor); blank or shorter values refuse startup with `IllegalStateException`. Prefer a cryptographically random 256-bit-or-larger secret. |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka bootstrap address. Use `kafka:29092` inside Compose and `localhost:9092` from the host. |
 
 ## Database And Flyway

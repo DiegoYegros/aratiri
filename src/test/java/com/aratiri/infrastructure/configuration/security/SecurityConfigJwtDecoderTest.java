@@ -34,7 +34,7 @@ class SecurityConfigJwtDecoderTest {
 
     @Test
     void jwtDecoder_emptyTrustedIssuers_registersOnlyLocalDecoder() throws Exception {
-        AratiriProperties aratiriProperties = aratiriPropertiesWithSecret("unit-test-jwt-secret-value-32b");
+        AratiriProperties aratiriProperties = aratiriPropertiesWithSecret("unit-test-jwt-secret-value-32bytes");
         AratiriSecurityProperties securityProperties = new AratiriSecurityProperties();
         assertTrue(securityProperties.getTrustedIssuers().isEmpty());
 
@@ -48,7 +48,7 @@ class SecurityConfigJwtDecoderTest {
 
     @Test
     void jwtDecoder_nullTrustedIssuers_registersOnlyLocalDecoder() throws Exception {
-        AratiriProperties aratiriProperties = aratiriPropertiesWithSecret("unit-test-jwt-secret-value-32b");
+        AratiriProperties aratiriProperties = aratiriPropertiesWithSecret("unit-test-jwt-secret-value-32bytes");
         AratiriSecurityProperties securityProperties = new AratiriSecurityProperties();
         securityProperties.setTrustedIssuers(null);
 
@@ -59,7 +59,7 @@ class SecurityConfigJwtDecoderTest {
 
     @Test
     void jwtDecoder_issuerWithoutJwksOrIssuerUri_isSkipped() throws Exception {
-        AratiriProperties aratiriProperties = aratiriPropertiesWithSecret("unit-test-jwt-secret-value-32b");
+        AratiriProperties aratiriProperties = aratiriPropertiesWithSecret("unit-test-jwt-secret-value-32bytes");
         AratiriSecurityProperties securityProperties = new AratiriSecurityProperties();
         AratiriSecurityProperties.TrustedIssuer incomplete = new AratiriSecurityProperties.TrustedIssuer();
         incomplete.setIssuer("http://localhost:8000");
@@ -72,7 +72,7 @@ class SecurityConfigJwtDecoderTest {
 
     @Test
     void jwtDecoder_explicitTrustedIssuer_registersJwksDecoder() throws Exception {
-        AratiriProperties aratiriProperties = aratiriPropertiesWithSecret("unit-test-jwt-secret-value-32b");
+        AratiriProperties aratiriProperties = aratiriPropertiesWithSecret("unit-test-jwt-secret-value-32bytes");
         AratiriSecurityProperties securityProperties = new AratiriSecurityProperties();
         AratiriSecurityProperties.TrustedIssuer issuer = new AratiriSecurityProperties.TrustedIssuer();
         issuer.setIssuer("http://localhost:8000");

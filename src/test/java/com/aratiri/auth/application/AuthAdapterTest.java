@@ -18,6 +18,8 @@ import java.time.Instant;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -122,5 +124,13 @@ class AuthAdapterTest {
         authAdapter.logout("refresh-token");
 
         verify(refreshTokenPort).deleteRefreshToken("refresh-token");
+    }
+
+    @Test
+    void logout_blankToken_isNoOp() {
+        authAdapter.logout("  ");
+        authAdapter.logout(null);
+
+        verify(refreshTokenPort, never()).deleteRefreshToken(any());
     }
 }

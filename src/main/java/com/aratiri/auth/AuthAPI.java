@@ -67,7 +67,10 @@ public class AuthAPI {
     @Operation(summary = "Initiate user registration")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Registration initiated successfully."),
-            @ApiResponse(responseCode = "400", description = "Bad Request - Email or alias already in use.",
+            @ApiResponse(responseCode = "400", description = "Bad Request - Validation failed (e.g. blank fields or password too short).",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Conflict - Email or alias already in use.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -128,8 +131,9 @@ public class AuthAPI {
 
     @PostMapping("/logout")
     @Operation(summary = "User logout")
-    public ResponseEntity<Void> logout(@RequestBody LogoutRequestDTO request) {
-        authPort.logout(request.getRefreshToken());
+    public ResponseEntity<Void> logout(@RequestBody(required = false) LogoutRequestDTO request) {
+        String refreshToken = request != null ? request.getRefreshToken() : null;
+        authPort.logout(refreshToken);
         return ResponseEntity.ok().build();
     }
 

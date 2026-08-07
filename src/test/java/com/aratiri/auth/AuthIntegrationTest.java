@@ -233,8 +233,8 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Logout deletes refresh token")
-    void logout_deletes_refresh_token() {
+    @DisplayName("Unauthenticated logout deletes refresh token and is idempotent")
+    void logout_unauthenticated_deletes_refresh_token_and_is_idempotent() {
         String email = "logout-test@example.com";
         String password = "SecurePass123!";
         String name = "Logout Test";
@@ -268,9 +268,22 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         logoutRequest.setRefreshToken(verifiedTokens.getRefreshToken());
 
         webTestClient().post().uri("/v1/auth/logout")
-                .header("Authorization", "Bearer " + verifiedTokens.getAccessToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(logoutRequest)
+                .exchange()
+                .expectStatus().isOk();
+
+        webTestClient().post().uri("/v1/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(logoutRequest)
+                .exchange()
+                .expectStatus().isOk();
+
+        com.aratiri.auth.application.dto.LogoutRequestDTO invalidLogout = new com.aratiri.auth.application.dto.LogoutRequestDTO();
+        invalidLogout.setRefreshToken("not-a-real-token");
+        webTestClient().post().uri("/v1/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(invalidLogout)
                 .exchange()
                 .expectStatus().isOk();
 
@@ -284,6 +297,10 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.message").isEqualTo("Refresh token is not in database!");
+
+        webTestClient().get().uri("/v1/auth/me")
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 
     @Test

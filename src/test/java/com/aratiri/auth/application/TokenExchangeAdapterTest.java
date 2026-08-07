@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -84,7 +85,8 @@ class TokenExchangeAdapterTest {
         tokenExProps.setEnabled(false);
         when(securityProperties.getTokenExchange()).thenReturn(tokenExProps);
 
-        assertThrows(ApplicationException.class, () -> adapter.exchange("ext-token"));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.exchange("ext-token"));
+        assertEquals(HttpStatus.NOT_FOUND.value(), ex.getStatus());
     }
 
     @Test
@@ -95,6 +97,7 @@ class TokenExchangeAdapterTest {
         when(securityProperties.getTokenExchange()).thenReturn(tokenExProps);
         when(jwtDecoder.decode("bad-token")).thenThrow(new JwtException("invalid token"));
 
-        assertThrows(ApplicationException.class, () -> adapter.exchange("bad-token"));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.exchange("bad-token"));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
     }
 }

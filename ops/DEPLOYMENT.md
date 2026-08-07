@@ -192,6 +192,8 @@ Batch images: place `~/aratiri-deploy/.deploy.hold` (or set
 `ARATIRI_DEPLOY_HOLD=1` in the unit env). `deploy.sh` then logs
 `deploy hold active; skipping` and exits 0 without `compose pull`.
 
+GHCR push from the server currently fails with `permission_denied` scopes — requires a PAT/`write:packages` before clearing `.deploy.hold`.
+
 When GHCR is current and continuous deploy should resume:
 
 1. **Publish current images to GHCR** (either path):

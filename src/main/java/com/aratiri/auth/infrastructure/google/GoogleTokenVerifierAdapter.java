@@ -38,6 +38,7 @@ public class GoogleTokenVerifierAdapter implements GoogleTokenVerifierPort {
             String name = (String) payload.get("name");
             return new GoogleUserProfile(email, name);
         } catch (GeneralSecurityException | IOException _) {
+            // Intentional 500: Google verifier transport/crypto failure, not an invalid client token.
             throw new ApplicationException("Unable to verify Google token", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }

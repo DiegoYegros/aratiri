@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -94,7 +95,8 @@ class RegistrationAdapterTest {
         AuthUser existing = new AuthUser("user-1", "Test", "test@test.com", AuthProvider.LOCAL, Role.USER);
         when(loadUserPort.findByEmail("test@test.com")).thenReturn(Optional.of(existing));
 
-        assertThrows(ApplicationException.class, () -> adapter.initiateRegistration(command));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.initiateRegistration(command));
+        assertEquals(HttpStatus.CONFLICT.value(), ex.getStatus());
         verify(registrationDraftPort, never()).save(any());
     }
 
@@ -104,7 +106,8 @@ class RegistrationAdapterTest {
         when(loadUserPort.findByEmail("test@test.com")).thenReturn(Optional.empty());
         when(accountsPort.existsByAlias("takenalias")).thenReturn(true);
 
-        assertThrows(ApplicationException.class, () -> adapter.initiateRegistration(command));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.initiateRegistration(command));
+        assertEquals(HttpStatus.CONFLICT.value(), ex.getStatus());
         verify(registrationDraftPort, never()).save(any());
     }
 
@@ -145,7 +148,8 @@ class RegistrationAdapterTest {
         when(registrationDraftPort.findByEmail("test@test.com")).thenReturn(Optional.empty());
         VerificationCommand command = new VerificationCommand("test@test.com", "123456");
 
-        assertThrows(ApplicationException.class, () -> adapter.completeRegistration(command));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.completeRegistration(command));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
     }
 
     @Test
@@ -155,7 +159,8 @@ class RegistrationAdapterTest {
         when(registrationDraftPort.findByEmail("test@test.com")).thenReturn(Optional.of(draft));
         VerificationCommand command = new VerificationCommand("test@test.com", "123456");
 
-        assertThrows(ApplicationException.class, () -> adapter.completeRegistration(command));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.completeRegistration(command));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
         verify(registrationDraftPort).deleteByEmail("test@test.com");
     }
 
@@ -166,7 +171,8 @@ class RegistrationAdapterTest {
         when(registrationDraftPort.findByEmail("test@test.com")).thenReturn(Optional.of(draft));
         VerificationCommand command = new VerificationCommand("test@test.com", "123456");
 
-        assertThrows(ApplicationException.class, () -> adapter.completeRegistration(command));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.completeRegistration(command));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
         verify(userCommandPort, never()).registerLocalUser(anyString(), anyString(), anyString());
     }
 }

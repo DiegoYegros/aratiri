@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -126,7 +127,8 @@ class PasswordResetAdapterTest {
         PasswordResetCompletionCommand command =
                 new PasswordResetCompletionCommand("test@test.com", "123456", "newpass");
 
-        assertThrows(ApplicationException.class, () -> adapter.completePasswordReset(command));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.completePasswordReset(command));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
     }
 
     @Test
@@ -139,7 +141,8 @@ class PasswordResetAdapterTest {
         PasswordResetCompletionCommand command =
                 new PasswordResetCompletionCommand("test@test.com", "123456", "newpass");
 
-        assertThrows(ApplicationException.class, () -> adapter.completePasswordReset(command));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.completePasswordReset(command));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
         verify(passwordResetTokenPort).deleteByUserId("user-1");
     }
 
@@ -153,7 +156,18 @@ class PasswordResetAdapterTest {
         PasswordResetCompletionCommand command =
                 new PasswordResetCompletionCommand("test@test.com", "123456", "newpass");
 
-        assertThrows(ApplicationException.class, () -> adapter.completePasswordReset(command));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.completePasswordReset(command));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
         verify(userCommandPort, never()).updatePassword(anyString(), anyString());
+    }
+
+    @Test
+    void completePasswordReset_throwsWhenUserNotFound() {
+        when(loadUserPort.findByEmail("missing@test.com")).thenReturn(Optional.empty());
+        PasswordResetCompletionCommand command =
+                new PasswordResetCompletionCommand("missing@test.com", "123456", "newpass");
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.completePasswordReset(command));
+        assertEquals(HttpStatus.NOT_FOUND.value(), ex.getStatus());
     }
 }

@@ -63,6 +63,7 @@ class ApiSecurityIntegrationTest extends AbstractApiSecurityIntegrationTest {
                 "/v1/auth/forgot-password",
                 "/v1/auth/reset-password",
                 "/v1/auth/refresh",
+                "/v1/auth/logout",
                 "/v1/auth/sso/google"
         };
 

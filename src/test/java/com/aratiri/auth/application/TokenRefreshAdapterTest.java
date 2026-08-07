@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -66,7 +67,8 @@ class TokenRefreshAdapterTest {
     void refreshAccessToken_throwsWhenTokenNotFound() {
         when(refreshTokenPort.findByToken("unknown")).thenReturn(Optional.empty());
 
-        assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("unknown"));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("unknown"));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
     }
 
     @Test
@@ -75,7 +77,8 @@ class TokenRefreshAdapterTest {
         when(refreshTokenPort.findByToken("refresh-token")).thenReturn(Optional.of(refreshToken));
         when(refreshTokenPort.rotateRefreshToken("refresh-token")).thenReturn(Optional.empty());
 
-        assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("refresh-token"));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("refresh-token"));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
     }
 
     @Test
@@ -83,7 +86,8 @@ class TokenRefreshAdapterTest {
         RefreshToken refreshToken = new RefreshToken("expired-token", "user-1", Instant.parse("2024-12-31T23:59:59Z"));
         when(refreshTokenPort.findByToken("expired-token")).thenReturn(Optional.of(refreshToken));
 
-        assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("expired-token"));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.refreshAccessToken("expired-token"));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
         verify(refreshTokenPort).deleteRefreshToken("expired-token");
     }
 }

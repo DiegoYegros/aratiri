@@ -63,6 +63,7 @@ public class GoogleAuthAdapter implements GoogleAuthPort {
         } catch (ApplicationException ex) {
             throw ex;
         } catch (Exception ex) {
+            // Intentional 500: unexpected infra/runtime failure during SSO (not a client auth mistake).
             logger.error("Auth failed with Google, message is: {}", ex.getMessage(), ex);
             throw new ApplicationException("Auth Failed with Google", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }

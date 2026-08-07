@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -102,7 +103,8 @@ class GoogleAuthAdapterTest {
         when(googleTokenVerifierPort.verify("google-token")).thenReturn(profile);
         when(loadUserPort.findByEmail("user@test.com")).thenReturn(Optional.of(localUser));
 
-        assertThrows(ApplicationException.class, () -> adapter.loginWithGoogle("google-token"));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.loginWithGoogle("google-token"));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), ex.getStatus());
     }
 
     @Test
@@ -110,6 +112,18 @@ class GoogleAuthAdapterTest {
         when(googleTokenVerifierPort.verify("google-token"))
                 .thenThrow(new RuntimeException("Network error"));
 
-        assertThrows(ApplicationException.class, () -> adapter.loginWithGoogle("google-token"));
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.loginWithGoogle("google-token"));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), ex.getStatus());
+        assertEquals("Auth Failed with Google", ex.getMessage());
+    }
+
+    @Test
+    void loginWithGoogle_rethrowsApplicationExceptionStatus() {
+        when(googleTokenVerifierPort.verify("google-token"))
+                .thenThrow(new ApplicationException("Google Token Invalid", HttpStatus.UNAUTHORIZED.value()));
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> adapter.loginWithGoogle("google-token"));
+        assertEquals(HttpStatus.UNAUTHORIZED.value(), ex.getStatus());
+        assertEquals("Google Token Invalid", ex.getMessage());
     }
 }

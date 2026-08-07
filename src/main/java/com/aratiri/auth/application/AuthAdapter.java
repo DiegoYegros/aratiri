@@ -54,6 +54,9 @@ public class AuthAdapter implements AuthPort {
 
     @Override
     public void logout(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return;
+        }
         refreshTokenPort.deleteRefreshToken(refreshToken);
     }
 }

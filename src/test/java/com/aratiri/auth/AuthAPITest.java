@@ -188,7 +188,10 @@ class AuthAPITest {
         TokenExchangeRequestDTO request = new TokenExchangeRequestDTO();
         request.setExternalToken("ext-token");
 
-        assertThrows(ApplicationException.class, () -> api.exchangeToken(null, request));
-        assertThrows(ApplicationException.class, () -> api.exchangeToken("Bearer xyz", request));
+        ApplicationException missing = assertThrows(ApplicationException.class, () -> api.exchangeToken(null, request));
+        assertEquals(HttpStatus.UNAUTHORIZED.value(), missing.getStatus());
+
+        ApplicationException invalid = assertThrows(ApplicationException.class, () -> api.exchangeToken("Bearer xyz", request));
+        assertEquals(HttpStatus.UNAUTHORIZED.value(), invalid.getStatus());
     }
 }
