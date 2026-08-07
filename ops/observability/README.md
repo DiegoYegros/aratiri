@@ -7,7 +7,7 @@ searchable in Grafana Explore by traceId / userId / path / message:
 
 ```text
 http://127.0.0.1:2100/actuator/prometheus          # metrics (scrape target)
-{container="aratiri-backend"} | json | trace_id=~"…"   # logs (Loki)
+{container="aratiri-backend"} | json | traceId="…"   # logs (Loki)
 ```
 
 Public internet must not reach these UIs. Prometheus, Grafana and Loki listen
