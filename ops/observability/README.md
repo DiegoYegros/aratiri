@@ -96,19 +96,19 @@ http://100.124.162.6:9090
 ## Search logs in Grafana Explore
 
 **Explore → data source Loki** (`uid: loki`, provisioned). The `level` and
-`stream` labels are index labels; the rest (`trace_id`, `user_id`, `path`,
-`message`, … ) come from the JSON pipeline and are filterable at query time. Queries:
+`stream` labels are index labels; every other field (`traceId`, `requestId`,
+`userId`, `path`, `message`, … ) is a top-level JSON key in each Logstash line,
+re-derived by the `| json` parser at query time. Queries:
 
 ```logql
 # Any backend log (start here)
 {container="aratiri-backend"}
 
-# By trace_id (from the MDC traceId key — the pipeline also accepts
-# camelCase spellings)
-{container="aratiri-backend"} | json | trace_id=~"<traceId>"
+# By traceId (echoed request id — see the X-Request-Id response header)
+{container="aratiri-backend"} | json | traceId="<requestId-from-response-header>"
 
-# By userId
-{container="aratiri-backend"} | json | user_id=~"<userId>"
+# By userId (principal in the MDC on authenticated requests)
+{container="aratiri-backend"} | json | userId="<userId>"
 
 # By level
 {container="aratiri-backend"} | json | level="ERROR"
@@ -119,7 +119,7 @@ http://100.124.162.6:9090
 ```
 
 Bursts by requestId are not in the label set — query them the same way
-(`| json | request_id=~"…"`). Never promote traceId/userId to labels: high
+(`| json | requestId="…"`). Never promote traceId/userId to labels: high
 cardinality defeats Loki.
 
 ## Verify Loki is up
