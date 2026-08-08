@@ -110,25 +110,9 @@ public class NotificationSocketHandler extends TextWebSocketHandler implements S
   }
 
   static Optional<String> extractTicketFromProtocols(WebSocketSession session) {
-    List<String> tokens = new ArrayList<>();
-    List<String> headerValues = session.getHandshakeHeaders().get("Sec-WebSocket-Protocol");
-    if (headerValues != null) {
-      for (String value : headerValues) {
-        if (value == null || value.isBlank()) {
-          continue;
-        }
-        for (String part : value.split(",")) {
-          String trimmed = part.trim();
-          if (!trimmed.isEmpty()) {
-            tokens.add(trimmed);
-          }
-        }
-      }
-    }
-
     boolean hasFixed = false;
     String ticket = null;
-    for (String token : tokens) {
+    for (String token : collectProtocolTokens(session)) {
       if (NOTIFICATIONS_SUBPROTOCOL.equals(token)) {
         hasFixed = true;
       } else if (ticket == null) {
@@ -142,5 +126,25 @@ public class NotificationSocketHandler extends TextWebSocketHandler implements S
       return Optional.empty();
     }
     return Optional.of(ticket);
+  }
+
+  private static List<String> collectProtocolTokens(WebSocketSession session) {
+    List<String> tokens = new ArrayList<>();
+    List<String> headerValues = session.getHandshakeHeaders().get("Sec-WebSocket-Protocol");
+    if (headerValues == null) {
+      return tokens;
+    }
+    for (String value : headerValues) {
+      if (value == null || value.isBlank()) {
+        continue;
+      }
+      for (String part : value.split(",")) {
+        String trimmed = part.trim();
+        if (!trimmed.isEmpty()) {
+          tokens.add(trimmed);
+        }
+      }
+    }
+    return tokens;
   }
 }

@@ -41,7 +41,7 @@ public class WsTicketStore implements WsTicketStorePort {
       @Value("${aratiri.notifications.ws-ticket-mints-per-minute:30}") int mintsPerMinute,
       Clock clock) {
     this.clock = Objects.requireNonNull(clock, "clock");
-    int boundedTtl = Math.min(Math.max(ttlSeconds, 1), MAX_TTL_SECONDS);
+    int boundedTtl = Math.clamp(ttlSeconds, 1, MAX_TTL_SECONDS);
     this.ttl = Duration.ofSeconds(boundedTtl);
     this.mintsPerMinute = Math.max(1, mintsPerMinute);
     this.tickets = Caffeine.newBuilder()

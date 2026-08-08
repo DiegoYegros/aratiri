@@ -104,11 +104,11 @@ class OutboxEventClaimerTest {
         OutboxEventEntity event = OutboxEventEntity.builder().id(UUID.randomUUID()).build();
         event.claim("outbox-token", Instant.now().plusSeconds(30));
         when(outboxEventRepository.markInvalid(
-                eq(event.getId()),
-                eq("outbox-token"),
-                eq("bad type"),
-                eq(OutboxPublishStatus.INVALID),
-                eq(OutboxEventClaimer.CLAIMABLE_STATUSES)
+                event.getId(),
+                "outbox-token",
+                "bad type",
+                OutboxPublishStatus.INVALID,
+                OutboxEventClaimer.CLAIMABLE_STATUSES
         )).thenReturn(1);
 
         assertEquals(1, claimer.markInvalid(event, "bad type"));

@@ -273,14 +273,17 @@ class MdcFilterTest {
 
         @Override
         public void end() {
+            // no-op stub: span lifecycle not asserted
         }
 
         @Override
         public void end(long epochNanos, TimeUnit unit) {
+            // no-op stub: span lifecycle not asserted
         }
 
         @Override
         public void abandon() {
+            // no-op stub: span lifecycle not asserted
         }
 
         @Override

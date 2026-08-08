@@ -27,30 +27,34 @@ public class OutboxEventJob {
         }
         log.info("Found {} pending events in outbox to process.", claimed.size());
         for (OutboxEventEntity event : claimed) {
-            Optional<KafkaTopics> topic = KafkaTopics.fromCode(event.getEventType());
-            if (topic.isEmpty()) {
-                String error = "Unknown outbox event type: " + event.getEventType();
-                int updated = outboxEventClaimer.markInvalid(event, error);
-                if (updated == 0) {
-                    log.warn("Skipping INVALID mark for event ID {}: claim fence missed.", event.getId());
-                } else {
-                    log.error("{}. Marked event ID {} as INVALID.", error, event.getId());
-                }
-                continue;
+            processEvent(event);
+        }
+    }
+
+    private void processEvent(OutboxEventEntity event) {
+        Optional<KafkaTopics> topic = KafkaTopics.fromCode(event.getEventType());
+        if (topic.isEmpty()) {
+            String error = "Unknown outbox event type: " + event.getEventType();
+            int updated = outboxEventClaimer.markInvalid(event, error);
+            if (updated == 0) {
+                log.warn("Skipping INVALID mark for event ID {}: claim fence missed.", event.getId());
+            } else {
+                log.error("{}. Marked event ID {} as INVALID.", error, event.getId());
             }
-            try {
-                outboxEventProducer.sendEvent(topic.get(), event.getAggregateId(), event.getPayload());
-                int updated = outboxEventClaimer.markPublished(event);
-                if (updated == 0) {
-                    log.warn("Skipping PUBLISHED mark for event ID {}: claim fence missed.", event.getId());
-                }
-            } catch (Exception e) {
-                int updated = outboxEventClaimer.markPublishFailed(event, e.getMessage());
-                if (updated == 0) {
-                    log.warn("Skipping FAILED mark for event ID {}: claim fence missed.", event.getId());
-                } else {
-                    log.error("Error processing outbox event ID: {}. It will be retried.", event.getId(), e);
-                }
+            return;
+        }
+        try {
+            outboxEventProducer.sendEvent(topic.get(), event.getAggregateId(), event.getPayload());
+            int updated = outboxEventClaimer.markPublished(event);
+            if (updated == 0) {
+                log.warn("Skipping PUBLISHED mark for event ID {}: claim fence missed.", event.getId());
+            }
+        } catch (Exception e) {
+            int updated = outboxEventClaimer.markPublishFailed(event, e.getMessage());
+            if (updated == 0) {
+                log.warn("Skipping FAILED mark for event ID {}: claim fence missed.", event.getId());
+            } else {
+                log.error("Error processing outbox event ID: {}. It will be retried.", event.getId(), e);
             }
         }
     }
