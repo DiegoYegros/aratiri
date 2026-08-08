@@ -23,6 +23,10 @@ public class LogFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        if (request.getRequestURI().startsWith("/actuator")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         long startTime = System.currentTimeMillis();
         filterChain.doFilter(request, response);
         long timeTaken = System.currentTimeMillis() - startTime;

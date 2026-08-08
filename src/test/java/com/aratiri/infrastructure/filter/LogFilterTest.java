@@ -120,6 +120,18 @@ class LogFilterTest {
         assertFalse(captured.contains("token=" + QUERY_TOKEN_SENTINEL));
     }
 
+    @Test
+    void skipsOperationalLogsForActuatorRequests() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/actuator/prometheus");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        logFilter.doFilter(request, response, (req, res) -> ((MockHttpServletResponse) res).setStatus(200));
+
+        String captured = capturedLogText();
+        assertTrue(captured.isBlank(), "actuator probes must not produce operational logs");
+        assertEquals(200, response.getStatus(), "chain must still execute");
+    }
+
     private String capturedLogText() {
         return listAppender.list.stream()
                 .map(ILoggingEvent::getFormattedMessage)
