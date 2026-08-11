@@ -191,7 +191,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .exchange()
-                .expectStatus().isCreated();
+                .expectStatus().isAccepted();
     }
 
     @Test
@@ -205,7 +205,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
 
@@ -216,13 +216,14 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
         assertEquals("http://localhost:3000/pay/" + publicId, first.get("share_url"));
         assertEquals(1, paymentRequestRepository.count());
 
+        // Replay is 200 once the async provisioning reached OPEN, 202 while still PROVISIONING.
         Map<?, ?> replay = webTestClient().post().uri("/v1/payment-requests")
                 .header("Authorization", "Bearer " + ownerToken)
                 .header("Idempotency-Key", "idem-create-1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().value(status -> assertTrue(status == 200 || status == 202, "replay status was " + status))
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
 
@@ -251,7 +252,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1600, "  Coffee  ", 900))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(first);
@@ -264,7 +265,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1600, "Coffee", 900))
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().value(status -> assertTrue(status == 200 || status == 202, "replay status was " + status))
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(trimmedReplay);
@@ -284,7 +285,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1700, null, 900))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(blankFirst);
@@ -296,7 +297,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1700, "   ", 900))
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().value(status -> assertTrue(status == 200 || status == 202, "replay status was " + status))
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(whitespaceReplay);
@@ -308,7 +309,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1700, "", 900))
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().value(status -> assertTrue(status == 200 || status == 202, "replay status was " + status))
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(emptyReplay);
@@ -325,7 +326,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(createBody(1000 + i, "m" + i, 600))
                     .exchange()
-                    .expectStatus().isCreated();
+                    .expectStatus().isAccepted();
         }
 
         Map<?, ?> otherCreate = webTestClient().post().uri("/v1/payment-requests")
@@ -334,7 +335,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(5000, "other", 600))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(otherCreate);
@@ -385,11 +386,12 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(777, "Public memo", 1200))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(created);
         String publicId = (String) created.get("public_id");
+        awaitRequestStatus(publicId, "OPEN", 15);
 
         webTestClient().get().uri("/r/" + publicId)
                 .exchange()
@@ -422,22 +424,27 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1000, "Cancel me", 600))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(created);
         String publicId = (String) created.get("public_id");
         PaymentRequestEntity openEntity = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
+        awaitRequestStatus(publicId, "OPEN", 15);
 
+        // Cancel is async: 202 while CANCEL_PENDING, 200 if the worker already finished.
         webTestClient().post().uri("/v1/payment-requests/" + publicId + "/cancel")
                 .header("Authorization", "Bearer " + ownerToken)
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().value(status -> assertTrue(status == 200 || status == 202, "cancel status was " + status))
                 .expectBody()
-                .jsonPath("$.status").isEqualTo("CANCELLED")
+                .jsonPath("$.status").value(status -> assertTrue(
+                        "CANCEL_PENDING".equals(status) || "CANCELLED".equals(status), "cancel body status was " + status))
                 .jsonPath("$.payment_request").doesNotExist();
 
-        org.mockito.Mockito.verify(lightningNodePort).cancelInvoice(openEntity.getPaymentHash());
+        awaitRequestStatus(publicId, "CANCELLED", 15);
+        org.mockito.Mockito.verify(lightningNodePort, org.mockito.Mockito.timeout(15000))
+                .cancelInvoice(openEntity.getPaymentHash());
 
         webTestClient().post().uri("/v1/payment-requests/" + publicId + "/cancel")
                 .header("Authorization", "Bearer " + ownerToken)
@@ -456,11 +463,12 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1100, "Will pay", 600))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(paidCreate);
         String paidPublicId = (String) paidCreate.get("public_id");
+        awaitRequestStatus(paidPublicId, "OPEN", 15);
         PaymentRequestEntity entity = paymentRequestRepository.findByPublicId(paidPublicId).orElseThrow();
         settleLinkedInvoice(entity);
 
@@ -479,11 +487,12 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1300, "Stay pending", 600))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(created);
         String publicId = (String) created.get("public_id");
+        awaitRequestStatus(publicId, "OPEN", 15);
 
         when(lightningNodePort.cancelInvoice(anyString()))
                 .thenThrow(new com.aratiri.errors.ApplicationException("Error cancelling invoice on LND node", 502));
@@ -496,10 +505,20 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .jsonPath("$.status").isEqualTo("CANCEL_PENDING")
                 .jsonPath("$.payment_request").doesNotExist();
 
-        PaymentRequestEntity pending = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
+        // The cancel worker (consumer or job backstop) records the failure and keeps the row pending.
+        PaymentRequestEntity pending = awaitCancelFailure(publicId);
         assertEquals("CANCEL_PENDING", pending.getStatus());
         assertNull(pending.getCancelledAt());
         assertNotNull(pending.getCancelLastError());
+    }
+
+    private PaymentRequestEntity awaitCancelFailure(String publicId) {
+        awaitUntil("cancel worker to record a failure for " + publicId,
+                () -> paymentRequestRepository.findByPublicId(publicId)
+                        .map(current -> current.getCancelLastError() != null)
+                        .orElse(false),
+                java.time.Duration.ofSeconds(20));
+        return paymentRequestRepository.findByPublicId(publicId).orElseThrow();
     }
 
     @Test
@@ -511,11 +530,12 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1400, "Settled race", 600))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(created);
         String publicId = (String) created.get("public_id");
+        awaitRequestStatus(publicId, "OPEN", 15);
         PaymentRequestEntity entity = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
 
         LightningNodeInvoice settled = new LightningNodeInvoice(
@@ -528,12 +548,14 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
         when(lightningNodePort.cancelInvoice(entity.getPaymentHash()))
                 .thenReturn(InvoiceCancelOutcome.ALREADY_SETTLED);
 
-        // Durable cancel intent accepted; saga observes SETTLED and marks PAID.
+        // Durable cancel intent accepted (202 CANCEL_PENDING); the cancel worker observes
+        // SETTLED and heals the request to PAID asynchronously.
         webTestClient().post().uri("/v1/payment-requests/" + publicId + "/cancel")
                 .header("Authorization", "Bearer " + ownerToken)
                 .exchange()
-                .expectStatus().isEqualTo(409);
+                .expectStatus().value(status -> assertTrue(status == 202 || status == 200, "cancel status was " + status));
 
+        awaitRequestStatus(publicId, "PAID", 20);
         PaymentRequestEntity healed = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
         assertEquals("PAID", healed.getStatus());
         assertNotNull(healed.getPaidAt());
@@ -563,7 +585,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    @DisplayName("Cancel does not hold a DB transaction across the LND cancel RPC")
+    @DisplayName("Cancel is async from the request thread; the saga worker holds no DB transaction across the LND cancel RPC")
     void cancel_doesNotHoldTransactionAcrossLndRpc() {
         Map<?, ?> created = webTestClient().post().uri("/v1/payment-requests")
                 .header("Authorization", "Bearer " + ownerToken)
@@ -571,11 +593,12 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(1450, "No tx across rpc", 600))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(created);
         String publicId = (String) created.get("public_id");
+        awaitRequestStatus(publicId, "OPEN", 15);
         PaymentRequestEntity entity = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
 
         AtomicBoolean transactionActiveDuringRpc = new AtomicBoolean(false);
@@ -604,7 +627,12 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
         );
         assertNotNull(userId);
         OwnerPaymentRequestDTO cancelled = paymentRequestsPort.cancel(userId, publicId);
-        assertEquals("CANCELLED", cancelled.getStatus());
+        assertEquals("CANCEL_PENDING", cancelled.getStatus(), "cancel returns pending status; worker runs off-thread");
+        assertFalse(cancelInvoked.get(), "request thread must not invoke LND");
+        assertFalse(transactionActiveDuringRpc.get());
+
+        // The saga worker (consumer or job backstop) performs the LND cancel without a transaction.
+        awaitRequestStatus(publicId, "CANCELLED", 20);
         assertTrue(cancelInvoked.get(), "LND cancel must be invoked by saga worker");
         assertFalse(transactionActiveDuringRpc.get(), "cancel must not hold a Spring transaction across LND RPC");
     }
@@ -618,17 +646,19 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(2200, "Race", 600))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(created);
         String publicId = (String) created.get("public_id");
+        awaitRequestStatus(publicId, "OPEN", 15);
 
         webTestClient().post().uri("/v1/payment-requests/" + publicId + "/cancel")
                 .header("Authorization", "Bearer " + ownerToken)
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().value(status -> assertTrue(status == 200 || status == 202, "cancel status was " + status));
 
+        awaitRequestStatus(publicId, "CANCELLED", 15);
         PaymentRequestEntity cancelled = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
         assertEquals("CANCELLED", cancelled.getStatus());
 
@@ -659,11 +689,12 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(createBody(900, "Expire", 60))
                 .exchange()
-                .expectStatus().isCreated()
+                .expectStatus().isAccepted()
                 .expectBody(Map.class)
                 .returnResult().getResponseBody();
         assertNotNull(created);
         String publicId = (String) created.get("public_id");
+        awaitRequestStatus(publicId, "OPEN", 15);
 
         PaymentRequestEntity entity = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
         entity.setExpiresAt(Instant.now().minusSeconds(5));
@@ -745,7 +776,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
             assertEquals(threadCount, successes.size());
             String publicId = successes.getFirst().getPublicId();
             assertTrue(successes.stream().allMatch(dto -> publicId.equals(dto.getPublicId())));
-            assertEquals(1, lndCreates.get(), "only one Lightning invoice must be minted");
+            awaitLndCreateCount(lndCreates, 1, 15);
             assertEquals(1, paymentRequestRepository.count());
         } finally {
             executor.shutdownNow();
@@ -833,7 +864,7 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
             assertTrue(unexpected.isEmpty(), () -> "Unexpected errors: " + unexpected);
             assertEquals(1, createdCount.get());
             assertEquals(1, conflictCount.get());
-            assertEquals(1, lndCreates.get());
+            awaitLndCreateCount(lndCreates, 1, 15);
             assertEquals(1, paymentRequestRepository.count());
         } finally {
             executor.shutdownNow();
@@ -844,6 +875,21 @@ class PaymentRequestsIntegrationTest extends AbstractIntegrationTest {
                 fail("interrupted while awaiting executor termination");
             }
         }
+    }
+
+    private void awaitRequestStatus(String publicId, String expectedStatus, long timeoutSeconds) {
+        awaitUntil("payment request " + publicId + " to reach " + expectedStatus,
+                () -> paymentRequestRepository.findByPublicId(publicId)
+                        .map(current -> expectedStatus.equals(current.getStatus()))
+                        .orElse(false),
+                java.time.Duration.ofSeconds(timeoutSeconds));
+    }
+
+    private void awaitLndCreateCount(AtomicInteger counter, int expected, long timeoutSeconds) {
+        awaitUntil("exactly " + expected + " LND mint(s) (saw " + counter.get() + ")",
+                () -> counter.get() >= expected,
+                java.time.Duration.ofSeconds(timeoutSeconds));
+        assertEquals(expected, counter.get(), "expected exactly one LND mint");
     }
 
     private void settleLinkedInvoice(PaymentRequestEntity entity) {

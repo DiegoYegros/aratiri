@@ -4,10 +4,8 @@ import com.aratiri.infrastructure.persistence.jpa.entity.*;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookDeliveryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEndpointRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEventRepository;
-import com.aratiri.transactions.application.dto.TransactionStatus;
-import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.webhooks.application.dto.WebhookPayload;
-import com.aratiri.webhooks.application.dto.WebhookPayloadData;
+import com.aratiri.webhooks.application.event.WebhookEventCreatedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +24,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class WebhookEventServiceTest {
+
+    private static final String PAYLOAD_JSON = "{\"id\":\"evt-1\",\"type\":\"payment.accepted\",\"data\":{}}";
+    private static final String EVENT_ID = "6f9619ff-8b86-d011-b42d-00cf4fc964ff";
 
     @Mock
     private WebhookEndpointRepository webhookEndpointRepository;
@@ -47,395 +48,136 @@ class WebhookEventServiceTest {
     }
 
     @Test
-    void createPaymentAcceptedEvent_createsEventAndDeliveryForEnabledEndpoint() throws Exception {
+    void createEventAndDeliveries_storesPayloadVerbatimAndCreatesDeliveryForEnabledEndpoint() {
         WebhookEndpointEntity endpoint = enabledEndpoint("payment.accepted");
         when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
-        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
-        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
+        when(webhookEventRepository.findByEventKey("payment.accepted:tx-1")).thenReturn(Optional.empty());
 
-        PaymentWebhookFacts payment = acceptedPayment();
-        webhookEventService.createPaymentAcceptedEvent(payment);
+        webhookEventService.createEventAndDeliveries(event(
+                EVENT_ID,
+                "payment.accepted:tx-1",
+                "payment.accepted",
+                "TRANSACTION",
+                "tx-1",
+                "user-1",
+                "external-1",
+                PAYLOAD_JSON
+        ));
 
         ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
         verify(webhookEventRepository).save(eventCaptor.capture());
+        assertEquals(EVENT_ID, eventCaptor.getValue().getId().toString(),
+                "row id must be the envelope id so payload.id correlates with webhook_events.id");
         assertEquals("payment.accepted:tx-1", eventCaptor.getValue().getEventKey());
         assertEquals("payment.accepted", eventCaptor.getValue().getEventType());
         assertEquals("TRANSACTION", eventCaptor.getValue().getAggregateType());
         assertEquals("tx-1", eventCaptor.getValue().getAggregateId());
         assertEquals("user-1", eventCaptor.getValue().getUserId());
         assertEquals("external-1", eventCaptor.getValue().getExternalReference());
-
-        WebhookPayloadData data = capturedPayloadData();
-        assertEquals("tx-1", data.getTransactionId());
-        assertEquals("user-1", data.getUserId());
-        assertEquals("external-1", data.getExternalReference());
-        assertEquals("{\"order\":\"123\"}", data.getMetadata());
-        assertEquals(1000L, data.getAmountSat());
-        assertEquals("PENDING", data.getStatus());
-        assertEquals("ref-1", data.getReferenceId());
+        assertEquals(PAYLOAD_JSON, eventCaptor.getValue().getPayload(), "payload must be stored verbatim");
 
         ArgumentCaptor<WebhookDeliveryEntity> deliveryCaptor = ArgumentCaptor.forClass(WebhookDeliveryEntity.class);
         verify(webhookDeliveryRepository).save(deliveryCaptor.capture());
         assertEquals(endpoint.getId(), deliveryCaptor.getValue().getEndpointId());
         assertEquals("payment.accepted", deliveryCaptor.getValue().getEventType());
+        assertEquals(PAYLOAD_JSON, deliveryCaptor.getValue().getPayload());
         assertEquals(WebhookDeliveryStatus.PENDING, deliveryCaptor.getValue().getStatus());
+        assertEquals(0, deliveryCaptor.getValue().getAttemptCount());
+        assertNotNull(deliveryCaptor.getValue().getNextAttemptAt());
     }
 
     @Test
-    void createPaymentAcceptedEvent_noDeliveryWhenNoEndpointIsSubscribed() {
+    void createEventAndDeliveries_noDeliveryWhenNoEndpointIsSubscribed() {
         when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of());
-        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
-        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
+        when(webhookEventRepository.findByEventKey("payment.accepted:tx-1")).thenReturn(Optional.empty());
 
-        webhookEventService.createPaymentAcceptedEvent(acceptedPayment());
+        webhookEventService.createEventAndDeliveries(event(
+                EVENT_ID, "payment.accepted:tx-1", "payment.accepted", "TRANSACTION", "tx-1", "user-1", null, PAYLOAD_JSON));
 
         verify(webhookEventRepository).save(any());
         verify(webhookDeliveryRepository, never()).save(any());
     }
 
     @Test
-    void createPaymentAcceptedEvent_idempotentByEventKey() {
+    void createEventAndDeliveries_onlySubscribedEndpointsReceiveDeliveries() {
+        WebhookEndpointEntity subscribed = enabledEndpoint("payment.accepted");
+        WebhookEndpointEntity other = enabledEndpoint("payment.succeeded");
+        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(subscribed, other));
+        when(webhookEventRepository.findByEventKey("payment.accepted:tx-1")).thenReturn(Optional.empty());
+
+        webhookEventService.createEventAndDeliveries(event(
+                EVENT_ID, "payment.accepted:tx-1", "payment.accepted", "TRANSACTION", "tx-1", "user-1", null, PAYLOAD_JSON));
+
+        ArgumentCaptor<WebhookDeliveryEntity> deliveryCaptor = ArgumentCaptor.forClass(WebhookDeliveryEntity.class);
+        verify(webhookDeliveryRepository).save(deliveryCaptor.capture());
+        assertEquals(subscribed.getId(), deliveryCaptor.getValue().getEndpointId());
+    }
+
+    @Test
+    void createEventAndDeliveries_idempotentByEventKey() {
         WebhookEventEntity existing = WebhookEventEntity.builder().eventKey("payment.accepted:tx-1").build();
         when(webhookEventRepository.findByEventKey("payment.accepted:tx-1")).thenReturn(Optional.of(existing));
 
-        webhookEventService.createPaymentAcceptedEvent(acceptedPayment());
+        webhookEventService.createEventAndDeliveries(event(
+                EVENT_ID, "payment.accepted:tx-1", "payment.accepted", "TRANSACTION", "tx-1", "user-1", null, PAYLOAD_JSON));
 
         verify(webhookEventRepository, never()).save(any());
         verify(webhookDeliveryRepository, never()).save(any());
     }
 
     @Test
-    void createPaymentSucceededEvent_ignoresCreditTransaction() {
-        PaymentWebhookFacts creditPayment = new PaymentWebhookFacts(
-                "tx-1",
-                "user-1",
-                TransactionType.LIGHTNING_CREDIT,
-                1000L,
-                TransactionStatus.COMPLETED,
-                "ref-1",
-                null,
-                null,
-                5000L,
-                null
-        );
+    void createEventAndDeliveries_duplicateKeyViolationIsSwallowed() {
+        when(webhookEventRepository.findByEventKey("payment.accepted:tx-1")).thenReturn(Optional.empty());
+        when(webhookEventRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("duplicate key"));
 
-        webhookEventService.createPaymentSucceededEvent(creditPayment);
+        assertDoesNotThrow(() -> webhookEventService.createEventAndDeliveries(event(
+                EVENT_ID, "payment.accepted:tx-1", "payment.accepted", "TRANSACTION", "tx-1", "user-1", null, PAYLOAD_JSON)));
 
-        verifyNoInteractions(webhookEventRepository);
-        verifyNoInteractions(webhookDeliveryRepository);
+        verify(webhookDeliveryRepository, never()).save(any());
     }
 
     @Test
-    void createPaymentSucceededEvent_keepsPayloadShapeAndCreatesDelivery() throws Exception {
-        WebhookEndpointEntity endpoint = enabledEndpoint("payment.succeeded");
-        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
+    void createWebhookTestEvent_createsEventAndDeliveryForTheEndpoint() throws Exception {
+        WebhookEndpointEntity endpoint = enabledEndpoint("webhook.test");
         when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
-        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
+        when(jsonMapper.writeValueAsString(any())).thenReturn(PAYLOAD_JSON);
 
-        PaymentWebhookFacts payment = new PaymentWebhookFacts(
-                "tx-1",
-                "user-1",
-                TransactionType.LIGHTNING_DEBIT,
-                1200L,
-                TransactionStatus.COMPLETED,
-                "ref-1",
-                "external-1",
-                "{\"order\":\"123\"}",
-                5000L,
-                null
-        );
-        webhookEventService.createPaymentSucceededEvent(payment);
+        webhookEventService.createWebhookTestEvent(new WebhookTestEventFacts(endpoint.getId()));
 
         ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
         verify(webhookEventRepository).save(eventCaptor.capture());
-        assertEquals("payment.succeeded:tx-1", eventCaptor.getValue().getEventKey());
+        assertEquals("webhook.test", eventCaptor.getValue().getEventType());
+        assertEquals("WEBHOOK", eventCaptor.getValue().getAggregateType());
+        assertEquals(endpoint.getId().toString(), eventCaptor.getValue().getAggregateId());
+        assertNull(eventCaptor.getValue().getUserId());
+        assertTrue(eventCaptor.getValue().getEventKey().startsWith("webhook.test:" + endpoint.getId() + ":"));
 
-        WebhookPayloadData data = capturedPayloadData();
-        assertEquals("tx-1", data.getTransactionId());
-        assertEquals("user-1", data.getUserId());
-        assertEquals("external-1", data.getExternalReference());
-        assertEquals("{\"order\":\"123\"}", data.getMetadata());
-        assertEquals(1200L, data.getAmountSat());
-        assertEquals("COMPLETED", data.getStatus());
-        assertEquals("ref-1", data.getReferenceId());
-        assertEquals(5000L, data.getBalanceAfterSat());
-
-        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
-    }
-
-    @Test
-    void createPaymentFailedEvent_keepsPayloadShapeAndCreatesDelivery() throws Exception {
-        WebhookEndpointEntity endpoint = enabledEndpoint("payment.failed");
-        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
-        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
-        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
-
-        PaymentWebhookFacts payment = new PaymentWebhookFacts(
-                "tx-1",
-                "user-1",
-                TransactionType.ONCHAIN_DEBIT,
-                1000L,
-                TransactionStatus.FAILED,
-                "ref-1",
-                "external-1",
-                "{\"order\":\"123\"}",
-                null,
-                "node failure"
-        );
-        webhookEventService.createPaymentFailedEvent(payment);
-
-        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
-        verify(webhookEventRepository).save(eventCaptor.capture());
-        assertEquals("payment.failed:tx-1", eventCaptor.getValue().getEventKey());
-
-        WebhookPayloadData data = capturedPayloadData();
-        assertEquals("tx-1", data.getTransactionId());
-        assertEquals("user-1", data.getUserId());
-        assertEquals("external-1", data.getExternalReference());
-        assertEquals("{\"order\":\"123\"}", data.getMetadata());
-        assertEquals(1000L, data.getAmountSat());
-        assertEquals("FAILED", data.getStatus());
-        assertEquals("ref-1", data.getReferenceId());
-        assertEquals("node failure", data.getFailureReason());
-
-        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
-    }
-
-    @Test
-    void createAccountBalanceChangedEvent_usesDomainFactsAndKeepsPayloadShape() throws Exception {
-        WebhookEndpointEntity endpoint = enabledEndpoint("account.balance_changed");
-        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
-        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
-        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
-
-        AccountBalanceChangedWebhookFacts facts = new AccountBalanceChangedWebhookFacts(
-                "tx-1",
-                "user-1",
-                "external-1",
-                "{\"order\":\"123\"}",
-                1000L,
-                "ref-1",
-                "entry-1",
-                5000L
-        );
-
-        webhookEventService.createAccountBalanceChangedEvent(facts);
-
-        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
-        verify(webhookEventRepository).save(eventCaptor.capture());
-        assertEquals("account.balance_changed:entry-1", eventCaptor.getValue().getEventKey());
-        assertEquals("account.balance_changed", eventCaptor.getValue().getEventType());
-        assertEquals("ACCOUNT_ENTRY", eventCaptor.getValue().getAggregateType());
-        assertEquals("entry-1", eventCaptor.getValue().getAggregateId());
-        assertEquals("user-1", eventCaptor.getValue().getUserId());
-        assertEquals("external-1", eventCaptor.getValue().getExternalReference());
-
-        WebhookPayloadData data = capturedPayloadData();
-        assertEquals("tx-1", data.getTransactionId());
-        assertEquals("user-1", data.getUserId());
-        assertEquals("external-1", data.getExternalReference());
-        assertEquals("{\"order\":\"123\"}", data.getMetadata());
-        assertEquals(1000L, data.getAmountSat());
-        assertEquals("COMPLETED", data.getStatus());
-        assertEquals("ref-1", data.getReferenceId());
-        assertEquals(5000L, data.getBalanceAfterSat());
-
-        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
-    }
-
-    @Test
-    void createInvoiceCreatedEvent_usesDomainFactsAndKeepsPayloadShape() throws Exception {
-        WebhookEndpointEntity endpoint = enabledEndpoint("invoice.created");
-        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
-        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
-        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
-
-        InvoiceCreatedWebhookFacts invoice = new InvoiceCreatedWebhookFacts(
-                "invoice-1",
-                "user-1",
-                "payment-hash-1",
-                "lnbc1test",
-                1500L,
-                "memo-1",
-                "external-1",
-                "{\"order\":\"123\"}"
-        );
-        webhookEventService.createInvoiceCreatedEvent(invoice);
-
-        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
-        verify(webhookEventRepository).save(eventCaptor.capture());
-        assertEquals("invoice.created:payment-hash-1", eventCaptor.getValue().getEventKey());
-        assertEquals("invoice.created", eventCaptor.getValue().getEventType());
-        assertEquals("INVOICE", eventCaptor.getValue().getAggregateType());
-        assertEquals("invoice-1", eventCaptor.getValue().getAggregateId());
-        assertEquals("user-1", eventCaptor.getValue().getUserId());
-        assertEquals("external-1", eventCaptor.getValue().getExternalReference());
-
-        WebhookPayloadData data = capturedPayloadData();
-        assertEquals("invoice-1", data.getInvoiceId());
-        assertEquals("user-1", data.getUserId());
-        assertEquals("external-1", data.getExternalReference());
-        assertEquals("{\"order\":\"123\"}", data.getMetadata());
-        assertEquals(1500L, data.getAmountSat());
-        assertEquals("payment-hash-1", data.getPaymentHash());
-        assertEquals("lnbc1test", data.getPaymentRequest());
-        assertEquals("memo-1", data.getMemo());
-
-        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
-    }
-
-    @Test
-    void createInvoiceSettledEvent_usesDomainFactsAndKeepsPayloadShape() throws Exception {
-        WebhookEndpointEntity endpoint = enabledEndpoint("invoice.settled");
-        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
-        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
-        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
-
-        InvoiceSettledWebhookFacts invoice = new InvoiceSettledWebhookFacts(
-                "tx-1",
-                "user-1",
-                "payment-hash-1",
-                1500L,
-                TransactionStatus.COMPLETED,
-                "ref-1",
-                "external-1",
-                "{\"order\":\"123\"}",
-                6500L
-        );
-        webhookEventService.createInvoiceSettledEvent(invoice);
-
-        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
-        verify(webhookEventRepository).save(eventCaptor.capture());
-        assertEquals("invoice.settled:payment-hash-1", eventCaptor.getValue().getEventKey());
-        assertEquals("invoice.settled", eventCaptor.getValue().getEventType());
-        assertEquals("INVOICE", eventCaptor.getValue().getAggregateType());
-        assertEquals("payment-hash-1", eventCaptor.getValue().getAggregateId());
-        assertEquals("user-1", eventCaptor.getValue().getUserId());
-        assertEquals("external-1", eventCaptor.getValue().getExternalReference());
-
-        WebhookPayloadData data = capturedPayloadData();
-        assertEquals("tx-1", data.getTransactionId());
-        assertEquals("user-1", data.getUserId());
-        assertEquals("external-1", data.getExternalReference());
-        assertEquals("{\"order\":\"123\"}", data.getMetadata());
-        assertEquals(1500L, data.getAmountSat());
-        assertEquals("COMPLETED", data.getStatus());
-        assertEquals("ref-1", data.getReferenceId());
-        assertEquals(6500L, data.getBalanceAfterSat());
-        assertEquals("payment-hash-1", data.getPaymentHash());
-
-        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
-    }
-
-    @Test
-    void createOnchainDepositConfirmedEvent_usesDomainFactsAndKeepsPayloadShape() throws Exception {
-        WebhookEndpointEntity endpoint = enabledEndpoint("onchain.deposit.confirmed");
-        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
-        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
-        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
-
-        OnChainDepositWebhookFacts deposit = new OnChainDepositWebhookFacts(
-                "tx-1",
-                "user-1",
-                2500L,
-                TransactionStatus.COMPLETED,
-                "tx-hash:1",
-                "external-1",
-                "{\"order\":\"123\"}",
-                8500L
-        );
-        webhookEventService.createOnchainDepositConfirmedEvent(deposit);
-
-        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
-        verify(webhookEventRepository).save(eventCaptor.capture());
-        assertEquals("onchain.deposit.confirmed:tx-hash:1", eventCaptor.getValue().getEventKey());
-        assertEquals("onchain.deposit.confirmed", eventCaptor.getValue().getEventType());
-        assertEquals("TRANSACTION", eventCaptor.getValue().getAggregateType());
-        assertEquals("tx-1", eventCaptor.getValue().getAggregateId());
-        assertEquals("user-1", eventCaptor.getValue().getUserId());
-        assertEquals("external-1", eventCaptor.getValue().getExternalReference());
-
-        WebhookPayloadData data = capturedPayloadData();
-        assertEquals("tx-1", data.getTransactionId());
-        assertEquals("user-1", data.getUserId());
-        assertEquals("external-1", data.getExternalReference());
-        assertEquals("{\"order\":\"123\"}", data.getMetadata());
-        assertEquals(2500L, data.getAmountSat());
-        assertEquals("COMPLETED", data.getStatus());
-        assertEquals("tx-hash:1", data.getReferenceId());
-        assertEquals(8500L, data.getBalanceAfterSat());
-
-        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
-    }
-
-    @Test
-    void createNodeOperationUnknownOutcomeEvent_includesOperationAndTransactionFacts() throws Exception {
-        WebhookEndpointEntity endpoint = enabledEndpoint("node_operation.unknown_outcome");
-        when(webhookEndpointRepository.findAllEnabledWithSubscriptions()).thenReturn(List.of(endpoint));
-        when(webhookEventRepository.findByEventKey(any())).thenReturn(Optional.empty());
-        when(jsonMapper.writeValueAsString(any())).thenReturn("{}");
-
-        NodeOperationUnknownOutcomeFacts facts = new NodeOperationUnknownOutcomeFacts(
-                "operation-1",
-                "tx-1",
-                "user-1",
-                "ONCHAIN_SEND",
-                "UNKNOWN_OUTCOME",
-                "tx-ref-1",
-                "broadcast-txid-1",
-                5,
-                "node unreachable",
-                2500L,
-                TransactionStatus.PENDING.name(),
-                "external-1",
-                "{\"order\":\"123\"}"
-        );
-
-        webhookEventService.createNodeOperationUnknownOutcomeEvent(facts);
-
-        ArgumentCaptor<WebhookEventEntity> eventCaptor = ArgumentCaptor.forClass(WebhookEventEntity.class);
-        verify(webhookEventRepository).save(eventCaptor.capture());
-        assertEquals("node_operation.unknown_outcome:operation-1", eventCaptor.getValue().getEventKey());
-        assertEquals("node_operation.unknown_outcome", eventCaptor.getValue().getEventType());
-        assertEquals("NODE_OPERATION", eventCaptor.getValue().getAggregateType());
-        assertEquals("operation-1", eventCaptor.getValue().getAggregateId());
-        assertEquals("user-1", eventCaptor.getValue().getUserId());
-        assertEquals("external-1", eventCaptor.getValue().getExternalReference());
-
-        WebhookPayloadData data = capturedPayloadData();
-        assertEquals("operation-1", data.getOperationId());
-        assertEquals("tx-1", data.getTransactionId());
-        assertEquals("user-1", data.getUserId());
-        assertEquals("ONCHAIN_SEND", data.getOperationType());
-        assertEquals("UNKNOWN_OUTCOME", data.getOperationStatus());
-        assertEquals("tx-ref-1", data.getReferenceId());
-        assertEquals("broadcast-txid-1", data.getExternalId());
-        assertEquals(5, data.getAttemptCount());
-        assertEquals("node unreachable", data.getOperationError());
-        assertEquals(2500L, data.getAmountSat());
-        assertEquals("PENDING", data.getStatus());
-        assertEquals("external-1", data.getExternalReference());
-        assertEquals("{\"order\":\"123\"}", data.getMetadata());
-
-        verify(webhookDeliveryRepository).save(any(WebhookDeliveryEntity.class));
-    }
-
-    private PaymentWebhookFacts acceptedPayment() {
-        return PaymentWebhookFacts.accepted(
-                "tx-1",
-                "user-1",
-                TransactionType.LIGHTNING_DEBIT,
-                1000L,
-                "ref-1",
-                "external-1",
-                "{\"order\":\"123\"}"
-        );
-    }
-
-    private WebhookPayloadData capturedPayloadData() throws Exception {
         ArgumentCaptor<WebhookPayload> payloadCaptor = ArgumentCaptor.forClass(WebhookPayload.class);
         verify(jsonMapper).writeValueAsString(payloadCaptor.capture());
-        return payloadCaptor.getValue().getData();
+        assertEquals("webhook.test", payloadCaptor.getValue().getType());
+        assertEquals("system", payloadCaptor.getValue().getData().getUserId());
+        assertEquals(eventCaptor.getValue().getId().toString(), payloadCaptor.getValue().getId(),
+                "webhook.test payload.id must match the webhook_events row id");
+
+        ArgumentCaptor<WebhookDeliveryEntity> deliveryCaptor = ArgumentCaptor.forClass(WebhookDeliveryEntity.class);
+        verify(webhookDeliveryRepository).save(deliveryCaptor.capture());
+        assertEquals(endpoint.getId(), deliveryCaptor.getValue().getEndpointId());
+        assertEquals(PAYLOAD_JSON, deliveryCaptor.getValue().getPayload());
+    }
+
+    private static WebhookEventCreatedEvent event(
+            String eventId,
+            String eventKey,
+            String eventType,
+            String aggregateType,
+            String aggregateId,
+            String userId,
+            String externalReference,
+            String payload
+    ) {
+        return new WebhookEventCreatedEvent(
+                eventId, eventKey, eventType, aggregateType, aggregateId, userId, externalReference, payload);
     }
 
     private WebhookEndpointEntity enabledEndpoint(String eventType) {

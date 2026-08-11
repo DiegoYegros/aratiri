@@ -4,8 +4,10 @@ import com.aratiri.admin.application.dto.TransactionStatsDTO;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.transactions.application.dto.TransactionType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -51,7 +53,7 @@ public interface TransactionsRepository extends JpaRepository<TransactionEntity,
     // current_status='PENDING' is equivalent to "has PENDING event and no terminal event":
     // both are written atomically in TransactionSettlementService.recordStateChange.
     @Query("SELECT t FROM TransactionEntity t WHERE t.type = com.aratiri.transactions.application.dto.TransactionType.LIGHTNING_DEBIT " +
-            "AND t.currentStatus = 'PENDING' " +
+            "AND t.currentStatus IN ('PENDING', 'EXECUTING') " +
             "AND t.referenceId IS NOT NULL " +
             "AND t.createdAt < :timestamp " +
             "ORDER BY t.createdAt ASC")
@@ -59,6 +61,33 @@ public interface TransactionsRepository extends JpaRepository<TransactionEntity,
             @Param("timestamp") Instant timestamp,
             org.springframework.data.domain.Pageable pageable
     );
+
+    @Query("SELECT t FROM TransactionEntity t WHERE t.type = com.aratiri.transactions.application.dto.TransactionType.ONCHAIN_DEBIT " +
+            "AND t.currentStatus IN ('PENDING', 'EXECUTING') " +
+            "AND t.createdAt < :timestamp " +
+            "ORDER BY t.createdAt ASC")
+    List<TransactionEntity> findPendingOnChainTransactionsOlderThan(
+            @Param("timestamp") Instant timestamp,
+            org.springframework.data.domain.Pageable pageable
+    );
+
+    /**
+     * Atomic claim of a PENDING transaction by an execution consumer. Exactly one concurrent
+     * delivery wins; losers see 0 affected rows and must not touch LND.
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE TransactionEntity t SET t.currentStatus = 'EXECUTING' WHERE t.id = :id AND t.currentStatus = 'PENDING'")
+    int claimPendingForExecution(@Param("id") String id);
+
+    /**
+     * Releases a claim back to PENDING after a retryable execution failure so the next redelivery
+     * can re-claim. No-op when the transaction already moved to a terminal state.
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE TransactionEntity t SET t.currentStatus = 'PENDING' WHERE t.id = :id AND t.currentStatus = 'EXECUTING'")
+    int releaseExecutionClaim(@Param("id") String id);
 
     @Query("SELECT new com.aratiri.admin.application.dto.TransactionStatsDTO(" +
             "CAST(t.createdAt AS LocalDate), " +

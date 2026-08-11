@@ -1,6 +1,7 @@
 package com.aratiri.transactions.application;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
@@ -13,7 +14,7 @@ import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferCompletedEvent;
-import com.aratiri.webhooks.application.WebhookEventService;
+import com.aratiri.webhooks.application.port.out.WebhookEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,10 +44,10 @@ class TransactionSettlementServiceTest {
   private AccountLedgerService accountLedgerService;
 
   @Mock
-  private OutboxWriter outboxWriter;
+  private EventPublisher eventPublisher;
 
   @Mock
-  private WebhookEventService webhookEventService;
+  private WebhookEventPublisher webhookEventPublisher;
 
   @Mock
   private InvoiceSettlementPort invoiceSettlementPort;
@@ -62,8 +63,8 @@ class TransactionSettlementServiceTest {
         transactionsRepository,
         transactionEventRepository,
         accountLedgerService,
-        outboxWriter,
-        webhookEventService,
+        eventPublisher,
+        webhookEventPublisher,
         invoiceSettlementPort
     );
   }
@@ -155,7 +156,7 @@ class TransactionSettlementServiceTest {
 
     assertEquals(TransactionStatus.COMPLETED, state.status());
     verify(accountLedgerService).appendLightningCreditSettlement(saved);
-    verify(webhookEventService).createPaymentSucceededEvent(any());
+    verify(webhookEventPublisher).publishWebhookEvent(anyString(), eq("payment.succeeded"), anyString(), anyString(), anyString(), any(), any());
   }
 
   @Test
@@ -222,7 +223,7 @@ class TransactionSettlementServiceTest {
 
     assertEquals(TX_ID, result.transactionId());
     assertEquals(TransactionStatus.COMPLETED, result.status());
-    verify(webhookEventService).createInvoiceSettledEvent(any());
+    verify(webhookEventPublisher).publishWebhookEvent(anyString(), eq("invoice.settled"), anyString(), anyString(), anyString(), any(), any());
   }
 
   @Test
@@ -244,7 +245,7 @@ class TransactionSettlementServiceTest {
 
     assertEquals(TX_ID, result.transactionId());
     assertEquals(TransactionStatus.COMPLETED, result.status());
-    verify(webhookEventService).createInvoiceSettledEvent(any());
+    verify(webhookEventPublisher).publishWebhookEvent(anyString(), eq("invoice.settled"), anyString(), anyString(), anyString(), any(), any());
     verify(transactionsRepository, never()).save(any());
   }
 
@@ -269,7 +270,7 @@ class TransactionSettlementServiceTest {
 
     assertEquals(TX_ID, result.transactionId());
     assertEquals(TransactionStatus.COMPLETED, result.status());
-    verify(webhookEventService).createOnchainDepositConfirmedEvent(any());
+    verify(webhookEventPublisher).publishWebhookEvent(anyString(), eq("onchain.deposit.confirmed"), anyString(), anyString(), anyString(), any(), any());
   }
 
   @Test
@@ -288,7 +289,7 @@ class TransactionSettlementServiceTest {
     TransactionSettlementResult result = service.settleOnChainCredit(settlement);
 
     assertEquals(TransactionStatus.COMPLETED, result.status());
-    verify(webhookEventService).createOnchainDepositConfirmedEvent(any());
+    verify(webhookEventPublisher).publishWebhookEvent(anyString(), eq("onchain.deposit.confirmed"), anyString(), anyString(), anyString(), any(), any());
     verify(transactionsRepository, never()).save(any());
   }
 
@@ -354,7 +355,7 @@ class TransactionSettlementServiceTest {
     );
 
     assertEquals(TransactionStatus.FAILED, result.status());
-    verify(webhookEventService).createPaymentFailedEvent(any());
+    verify(webhookEventPublisher).publishWebhookEvent(anyString(), eq("payment.failed"), anyString(), anyString(), anyString(), any(), any());
   }
 
   @Test
@@ -381,7 +382,7 @@ class TransactionSettlementServiceTest {
     service.failExternalDebit(new ExternalDebitFailureSettlement(TX_ID, "second failure"));
 
     verify(transactionsRepository, never()).save(any());
-    verify(webhookEventService, never()).createPaymentFailedEvent(any());
+    verify(webhookEventPublisher, never()).publishWebhookEvent(anyString(), anyString(), anyString(), anyString(), anyString(), any(), any());
   }
 
   private TransactionEventEntity failedEvent(TransactionEntity tx, String reason) {
@@ -537,8 +538,8 @@ class TransactionSettlementServiceTest {
     verify(accountLedgerService).appendLightningCreditSettlement(any(TransactionEntity.class));
     ArgumentCaptor<InternalTransferCompletedEvent> eventCaptor =
         ArgumentCaptor.forClass(InternalTransferCompletedEvent.class);
-    verify(outboxWriter).publishInternalTransferCompleted(eq(TX_ID), eventCaptor.capture());
-    verify(outboxWriter).publishInternalInvoiceCancel(eq(paymentHash), any());
+    verify(eventPublisher).publish(eq(KafkaTopicNames.INTERNAL_TRANSFER_COMPLETED), eq(TX_ID), eventCaptor.capture());
+    verify(eventPublisher).publish(eq(KafkaTopicNames.INTERNAL_INVOICE_CANCEL), eq(paymentHash), any());
     verify(invoiceSettlementPort).settleInternalInvoice(settleInvoiceCommand);
     assertEquals("test memo", eventCaptor.getValue().getMemo());
   }
@@ -664,7 +665,7 @@ class TransactionSettlementServiceTest {
     service.failTransaction(TX_ID, "new reason");
 
     verify(transactionsRepository, never()).save(any());
-    verify(webhookEventService, never()).createPaymentFailedEvent(any());
+    verify(webhookEventPublisher, never()).publishWebhookEvent(anyString(), anyString(), anyString(), anyString(), anyString(), any(), any());
   }
 
   @Test
@@ -678,7 +679,7 @@ class TransactionSettlementServiceTest {
 
     assertEquals(TransactionStatus.FAILED.name(), tx.getCurrentStatus());
     assertEquals("insufficient funds", tx.getFailureReason());
-    verify(webhookEventService).createPaymentFailedEvent(any());
+    verify(webhookEventPublisher).publishWebhookEvent(anyString(), eq("payment.failed"), anyString(), anyString(), anyString(), any(), any());
   }
 
   // ── eventsByTransaction ──

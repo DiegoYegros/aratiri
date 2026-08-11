@@ -223,20 +223,6 @@ class AdminDTOTest {
     }
 
     @Test
-    void nodeOperationResponseDTO_builder() throws Exception {
-        NodeOperationResponseDTO dto = NodeOperationResponseDTO.builder()
-                .id("op-001")
-                .userId("user-1")
-                .operationType("open_channel")
-                .status("success")
-                .referenceId("ref-1")
-                .build();
-        String json = objectMapper.writeValueAsString(dto);
-        assertTrue(json.contains("success"));
-        assertEquals("open_channel", dto.getOperationType());
-    }
-
-    @Test
     void nodeSettingsDTO_serialization() throws Exception {
         Instant now = Instant.now();
         NodeSettingsDTO dto = new NodeSettingsDTO();

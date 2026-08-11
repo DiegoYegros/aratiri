@@ -2,7 +2,7 @@ package com.aratiri.infrastructure.messaging;
 
 /**
  * Canonical Kafka topic strings for {@code @KafkaListener} and header comparisons.
- * Outbox and producers use {@link KafkaTopics}, whose {@link KafkaTopics#getCode()} values match these constants.
+ * Producers use these constants directly; consumers map them to their payload types.
  */
 public final class KafkaTopicNames {
 
@@ -16,4 +16,8 @@ public final class KafkaTopicNames {
     public static final String PAYMENT_INITIATED = "payment.initiated";
     public static final String ONCHAIN_PAYMENT_INITIATED = "onchain.payment.initiated";
     public static final String ONCHAIN_TRANSACTION_RECEIVED = "onchain.transaction.received";
+    public static final String WEBHOOK_EVENT_CREATED = "webhook.event.created";
+    public static final String PAYMENT_REQUEST_PROVISION_REQUESTED = "payment-request.provision.requested";
+    public static final String PAYMENT_REQUEST_CANCEL_REQUESTED = "payment-request.cancel.requested";
+    public static final String EMAIL_REQUESTED = "email.requested";
 }

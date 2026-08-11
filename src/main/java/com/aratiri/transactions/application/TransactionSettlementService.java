@@ -1,6 +1,7 @@
 package com.aratiri.transactions.application;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
@@ -21,7 +22,8 @@ import com.aratiri.transactions.application.event.InternalTransferCompletedEvent
 import com.aratiri.webhooks.application.InvoiceSettledWebhookFacts;
 import com.aratiri.webhooks.application.OnChainDepositWebhookFacts;
 import com.aratiri.webhooks.application.PaymentWebhookFacts;
-import com.aratiri.webhooks.application.WebhookEventService;
+import com.aratiri.webhooks.application.dto.WebhookPayloadData;
+import com.aratiri.webhooks.application.port.out.WebhookEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -39,6 +41,7 @@ import java.util.stream.Collectors;
 @Service
 public class TransactionSettlementService implements TransactionSettlementModule {
     private static final String STATUS_COMPLETED = "COMPLETED";
+    private static final String AGGREGATE_TYPE_TRANSACTION = "TRANSACTION";
     private static final Set<TransactionType> SETTLEABLE_TYPES = Set.of(
             TransactionType.LIGHTNING_CREDIT,
             TransactionType.ONCHAIN_CREDIT
@@ -58,23 +61,23 @@ public class TransactionSettlementService implements TransactionSettlementModule
     private final TransactionsRepository transactionsRepository;
     private final TransactionEventRepository transactionEventRepository;
     private final AccountLedgerService accountLedgerService;
-    private final OutboxWriter outboxWriter;
-    private final WebhookEventService webhookEventService;
+    private final EventPublisher eventPublisher;
+    private final WebhookEventPublisher webhookEventPublisher;
     private final InvoiceSettlementPort invoiceSettlementPort;
 
     public TransactionSettlementService(
             TransactionsRepository transactionsRepository,
             TransactionEventRepository transactionEventRepository,
             AccountLedgerService accountLedgerService,
-            OutboxWriter outboxWriter,
-            WebhookEventService webhookEventService,
+            EventPublisher eventPublisher,
+            WebhookEventPublisher webhookEventPublisher,
             InvoiceSettlementPort invoiceSettlementPort
     ) {
         this.transactionsRepository = transactionsRepository;
         this.transactionEventRepository = transactionEventRepository;
         this.accountLedgerService = accountLedgerService;
-        this.outboxWriter = outboxWriter;
-        this.webhookEventService = webhookEventService;
+        this.eventPublisher = eventPublisher;
+        this.webhookEventPublisher = webhookEventPublisher;
         this.invoiceSettlementPort = invoiceSettlementPort;
     }
 
@@ -125,6 +128,10 @@ public class TransactionSettlementService implements TransactionSettlementModule
                 settlement.externalReference(),
                 settlement.metadata()
         );
+        // A concurrent duplicate settlement loses on the unique (reference_id, user_id) constraint
+        // and propagates DataIntegrityViolationException. Inside the aborted PG transaction the
+        // previous state re-read cannot succeed, so duplicates are repaired by the consumer retry:
+        // the redelivered message finds the settlement via the pre-check above and returns it.
         TransactionState settled = createAndSettleTransaction(request);
         createInvoiceSettledWebhook(settled, settlement.paymentHash());
         return TransactionSettlementResult.from(settled);
@@ -221,7 +228,25 @@ public class TransactionSettlementService implements TransactionSettlementModule
         transactionsRepository.save(transaction);
         logger.info("Recorded COMPLETED event for transaction [{}]", id);
         if (completionEffects.createsPaymentSucceededWebhook()) {
-            webhookEventService.createPaymentSucceededEvent(paymentWebhookFacts(transaction, TransactionStatus.COMPLETED, newBalanceSat, null));
+            PaymentWebhookFacts facts = paymentWebhookFacts(transaction, TransactionStatus.COMPLETED, newBalanceSat, null);
+            webhookEventPublisher.publishWebhookEvent(
+                    "payment.succeeded:" + facts.transactionId(),
+                    "payment.succeeded",
+                    AGGREGATE_TYPE_TRANSACTION,
+                    facts.transactionId(),
+                    facts.userId(),
+                    facts.externalReference(),
+                    WebhookPayloadData.builder()
+                            .transactionId(facts.transactionId())
+                            .userId(facts.userId())
+                            .externalReference(facts.externalReference())
+                            .metadata(facts.metadata())
+                            .amountSat(facts.amountSat())
+                            .status(TransactionStatus.COMPLETED.name())
+                            .referenceId(facts.referenceId())
+                            .balanceAfterSat(facts.balanceAfterSat())
+                            .build()
+            );
         }
         return currentState(transaction);
     }
@@ -249,7 +274,25 @@ public class TransactionSettlementService implements TransactionSettlementModule
         transaction.setFailureReason(failureReason);
         transactionsRepository.save(transaction);
         logger.info("Transaction [{}] has been marked as FAILED.", transactionId);
-        webhookEventService.createPaymentFailedEvent(paymentWebhookFacts(transaction, TransactionStatus.FAILED, null, failureReason));
+        PaymentWebhookFacts facts = paymentWebhookFacts(transaction, TransactionStatus.FAILED, null, failureReason);
+        webhookEventPublisher.publishWebhookEvent(
+                "payment.failed:" + facts.transactionId(),
+                "payment.failed",
+                AGGREGATE_TYPE_TRANSACTION,
+                facts.transactionId(),
+                facts.userId(),
+                facts.externalReference(),
+                WebhookPayloadData.builder()
+                        .transactionId(facts.transactionId())
+                        .userId(facts.userId())
+                        .externalReference(facts.externalReference())
+                        .metadata(facts.metadata())
+                        .amountSat(facts.amountSat())
+                        .status(TransactionStatus.FAILED.name())
+                        .referenceId(facts.referenceId())
+                        .failureReason(facts.failureReason())
+                        .build()
+        );
     }
 
     public void addFeeToTransaction(String transactionId, long feeSat) {
@@ -396,13 +439,50 @@ public class TransactionSettlementService implements TransactionSettlementModule
 
     private void createInvoiceSettledWebhook(TransactionState settlement, String paymentHash) {
         if (settlement.status() == TransactionStatus.COMPLETED) {
-            webhookEventService.createInvoiceSettledEvent(invoiceSettledWebhookFacts(settlement, paymentHash));
+            InvoiceSettledWebhookFacts facts = invoiceSettledWebhookFacts(settlement, paymentHash);
+            webhookEventPublisher.publishWebhookEvent(
+                    "invoice.settled:" + facts.paymentHash(),
+                    "invoice.settled",
+                    "INVOICE",
+                    facts.paymentHash(),
+                    facts.userId(),
+                    facts.externalReference(),
+                    WebhookPayloadData.builder()
+                            .transactionId(facts.transactionId())
+                            .userId(facts.userId())
+                            .externalReference(facts.externalReference())
+                            .metadata(facts.metadata())
+                            .amountSat(facts.amountSat())
+                            .status(facts.status().name())
+                            .referenceId(facts.referenceId())
+                            .balanceAfterSat(facts.balanceAfterSat())
+                            .paymentHash(facts.paymentHash())
+                            .build()
+            );
         }
     }
 
     private void createOnChainDepositConfirmedWebhook(TransactionState settlement) {
         if (settlement.status() == TransactionStatus.COMPLETED) {
-            webhookEventService.createOnchainDepositConfirmedEvent(onChainDepositWebhookFacts(settlement));
+            OnChainDepositWebhookFacts facts = onChainDepositWebhookFacts(settlement);
+            webhookEventPublisher.publishWebhookEvent(
+                    "onchain.deposit.confirmed:" + facts.referenceId(),
+                    "onchain.deposit.confirmed",
+                    AGGREGATE_TYPE_TRANSACTION,
+                    facts.transactionId(),
+                    facts.userId(),
+                    facts.externalReference(),
+                    WebhookPayloadData.builder()
+                            .transactionId(facts.transactionId())
+                            .userId(facts.userId())
+                            .externalReference(facts.externalReference())
+                            .metadata(facts.metadata())
+                            .amountSat(facts.amountSat())
+                            .status(facts.status().name())
+                            .referenceId(facts.referenceId())
+                            .balanceAfterSat(facts.balanceAfterSat())
+                            .build()
+            );
         }
     }
 
@@ -469,9 +549,9 @@ public class TransactionSettlementService implements TransactionSettlementModule
                     LocalDateTime.now(),
                     transaction.getDescription()
             );
-            outboxWriter.publishPaymentSent(transaction.getId(), eventPayload);
+            eventPublisher.publish(KafkaTopicNames.PAYMENT_SENT, transaction.getId(), eventPayload);
         } catch (Exception e) {
-            logger.error("Failed to create outbox event for PaymentSentEvent", e);
+            logger.error("Failed to publish PaymentSentEvent for transaction {}", transaction.getId(), e);
         }
     }
 
@@ -549,9 +629,9 @@ public class TransactionSettlementService implements TransactionSettlementModule
                 invoice.memo()
         );
         try {
-            outboxWriter.publishInternalTransferCompleted(settlement.transactionId(), completedEvent);
+            eventPublisher.publish(KafkaTopicNames.INTERNAL_TRANSFER_COMPLETED, settlement.transactionId(), completedEvent);
         } catch (Exception e) {
-            logger.error("Failed to create outbox event for InternalTransferCompletedEvent", e);
+            logger.error("Failed to publish InternalTransferCompletedEvent", e);
             throw new ApplicationException("Failed to publish settlement event for internal transfer.");
         }
     }
@@ -559,9 +639,9 @@ public class TransactionSettlementService implements TransactionSettlementModule
     private void publishInternalInvoiceCancel(InternalTransferSettlement settlement) {
         try {
             InternalInvoiceCancelEvent cancelEvent = new InternalInvoiceCancelEvent(settlement.paymentHash());
-            outboxWriter.publishInternalInvoiceCancel(settlement.paymentHash(), cancelEvent);
+            eventPublisher.publish(KafkaTopicNames.INTERNAL_INVOICE_CANCEL, settlement.paymentHash(), cancelEvent);
         } catch (Exception e) {
-            logger.error("Failed to create outbox event for InternalInvoiceCancelEvent", e);
+            logger.error("Failed to publish InternalInvoiceCancelEvent", e);
         }
     }
 

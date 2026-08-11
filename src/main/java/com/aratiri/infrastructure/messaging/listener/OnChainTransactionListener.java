@@ -1,6 +1,7 @@
 package com.aratiri.infrastructure.messaging.listener;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.InvoiceSubscriptionState;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscriptionStateRepository;
@@ -32,7 +33,7 @@ public class OnChainTransactionListener {
     private final LightningGrpc.LightningStub lightningAsyncStub;
     private final AccountRepository accountRepository;
     private final TransactionsPort transactionsService;
-    private final OutboxWriter outboxWriter;
+    private final EventPublisher eventPublisher;
     private final AtomicBoolean isListening = new AtomicBoolean(false);
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(true);
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
@@ -43,12 +44,12 @@ public class OnChainTransactionListener {
             LightningGrpc.LightningStub lightningAsyncStub,
             AccountRepository accountRepository,
             TransactionsPort transactionsService,
-            OutboxWriter outboxWriter,
+            EventPublisher eventPublisher,
             InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.lightningAsyncStub = lightningAsyncStub;
         this.accountRepository = accountRepository;
         this.transactionsService = transactionsService;
-        this.outboxWriter = outboxWriter;
+        this.eventPublisher = eventPublisher;
         this.invoiceSubscriptionStateRepository = invoiceSubscriptionStateRepository;
     }
 
@@ -178,11 +179,11 @@ public class OnChainTransactionListener {
                 output.getOutputIndex()
         );
         try {
-            outboxWriter.publishOnChainTransactionReceived(referenceId, eventPayload);
+            eventPublisher.publish(KafkaTopicNames.ONCHAIN_TRANSACTION_RECEIVED, referenceId, eventPayload);
             updateLastProcessedBlockHeight(transaction.getBlockHeight());
-            logger.info("Saved ONCHAIN_TRANSACTION_RECEIVED event to outbox for txHash: {}", transaction.getTxHash());
+            logger.info("Published ONCHAIN_TRANSACTION_RECEIVED event to Kafka for txHash: {}", transaction.getTxHash());
         } catch (Exception e) {
-            logger.error("Failed to create outbox event for on-chain transaction.", e);
+            logger.error("Failed to publish event for on-chain transaction.", e);
         }
     }
 

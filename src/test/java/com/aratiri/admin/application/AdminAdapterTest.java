@@ -5,10 +5,6 @@ import com.aratiri.admin.application.port.out.LightningNodeAdminPort;
 import com.aratiri.admin.application.port.out.NodeSettingsPort;
 import com.aratiri.admin.application.port.out.TransactionStatsPort;
 import com.aratiri.admin.domain.NodeSettings;
-import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
-import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
-import com.aratiri.infrastructure.persistence.jpa.repository.NodeOperationsRepository;
 import com.aratiri.errors.ApplicationException;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -24,7 +20,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -42,9 +37,6 @@ class AdminAdapterTest {
     @Mock
     private NodeSettingsPort nodeSettingsPort;
 
-    @Mock
-    private NodeOperationsRepository nodeOperationsRepository;
-
     private AdminAdapter adminAdapter;
 
     @BeforeEach
@@ -52,8 +44,7 @@ class AdminAdapterTest {
         adminAdapter = new AdminAdapter(
                 lightningNodeAdminPort,
                 transactionStatsPort,
-                nodeSettingsPort,
-                nodeOperationsRepository
+                nodeSettingsPort
         );
     }
 
@@ -307,32 +298,6 @@ class AdminAdapterTest {
     }
 
     @Test
-    void listNodeOperations_returnsMappedDtos() {
-        UUID id = UUID.randomUUID();
-        NodeOperationEntity entity = NodeOperationEntity.builder()
-                .operationType(NodeOperationType.LIGHTNING_PAYMENT)
-                .status(NodeOperationStatus.PENDING)
-                .transactionId("tx-001")
-                .userId("user-1")
-                .referenceId("ref-1")
-                .attemptCount(1)
-                .requestPayload("{}")
-                .nextAttemptAt(Instant.now())
-                .createdAt(Instant.now())
-                .updatedAt(Instant.now())
-                .id(id)
-                .build();
-
-        when(nodeOperationsRepository.findByFilters(isNull(), isNull(), isNull(), any()))
-                .thenReturn(List.of(entity));
-
-        List<NodeOperationResponseDTO> results = adminAdapter.listNodeOperations(null, null, null, 10);
-        assertEquals(1, results.size());
-        assertEquals("LIGHTNING_PAYMENT", results.get(0).getOperationType());
-        assertEquals("PENDING", results.get(0).getStatus());
-    }
-
-    @Test
     void listChannels_returnsMappedDto() {
         Channel channel = Channel.newBuilder()
                 .setChannelPoint("tx:0")
@@ -433,67 +398,5 @@ class AdminAdapterTest {
         RemotesResponseDTO result = adminAdapter.listNodes();
         assertEquals(1, result.getNodes().size());
         assertEquals("pk1", result.getNodes().get(0).getPubKey());
-    }
-
-    @Test
-    void listNodeOperations_withCompletedAt_returnsMappedDtoWithCompletedAt() {
-        Instant now = Instant.now();
-        Instant completed = now.plusSeconds(60);
-        UUID id = UUID.randomUUID();
-        NodeOperationEntity entity = NodeOperationEntity.builder()
-                .operationType(NodeOperationType.LIGHTNING_PAYMENT)
-                .status(NodeOperationStatus.SUCCEEDED)
-                .transactionId("tx-002")
-                .userId("user-2")
-                .referenceId("ref-2")
-                .externalId("ext-2")
-                .attemptCount(2)
-                .lastError(null)
-                .requestPayload("{}")
-                .nextAttemptAt(now)
-                .createdAt(now)
-                .updatedAt(now)
-                .completedAt(completed)
-                .id(id)
-                .build();
-
-        when(nodeOperationsRepository.findByFilters(isNull(), isNull(), isNull(), any()))
-                .thenReturn(List.of(entity));
-
-        List<NodeOperationResponseDTO> results = adminAdapter.listNodeOperations(null, null, null, 10);
-        assertEquals(1, results.size());
-        assertEquals("SUCCEEDED", results.get(0).getStatus());
-        assertNotNull(results.get(0).getCompletedAt());
-        assertEquals("ext-2", results.get(0).getExternalId());
-    }
-
-    @Test
-    void listNodeOperations_withFilters_appliesFilters() {
-        UUID id = UUID.randomUUID();
-        NodeOperationEntity entity = NodeOperationEntity.builder()
-                .operationType(NodeOperationType.ONCHAIN_SEND)
-                .status(NodeOperationStatus.FAILED)
-                .transactionId("tx-003")
-                .userId("user-3")
-                .attemptCount(1)
-                .requestPayload("{}")
-                .nextAttemptAt(Instant.now())
-                .createdAt(Instant.now())
-                .updatedAt(Instant.now())
-                .id(id)
-                .build();
-
-        when(nodeOperationsRepository.findByFilters(
-                eq(NodeOperationStatus.FAILED),
-                eq(NodeOperationType.ONCHAIN_SEND),
-                eq("tx-003"),
-                any()))
-                .thenReturn(List.of(entity));
-
-        List<NodeOperationResponseDTO> results = adminAdapter.listNodeOperations(
-                NodeOperationStatus.FAILED, NodeOperationType.ONCHAIN_SEND, "tx-003", 10);
-        assertEquals(1, results.size());
-        assertEquals("ONCHAIN_SEND", results.get(0).getOperationType());
-        assertEquals("FAILED", results.get(0).getStatus());
     }
 }

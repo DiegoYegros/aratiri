@@ -50,10 +50,10 @@ class KafkaDeadLetterIntegrationTest extends AbstractIntegrationTest {
     private ConsumerFactory<String, String> consumerFactory;
 
     @Test
-    @DisplayName("Poison message on payment.initiated is dead-lettered instead of wedging the partition")
+    @DisplayName("Poison message on onchain.transaction.received is dead-lettered instead of wedging the partition")
     void poisonMessageLandsInDeadLetterTopic() throws Exception {
         String poisonPayload = "{poison-" + UUID.randomUUID();
-        String dltTopic = KafkaTopicNames.PAYMENT_INITIATED + ".DLT";
+        String dltTopic = KafkaTopicNames.ONCHAIN_TRANSACTION_RECEIVED + ".DLT";
 
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
@@ -66,7 +66,8 @@ class KafkaDeadLetterIntegrationTest extends AbstractIntegrationTest {
         try (Consumer<String, String> dltConsumer = new org.apache.kafka.clients.consumer.KafkaConsumer<>(props)) {
             dltConsumer.subscribe(Collections.singletonList(dltTopic));
 
-            kafkaTemplate.send(KafkaTopicNames.PAYMENT_INITIATED, "poison-" + UUID.randomUUID(), poisonPayload).get();
+            kafkaTemplate.send(KafkaTopicNames.ONCHAIN_TRANSACTION_RECEIVED,
+                    "poison-" + UUID.randomUUID(), poisonPayload).get();
 
             // The shared DefaultErrorHandler retries twice (1s apart) before publishing to the DLT.
             long deadline = System.nanoTime() + Duration.ofSeconds(60).toNanos();

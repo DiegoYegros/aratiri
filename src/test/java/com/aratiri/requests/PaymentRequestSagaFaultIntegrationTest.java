@@ -7,18 +7,15 @@ import com.aratiri.auth.application.dto.AuthResponseDTO;
 import com.aratiri.auth.application.dto.RegistrationRequestDTO;
 import com.aratiri.auth.application.dto.VerificationRequestDTO;
 import com.aratiri.auth.application.port.out.EmailNotificationPort;
-import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.PaymentRequestEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountEntryRepository;
-import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.PaymentRequestRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
 import com.aratiri.invoices.application.InvoiceStateUpdate;
-import com.aratiri.invoices.application.event.InvoiceSettledEvent;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.invoices.application.port.out.LightningNodePort;
 import com.aratiri.invoices.domain.InvoiceCancelOutcome;
@@ -27,9 +24,10 @@ import com.aratiri.invoices.domain.LightningInvoiceCreation;
 import com.aratiri.invoices.domain.LightningNodeInvoice;
 import com.aratiri.payments.application.invoice.InvoiceProcessorService;
 import com.aratiri.payments.domain.LightningInvoiceUpdate;
+import com.aratiri.requests.application.PaymentRequestIntentService;
 import com.aratiri.requests.application.PaymentRequestSagaService;
+import com.aratiri.requests.domain.PaymentRequest;
 import com.aratiri.requests.application.dto.CreatePaymentRequestDTO;
-import com.aratiri.requests.application.port.in.PaymentRequestsPort;
 import com.aratiri.transactions.application.InvoiceCreditSettlement;
 import com.aratiri.transactions.application.TransactionSettlementModule;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,11 +41,12 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -76,7 +75,7 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private PaymentRequestSagaService sagaService;
     @Autowired
-    private PaymentRequestsPort paymentRequestsPort;
+    private PaymentRequestIntentService intentService;
     @Autowired
     private com.aratiri.requests.application.port.out.PaymentRequestPersistencePort persistencePort;
     @Autowired
@@ -88,15 +87,11 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private InvoiceProcessorService invoiceProcessorService;
     @Autowired
-    private OutboxEventRepository outboxEventRepository;
-    @Autowired
     private TransactionsRepository transactionRepository;
     @Autowired
     private AccountEntryRepository accountEntryRepository;
     @Autowired
     private JdbcTemplate jdbcTemplate;
-    @Autowired
-    private com.aratiri.infrastructure.messaging.outbox.OutboxWriter outboxWriter;
     @Autowired
     private TransactionSettlementModule transactionSettlementModule;
 
@@ -136,20 +131,16 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
                     return new LightningInvoiceCreation(bolt11, paymentHash, expiry);
                 });
 
-        // Persist intent without completing provision by forcing create failure on request thread.
-        Map<?, ?> created = webTestClient().post().uri("/v1/payment-requests")
-                .header("Authorization", "Bearer " + ownerToken)
-                .header("Idempotency-Key", "fault-timeout-1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(createBody(2100, "Timeout recover", 900))
-                .exchange()
-                .expectStatus().isAccepted()
-                .expectBody(Map.class)
-                .returnResult().getResponseBody();
-        assertNotNull(created);
-        String publicId = (String) created.get("public_id");
-        PaymentRequestEntity pending = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
+        // Persist intent without any Kafka publish; drive the saga directly.
+        String userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM aratiri.users WHERE email = ?", String.class, "owner-saga-fault@example.com");
+        assertNotNull(userId);
+        PaymentRequest committed = commitProvisioningIntent(userId, "fault-timeout-1", 2100, "Timeout recover", 900);
+        PaymentRequestEntity pending = paymentRequestRepository.findById(committed.id()).orElseThrow();
         assertEquals("PROVISIONING", pending.getStatus());
+
+        // First worker attempt mints then fails ("timeout after accept"); retry scheduled in DB.
+        sagaService.tryProvision(committed.id());
         assertEquals(1, creates.get());
         assertTrue(lndInvoices.containsKey(pending.getPaymentHash()));
 
@@ -165,7 +156,7 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
         // Worker recovers by lookup — must not mint again.
         sagaService.tryProvision(pending.getId());
 
-        PaymentRequestEntity open = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
+        PaymentRequestEntity open = paymentRequestRepository.findById(committed.id()).orElseThrow();
         assertEquals("OPEN", open.getStatus());
         assertNotNull(open.getPaymentRequest());
         assertEquals(1, creates.get(), "lookup recovery must not mint a second invoice");
@@ -189,18 +180,12 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
                     return new LightningInvoiceCreation(bolt11, paymentHash, expiry);
                 });
 
-        Map<?, ?> created = webTestClient().post().uri("/v1/payment-requests")
-                .header("Authorization", "Bearer " + ownerToken)
-                .header("Idempotency-Key", "fault-finalize-1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(createBody(2200, "Finalize heal", 900))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(Map.class)
-                .returnResult().getResponseBody();
-        assertNotNull(created);
-        String publicId = (String) created.get("public_id");
-        PaymentRequestEntity entity = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
+        String userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM aratiri.users WHERE email = ?", String.class, "owner-saga-fault@example.com");
+        assertNotNull(userId);
+        PaymentRequest committed = commitProvisioningIntent(userId, "fault-finalize-1", 2200, "Finalize heal", 900);
+        sagaService.tryProvision(committed.id());
+        PaymentRequestEntity entity = paymentRequestRepository.findById(committed.id()).orElseThrow();
 
         // Simulate crash after LND mint: roll request back to PROVISIONING without BOLT11 locally.
         jdbcTemplate.update("""
@@ -218,7 +203,7 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
 
         sagaService.tryProvision(entity.getId());
 
-        PaymentRequestEntity healed = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
+        PaymentRequestEntity healed = paymentRequestRepository.findById(committed.id()).orElseThrow();
         assertEquals("OPEN", healed.getStatus());
         assertNotNull(healed.getPaymentRequest());
         assertEquals(1, creates.get(), "recovery must reuse existing LND invoice");
@@ -260,22 +245,18 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
                     return new LightningInvoiceCreation(bolt11, paymentHash, expiry);
                 });
 
-        // Commit PROVISIONING intent without completing provision: block first create path via lookup wait.
-        // First force intent-only by making immediate tryProvision hang; use direct port create with blocked mock.
+        // Commit PROVISIONING intent without any Kafka publish; drive the saga directly.
         String userId = jdbcTemplate.queryForObject(
                 "SELECT id FROM aratiri.users WHERE email = ?", String.class, "owner-saga-fault@example.com");
         assertNotNull(userId);
+        PaymentRequest committed = commitProvisioningIntent(userId, "fault-cancel-race-1", 2300, "Race", 900);
+        PaymentRequestEntity provisioning = paymentRequestRepository.findById(committed.id()).orElseThrow();
+        assertEquals("PROVISIONING", provisioning.getStatus());
 
-        Thread provisioner = new Thread(() -> paymentRequestsPort.create(userId, "fault-cancel-race-1", createBody(2300, "Race", 900)),
+        Thread provisioner = new Thread(() -> sagaService.tryProvision(committed.id()),
                 "provisioner-race");
         provisioner.start();
         assertTrue(lookupStarted.await(15, TimeUnit.SECONDS), "provisioner never reached lookup");
-
-        PaymentRequestEntity provisioning = paymentRequestRepository.findAll().stream()
-                .filter(r -> "fault-cancel-race-1".equals(r.getIdempotencyKey()))
-                .findFirst()
-                .orElseThrow();
-        assertEquals("PROVISIONING", provisioning.getStatus());
 
         // Cancel while provisioner is between lookup and AddInvoice.
         webTestClient().post().uri("/v1/payment-requests/" + provisioning.getPublicId() + "/cancel")
@@ -324,18 +305,12 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("Crash after LND cancel before DB finalize is healed by cancel worker retry")
     void cancel_crashAfterLndCancelBeforeDbFinalize_retriesToCancelled() {
-        Map<?, ?> created = webTestClient().post().uri("/v1/payment-requests")
-                .header("Authorization", "Bearer " + ownerToken)
-                .header("Idempotency-Key", "fault-cancel-crash-1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(createBody(2400, "Cancel crash", 900))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(Map.class)
-                .returnResult().getResponseBody();
-        assertNotNull(created);
-        String publicId = (String) created.get("public_id");
-        PaymentRequestEntity open = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
+        String userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM aratiri.users WHERE email = ?", String.class, "owner-saga-fault@example.com");
+        assertNotNull(userId);
+        PaymentRequest committed = commitProvisioningIntent(userId, "fault-cancel-crash-1", 2400, "Cancel crash", 900);
+        sagaService.tryProvision(committed.id());
+        PaymentRequestEntity open = paymentRequestRepository.findById(committed.id()).orElseThrow();
 
         // Simulate CANCEL_PENDING after LND already canceled, before DB finalize.
         LightningNodeInvoice node = lndInvoices.get(open.getPaymentHash());
@@ -353,7 +328,7 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
 
         sagaService.tryCancel(open.getId());
 
-        PaymentRequestEntity cancelled = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
+        PaymentRequestEntity cancelled = paymentRequestRepository.findById(committed.id()).orElseThrow();
         assertEquals("CANCELLED", cancelled.getStatus());
         assertNotNull(cancelled.getCancelledAt());
     }
@@ -362,18 +337,13 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("Admin FAILED requeue is conditional and does not overwrite PAID")
     void adminRequeue_doesNotOverwritePaid() {
-        Map<?, ?> created = webTestClient().post().uri("/v1/payment-requests")
-                .header("Authorization", "Bearer " + ownerToken)
-                .header("Idempotency-Key", "fault-requeue-paid-1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(createBody(2550, "Requeue paid fence", 900))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(Map.class)
-                .returnResult().getResponseBody();
-        assertNotNull(created);
-        String publicId = (String) created.get("public_id");
-        PaymentRequestEntity entity = paymentRequestRepository.findByPublicId(publicId).orElseThrow();
+        String userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM aratiri.users WHERE email = ?", String.class, "owner-saga-fault@example.com");
+        assertNotNull(userId);
+        PaymentRequest committed = commitProvisioningIntent(userId, "fault-requeue-paid-1", 2550, "Requeue paid fence", 900);
+        sagaService.tryProvision(committed.id());
+        PaymentRequestEntity entity = paymentRequestRepository.findById(committed.id()).orElseThrow();
+        String publicId = entity.getPublicId();
 
         jdbcTemplate.update("""
                 UPDATE aratiri.payment_requests
@@ -416,17 +386,12 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("Stale OPEN finalize after cancel does not materialize local invoice")
     void finalizeOpen_afterCancel_skipsLocalInvoiceUpsert() {
-        Map<?, ?> created = webTestClient().post().uri("/v1/payment-requests")
-                .header("Authorization", "Bearer " + ownerToken)
-                .header("Idempotency-Key", "fault-stale-open-finalize-1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(createBody(2575, "Stale open finalize", 900))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(Map.class)
-                .returnResult().getResponseBody();
-        assertNotNull(created);
-        PaymentRequestEntity entity = paymentRequestRepository.findByPublicId((String) created.get("public_id")).orElseThrow();
+        String userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM aratiri.users WHERE email = ?", String.class, "owner-saga-fault@example.com");
+        assertNotNull(userId);
+        PaymentRequest committed = commitProvisioningIntent(userId, "fault-stale-open-finalize-1", 2575, "Stale open finalize", 900);
+        sagaService.tryProvision(committed.id());
+        PaymentRequestEntity entity = paymentRequestRepository.findById(committed.id()).orElseThrow();
 
         // Wipe local invoice so upsert would create one if the fence failed.
         if (entity.getInvoiceId() != null) {
@@ -449,7 +414,9 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
         assertEquals(1, persistencePort.markCancelPendingIfPayable(
                 entity.getPublicId(), entity.getUserId(), now));
         PaymentRequestEntity cancelPending = paymentRequestRepository.findById(entity.getId()).orElseThrow();
-        assertEquals("CANCEL_PENDING", cancelPending.getStatus());
+        // Async contract: the 1s saga job backstop may have already completed the cancel.
+        assertTrue(Set.of("CANCEL_PENDING", "CANCELLED").contains(cancelPending.getStatus()),
+                "cancel must leave non-payable status, was " + cancelPending.getStatus());
         assertNull(cancelPending.getProvisionLockedBy());
 
         var domain = persistencePort.findById(entity.getId()).orElseThrow();
@@ -465,7 +432,8 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
         assertTrue(lightningInvoiceRepository.findByPaymentHash(entity.getPaymentHash()).isEmpty(),
                 "stale OPEN finalize must not upsert a local lightning invoice");
         PaymentRequestEntity after = paymentRequestRepository.findById(entity.getId()).orElseThrow();
-        assertEquals("CANCEL_PENDING", after.getStatus());
+        assertTrue(Set.of("CANCEL_PENDING", "CANCELLED").contains(after.getStatus()),
+                "cancel must leave non-payable status, was " + after.getStatus());
         assertNull(after.getPaymentRequest());
         assertNull(after.getInvoiceId());
     }
@@ -474,17 +442,12 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("Stale provision worker cannot overwrite a newer claim after lease expiry")
     void provision_staleWorkerCannotOverwriteNewerClaim() {
-        Map<?, ?> created = webTestClient().post().uri("/v1/payment-requests")
-                .header("Authorization", "Bearer " + ownerToken)
-                .header("Idempotency-Key", "fault-lease-1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(createBody(2500, "Lease fence", 900))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(Map.class)
-                .returnResult().getResponseBody();
-        assertNotNull(created);
-        PaymentRequestEntity entity = paymentRequestRepository.findByPublicId((String) created.get("public_id")).orElseThrow();
+        String userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM aratiri.users WHERE email = ?", String.class, "owner-saga-fault@example.com");
+        assertNotNull(userId);
+        PaymentRequest committed = commitProvisioningIntent(userId, "fault-lease-1", 2500, "Lease fence", 900);
+        sagaService.tryProvision(committed.id());
+        PaymentRequestEntity entity = paymentRequestRepository.findById(committed.id()).orElseThrow();
 
         // Force back to PROVISIONING with an active stale claim token.
         jdbcTemplate.update("""
@@ -529,17 +492,12 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("Stale cancel worker cannot overwrite a newer cancel claim after lease expiry")
     void cancel_staleWorkerCannotOverwriteNewerClaim() {
-        Map<?, ?> created = webTestClient().post().uri("/v1/payment-requests")
-                .header("Authorization", "Bearer " + ownerToken)
-                .header("Idempotency-Key", "fault-lease-cancel-1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(createBody(2600, "Cancel lease", 900))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(Map.class)
-                .returnResult().getResponseBody();
-        assertNotNull(created);
-        PaymentRequestEntity entity = paymentRequestRepository.findByPublicId((String) created.get("public_id")).orElseThrow();
+        String userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM aratiri.users WHERE email = ?", String.class, "owner-saga-fault@example.com");
+        assertNotNull(userId);
+        PaymentRequest committed = commitProvisioningIntent(userId, "fault-lease-cancel-1", 2600, "Cancel lease", 900);
+        sagaService.tryProvision(committed.id());
+        PaymentRequestEntity entity = paymentRequestRepository.findById(committed.id()).orElseThrow();
 
         jdbcTemplate.update("""
                 UPDATE aratiri.payment_requests
@@ -571,19 +529,14 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    @DisplayName("Duplicate settlement/recovery paths produce one outbox event, one credit tx, one ledger entry")
-    void duplicateSettlementPaths_singleOutboxCreditAndLedger() {
-        Map<?, ?> created = webTestClient().post().uri("/v1/payment-requests")
-                .header("Authorization", "Bearer " + ownerToken)
-                .header("Idempotency-Key", "fault-dup-settle-1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(createBody(2700, "Dup settle", 900))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(Map.class)
-                .returnResult().getResponseBody();
-        assertNotNull(created);
-        PaymentRequestEntity entity = paymentRequestRepository.findByPublicId((String) created.get("public_id")).orElseThrow();
+    @DisplayName("Duplicate settlement/recovery paths produce one invoice.settled event, one credit tx, one ledger entry")
+    void duplicateSettlementPaths_singleEventCreditAndLedger() {
+        String userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM aratiri.users WHERE email = ?", String.class, "owner-saga-fault@example.com");
+        assertNotNull(userId);
+        PaymentRequest committed = commitProvisioningIntent(userId, "fault-dup-settle-1", 2700, "Dup settle", 900);
+        sagaService.tryProvision(committed.id());
+        PaymentRequestEntity entity = paymentRequestRepository.findById(committed.id()).orElseThrow();
 
         LightningInvoiceUpdate update = new LightningInvoiceUpdate(
                 entity.getPaymentRequest(),
@@ -594,31 +547,20 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
                 200L
         );
         invoiceProcessorService.processInvoiceUpdate(update);
-        // Recovery / replay paths
+        // Recovery / replay paths: the invoice is already SETTLED locally, so the settlement port
+        // returns no new publication and no duplicate event is produced.
         invoiceSettlementPort.recordInvoiceStateUpdate(new InvoiceStateUpdate(
                 entity.getPaymentRequest(),
                 entity.getPaymentHash(),
                 InvoiceStateUpdate.State.SETTLED,
                 entity.getAmountSats()
         ));
-        outboxWriter.publishInvoiceSettled(
-                entity.getInvoiceId(),
-                new InvoiceSettledEvent(
-                        entity.getUserId(),
-                        entity.getAmountSats(),
-                        entity.getPaymentHash(),
-                        LocalDateTime.now(),
-                        entity.getMemo()
-                )
-        );
         invoiceProcessorService.processInvoiceUpdate(update);
 
-        List<OutboxEventEntity> settledOutbox = outboxEventRepository.findAll().stream()
-                .filter(e -> "Invoice".equals(e.getAggregateType()))
-                .filter(e -> KafkaTopics.INVOICE_SETTLED.getCode().equals(e.getEventType()))
-                .filter(e -> entity.getInvoiceId().equals(e.getAggregateId()))
-                .toList();
-        assertEquals(1, settledOutbox.size(), "exactly one invoice.settled outbox row");
+        assertEquals(1, pollKafkaRecords(KafkaTopicNames.INVOICE_SETTLED, Duration.ofSeconds(15)).stream()
+                        .filter(consumerRecord -> entity.getInvoiceId().equals(consumerRecord.key()))
+                        .count(),
+                "exactly one invoice.settled record for the invoice");
 
         transactionSettlementModule.settleInvoiceCredit(new InvoiceCreditSettlement(
                 entity.getUserId(),
@@ -651,17 +593,11 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Expired provisioning intent converges to FAILED without exposing BOLT11")
     void provision_expiredIntent_terminalFailedNoBolt11() {
-        Map<?, ?> created = webTestClient().post().uri("/v1/payment-requests")
-                .header("Authorization", "Bearer " + ownerToken)
-                .header("Idempotency-Key", "fault-expired-1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(createBody(2800, "Expire intent", 900))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(Map.class)
-                .returnResult().getResponseBody();
-        assertNotNull(created);
-        PaymentRequestEntity entity = paymentRequestRepository.findByPublicId((String) created.get("public_id")).orElseThrow();
+        String userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM aratiri.users WHERE email = ?", String.class, "owner-saga-fault@example.com");
+        assertNotNull(userId);
+        PaymentRequest committed = commitProvisioningIntent(userId, "fault-expired-1", 2800, "Expire intent", 900);
+        PaymentRequestEntity entity = paymentRequestRepository.findById(committed.id()).orElseThrow();
 
         jdbcTemplate.update("""
                 UPDATE aratiri.payment_requests
@@ -742,6 +678,30 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
                 .returnResult().getResponseBody();
         assertNotNull(tokens);
         return tokens.getAccessToken();
+    }
+
+    private PaymentRequest commitProvisioningIntent(String userId, String idempotencyKey, long amount, String memo, long expiresInSeconds) {
+        CreatePaymentRequestDTO dto = createBody(amount, memo, expiresInSeconds);
+        return intentService.commitIntent(userId, idempotencyKey, dto, payloadHash(dto), normalizeMemo(memo)).request();
+    }
+
+    private static String payloadHash(CreatePaymentRequestDTO dto) {
+        String memo = normalizeMemo(dto.getMemo());
+        String canonical = dto.getAmountSats() + ":" + (memo == null ? "" : memo) + ":" + dto.getExpiresInSeconds();
+        try {
+            return java.util.HexFormat.of().formatHex(
+                    java.security.MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static String normalizeMemo(String memo) {
+        if (memo == null) {
+            return null;
+        }
+        String trimmed = memo.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private static CreatePaymentRequestDTO createBody(long amount, String memo, long expiresInSeconds) {

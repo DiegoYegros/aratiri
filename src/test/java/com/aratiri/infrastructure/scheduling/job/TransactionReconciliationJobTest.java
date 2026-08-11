@@ -7,12 +7,14 @@ import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsReposit
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.payments.domain.LightningPayment;
 import com.aratiri.payments.domain.LightningPaymentStatus;
+import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.List;
@@ -44,29 +46,35 @@ class TransactionReconciliationJobTest {
         job = new TransactionReconciliationJob(
                 transactionsRepository, nodeSettingsPort, paymentsPort, transactionsService);
         org.springframework.test.util.ReflectionTestUtils.setField(job, "batchSize", 100);
+        when(nodeSettingsPort.loadSettings())
+                .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
+    }
+
+    private void stubNoOnChainCandidates() {
+        when(transactionsRepository.findPendingOnChainTransactionsOlderThan(any(), any(Pageable.class)))
+                .thenReturn(List.of());
     }
 
     @Test
     void reconcilePendingPayments_noPendingTransactions() {
-        when(nodeSettingsPort.loadSettings())
-                .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
+        stubNoOnChainCandidates();
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(Pageable.class)))
                 .thenReturn(List.of());
 
         job.reconcilePendingPayments();
 
         verify(paymentsPort, never()).checkPaymentStatusOnNode(anyString());
+        verify(paymentsPort, never()).findOnChainTxIdByLabel(anyString());
     }
 
     @Test
     void reconcilePendingPayments_skipsWhenNoPaymentHash() {
+        stubNoOnChainCandidates();
         TransactionEntity tx = new TransactionEntity();
         tx.setId(java.util.UUID.randomUUID().toString());
         tx.setUserId("user-1");
 
-        when(nodeSettingsPort.loadSettings())
-                .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(Pageable.class)))
                 .thenReturn(List.of(tx));
 
         job.reconcilePendingPayments();
@@ -76,16 +84,16 @@ class TransactionReconciliationJobTest {
 
     @Test
     void reconcilePendingPayments_confirmsSucceededPayment() {
+        stubNoOnChainCandidates();
         TransactionEntity tx = new TransactionEntity();
         tx.setId(java.util.UUID.randomUUID().toString());
         tx.setUserId("user-1");
         tx.setReferenceId("deadbeef");
+        tx.setType(TransactionType.LIGHTNING_DEBIT);
 
         LightningPayment payment = lightningPayment(LightningPaymentStatus.SUCCEEDED);
 
-        when(nodeSettingsPort.loadSettings())
-                .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(Pageable.class)))
                 .thenReturn(List.of(tx));
         when(paymentsPort.checkPaymentStatusOnNode("deadbeef"))
                 .thenReturn(Optional.of(payment));
@@ -97,16 +105,16 @@ class TransactionReconciliationJobTest {
 
     @Test
     void reconcilePendingPayments_failsFailedPayment() {
+        stubNoOnChainCandidates();
         TransactionEntity tx = new TransactionEntity();
         tx.setId(java.util.UUID.randomUUID().toString());
         tx.setUserId("user-1");
         tx.setReferenceId("deadbeef");
+        tx.setType(TransactionType.LIGHTNING_DEBIT);
 
         LightningPayment payment = lightningPayment(LightningPaymentStatus.FAILED);
 
-        when(nodeSettingsPort.loadSettings())
-                .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(Pageable.class)))
                 .thenReturn(List.of(tx));
         when(paymentsPort.checkPaymentStatusOnNode("deadbeef"))
                 .thenReturn(Optional.of(payment));
@@ -118,14 +126,14 @@ class TransactionReconciliationJobTest {
 
     @Test
     void reconcilePendingPayments_failsWhenPaymentNotFound() {
+        stubNoOnChainCandidates();
         TransactionEntity tx = new TransactionEntity();
         tx.setId(java.util.UUID.randomUUID().toString());
         tx.setUserId("user-1");
         tx.setReferenceId("deadbeef");
+        tx.setType(TransactionType.LIGHTNING_DEBIT);
 
-        when(nodeSettingsPort.loadSettings())
-                .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(Pageable.class)))
                 .thenReturn(List.of(tx));
         when(paymentsPort.checkPaymentStatusOnNode("deadbeef"))
                 .thenReturn(Optional.empty());
@@ -137,18 +145,19 @@ class TransactionReconciliationJobTest {
 
     @Test
     void reconcilePendingPayments_reconcileHandlesExceptionPerTransaction() {
+        stubNoOnChainCandidates();
         TransactionEntity tx1 = new TransactionEntity();
         tx1.setId("tx-1");
         tx1.setUserId("user-1");
         tx1.setReferenceId("hash1");
+        tx1.setType(TransactionType.LIGHTNING_DEBIT);
         TransactionEntity tx2 = new TransactionEntity();
         tx2.setId("tx-2");
         tx2.setUserId("user-1");
         tx2.setReferenceId("hash2");
+        tx2.setType(TransactionType.LIGHTNING_DEBIT);
 
-        when(nodeSettingsPort.loadSettings())
-                .thenReturn(new NodeSettings(true, 60000L, Instant.now(), Instant.now()));
-        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(org.springframework.data.domain.Pageable.class)))
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(Pageable.class)))
                 .thenReturn(List.of(tx1, tx2));
         when(paymentsPort.checkPaymentStatusOnNode("hash1"))
                 .thenThrow(new RuntimeException("node error"));
@@ -158,6 +167,66 @@ class TransactionReconciliationJobTest {
         assertDoesNotThrow(() -> job.reconcilePendingPayments());
 
         verify(transactionsService).failTransaction(eq("tx-2"), anyString());
+    }
+
+    @Test
+    void reconcilePendingPayments_onChainDebitBroadcastFound_confirmsTransaction() {
+        TransactionEntity tx = new TransactionEntity();
+        tx.setId("tx-onchain");
+        tx.setUserId("user-1");
+        tx.setType(TransactionType.ONCHAIN_DEBIT);
+
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(Pageable.class)))
+                .thenReturn(List.of());
+        when(transactionsRepository.findPendingOnChainTransactionsOlderThan(any(), any(Pageable.class)))
+                .thenReturn(List.of(tx));
+        when(paymentsPort.findOnChainTxIdByLabel("aratiri-onchain-tx-onchain"))
+                .thenReturn(Optional.of("broadcast-txid"));
+
+        job.reconcilePendingPayments();
+
+        verify(transactionsService).confirmTransaction("tx-onchain", "user-1");
+        verify(transactionsService, never()).failTransaction(anyString(), anyString());
+    }
+
+    @Test
+    void reconcilePendingPayments_onChainDebitNotBroadcast_failsTransaction() {
+        TransactionEntity tx = new TransactionEntity();
+        tx.setId("tx-onchain");
+        tx.setUserId("user-1");
+        tx.setType(TransactionType.ONCHAIN_DEBIT);
+
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(Pageable.class)))
+                .thenReturn(List.of());
+        when(transactionsRepository.findPendingOnChainTransactionsOlderThan(any(), any(Pageable.class)))
+                .thenReturn(List.of(tx));
+        when(paymentsPort.findOnChainTxIdByLabel("aratiri-onchain-tx-onchain"))
+                .thenReturn(Optional.empty());
+
+        job.reconcilePendingPayments();
+
+        verify(transactionsService).failTransaction(eq("tx-onchain"), contains("aratiri-onchain-tx-onchain"));
+        verify(transactionsService, never()).confirmTransaction(anyString(), anyString());
+    }
+
+    @Test
+    void reconcilePendingPayments_onChainDebitLabelLookupError_isolatedPerTransaction() {
+        TransactionEntity tx = new TransactionEntity();
+        tx.setId("tx-onchain");
+        tx.setUserId("user-1");
+        tx.setType(TransactionType.ONCHAIN_DEBIT);
+
+        when(transactionsRepository.findPendingTransactionsOlderThan(any(), any(Pageable.class)))
+                .thenReturn(List.of());
+        when(transactionsRepository.findPendingOnChainTransactionsOlderThan(any(), any(Pageable.class)))
+                .thenReturn(List.of(tx));
+        when(paymentsPort.findOnChainTxIdByLabel("aratiri-onchain-tx-onchain"))
+                .thenThrow(new RuntimeException("node error"));
+
+        assertDoesNotThrow(() -> job.reconcilePendingPayments());
+
+        verify(transactionsService, never()).confirmTransaction(anyString(), anyString());
+        verify(transactionsService, never()).failTransaction(anyString(), anyString());
     }
 
     private LightningPayment lightningPayment(LightningPaymentStatus status) {

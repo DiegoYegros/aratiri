@@ -1,6 +1,7 @@
 package com.aratiri.payments.application;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.payments.application.command.LightningInvoicePaymentCommandService;
 import com.aratiri.payments.application.command.OnChainPaymentCommandService;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
@@ -14,8 +15,8 @@ import com.aratiri.payments.domain.*;
 import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.*;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
-import com.aratiri.webhooks.application.PaymentWebhookFacts;
-import com.aratiri.webhooks.application.WebhookEventService;
+import com.aratiri.webhooks.application.dto.WebhookPayloadData;
+import com.aratiri.webhooks.application.port.out.WebhookEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,16 +30,20 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class PaymentsAdapter implements PaymentsPort {
 
+    private static final String PAYMENT_ACCEPTED_EVENT_TYPE = "payment.accepted";
+    private static final String PAYMENT_ACCEPTED_AGGREGATE_TYPE = "TRANSACTION";
+    private static final String PAYMENT_ACCEPTED_STATUS = "PENDING";
+
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AccountsPort accountsPort;
     private final TransactionsPort transactionsPort;
     private final InvoicesPort invoicesPort;
     private final LightningNodePort lightningNodePort;
-    private final OutboxWriter outboxWriter;
+    private final EventPublisher eventPublisher;
     private final LightningInvoicePort lightningInvoicePort;
     private final LightningInvoicePaymentCommandService lightningInvoicePaymentCommand;
     private final OnChainPaymentCommandService onChainPaymentCommand;
-    private final WebhookEventService webhookEventService;
+    private final WebhookEventPublisher webhookEventPublisher;
     private final PaymentFeePolicy paymentFeePolicy;
     private final ExistingPaymentPolicy existingPaymentPolicy;
 
@@ -116,15 +121,23 @@ public class PaymentsAdapter implements PaymentsPort {
         PaymentInitiatedEvent eventPayload = new PaymentInitiatedEvent(userId, txDto.getId(), request);
         publishPaymentInitiated(txDto.getId(), eventPayload);
 
-        webhookEventService.createPaymentAcceptedEvent(PaymentWebhookFacts.accepted(
+        webhookEventPublisher.publishWebhookEvent(
+                PAYMENT_ACCEPTED_EVENT_TYPE + ":" + txDto.getId(),
+                PAYMENT_ACCEPTED_EVENT_TYPE,
+                PAYMENT_ACCEPTED_AGGREGATE_TYPE,
                 txDto.getId(),
                 userId,
-                TransactionType.LIGHTNING_DEBIT,
-                totalDebitSat,
-                paymentHash,
                 request.getExternalReference(),
-                request.getMetadata()
-        ));
+                WebhookPayloadData.builder()
+                        .transactionId(txDto.getId())
+                        .userId(userId)
+                        .externalReference(request.getExternalReference())
+                        .metadata(request.getMetadata())
+                        .amountSat(totalDebitSat)
+                        .status(PAYMENT_ACCEPTED_STATUS)
+                        .referenceId(paymentHash)
+                        .build()
+        );
 
         return PaymentResponseDTO.builder()
                 .transactionId(txDto.getId())
@@ -170,15 +183,23 @@ public class PaymentsAdapter implements PaymentsPort {
         );
         publishInternalTransferInitiated(txDto.getId(), eventPayload);
 
-        webhookEventService.createPaymentAcceptedEvent(PaymentWebhookFacts.accepted(
+        webhookEventPublisher.publishWebhookEvent(
+                PAYMENT_ACCEPTED_EVENT_TYPE + ":" + txDto.getId(),
+                PAYMENT_ACCEPTED_EVENT_TYPE,
+                PAYMENT_ACCEPTED_AGGREGATE_TYPE,
                 txDto.getId(),
                 senderId,
-                TransactionType.LIGHTNING_DEBIT,
-                amountSat,
-                decodedInvoice.paymentHash(),
                 request.getExternalReference(),
-                request.getMetadata()
-        ));
+                WebhookPayloadData.builder()
+                        .transactionId(txDto.getId())
+                        .userId(senderId)
+                        .externalReference(request.getExternalReference())
+                        .metadata(request.getMetadata())
+                        .amountSat(amountSat)
+                        .status(PAYMENT_ACCEPTED_STATUS)
+                        .referenceId(decodedInvoice.paymentHash())
+                        .build()
+        );
 
         return PaymentResponseDTO.builder()
                 .transactionId(txDto.getId())
@@ -193,6 +214,15 @@ public class PaymentsAdapter implements PaymentsPort {
             return lightningNodePort.findPayment(paymentHash);
         } catch (Exception e) {
             throw new ApplicationException("gRPC error checking payment status: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
+        }
+    }
+
+    @Override
+    public Optional<String> findOnChainTxIdByLabel(String label) {
+        try {
+            return lightningNodePort.findOnChainTxIdByLabel(label);
+        } catch (Exception e) {
+            throw new ApplicationException("gRPC error looking up on-chain transaction by label: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
     }
 
@@ -239,15 +269,23 @@ public class PaymentsAdapter implements PaymentsPort {
         OnChainPaymentInitiatedEvent eventPayload = new OnChainPaymentInitiatedEvent(userId, txDto.getId(), normalizedRequest);
         publishOnChainPaymentInitiated(txDto.getId(), eventPayload);
 
-        webhookEventService.createPaymentAcceptedEvent(PaymentWebhookFacts.accepted(
+        webhookEventPublisher.publishWebhookEvent(
+                PAYMENT_ACCEPTED_EVENT_TYPE + ":" + txDto.getId(),
+                PAYMENT_ACCEPTED_EVENT_TYPE,
+                PAYMENT_ACCEPTED_AGGREGATE_TYPE,
                 txDto.getId(),
                 userId,
-                TransactionType.ONCHAIN_DEBIT,
-                totalAmount,
-                null,
                 request.getExternalReference(),
-                request.getMetadata()
-        ));
+                WebhookPayloadData.builder()
+                        .transactionId(txDto.getId())
+                        .userId(userId)
+                        .externalReference(request.getExternalReference())
+                        .metadata(request.getMetadata())
+                        .amountSat(totalAmount)
+                        .status(PAYMENT_ACCEPTED_STATUS)
+                        .referenceId(null)
+                        .build()
+        );
 
         OnChainPaymentDTOs.SendOnChainResponseDTO response = new OnChainPaymentDTOs.SendOnChainResponseDTO();
         response.setTransactionId(txDto.getId());
@@ -279,30 +317,18 @@ public class PaymentsAdapter implements PaymentsPort {
     }
 
     private void publishPaymentInitiated(String transactionId, PaymentInitiatedEvent eventPayload) {
-        try {
-            outboxWriter.publishPaymentInitiated(transactionId, eventPayload);
-            logger.info("Saved payment initiated event to outbox for aggregateId: {}", transactionId);
-        } catch (Exception _) {
-            throw new ApplicationException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        }
+        eventPublisher.publish(KafkaTopicNames.PAYMENT_INITIATED, transactionId, eventPayload);
+        logger.info("Published payment initiated event to Kafka for transactionId: {}", transactionId);
     }
 
     private void publishOnChainPaymentInitiated(String transactionId, OnChainPaymentInitiatedEvent eventPayload) {
-        try {
-            outboxWriter.publishOnChainPaymentInitiated(transactionId, eventPayload);
-            logger.info("Saved on-chain payment initiated event to outbox for aggregateId: {}", transactionId);
-        } catch (Exception _) {
-            throw new ApplicationException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        }
+        eventPublisher.publish(KafkaTopicNames.ONCHAIN_PAYMENT_INITIATED, transactionId, eventPayload);
+        logger.info("Published on-chain payment initiated event to Kafka for transactionId: {}", transactionId);
     }
 
     private void publishInternalTransferInitiated(String transactionId, InternalTransferInitiatedEvent eventPayload) {
-        try {
-            outboxWriter.publishInternalTransferInitiated(transactionId, eventPayload);
-            logger.info("Saved internal transfer initiated event to outbox for aggregateId: {}", transactionId);
-        } catch (Exception _) {
-            throw new ApplicationException("Failed to create outbox event for payment workflow.", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        }
+        eventPublisher.publish(KafkaTopicNames.INTERNAL_TRANSFER_INITIATED, transactionId, eventPayload);
+        logger.info("Published internal transfer initiated event to Kafka for transactionId: {}", transactionId);
     }
 
     private OnChainPaymentDTOs.SendOnChainRequestDTO normalizeOnChainRequest(OnChainPaymentDTOs.SendOnChainRequestDTO request) {

@@ -45,9 +45,9 @@ public class PaymentRequestsAPI {
     @PostMapping
     @Operation(
             summary = "Create a payment request",
-            description = "Commits durable provisioning intent before LND AddInvoice. "
-                    + "Returns 201 when synchronously OPEN, 202 while PROVISIONING, "
-                    + "200 for same-key replay once OPEN/terminal, and 409 on payload conflict."
+            description = "Commits durable provisioning intent and returns 202 while provisioning runs "
+                    + "asynchronously (LND AddInvoice happens off the request thread). "
+                    + "Returns 200 for same-key replay once OPEN/terminal, and 409 on payload conflict."
     )
     public ResponseEntity<OwnerPaymentRequestDTO> create(
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -63,9 +63,6 @@ public class PaymentRequestsAPI {
                 .toUri();
 
         if (result.newlyCreated()) {
-            if ("OPEN".equals(body.getStatus())) {
-                return ResponseEntity.status(HttpStatus.CREATED).location(location).body(body);
-            }
             return ResponseEntity.accepted().location(location).body(body);
         }
 
@@ -100,8 +97,9 @@ public class PaymentRequestsAPI {
     @PostMapping("/{publicId}/cancel")
     @Operation(
             summary = "Cancel payment request",
-            description = "Durably transitions OPEN/PROVISIONING to CANCEL_PENDING (202), "
-                    + "replays CANCEL_PENDING as 202, returns 200 once CANCELLED, and 409 for PAID/EXPIRED/FAILED."
+            description = "Durably transitions OPEN/PROVISIONING to CANCEL_PENDING (202) and runs the "
+                    + "LND cancel asynchronously; replays CANCEL_PENDING as 202, returns 200 once "
+                    + "CANCELLED, and 409 for PAID/EXPIRED/FAILED."
     )
     public ResponseEntity<OwnerPaymentRequestDTO> cancel(
             @PathVariable String publicId,

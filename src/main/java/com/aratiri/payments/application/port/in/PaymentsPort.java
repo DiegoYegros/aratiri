@@ -15,6 +15,8 @@ public interface PaymentsPort {
 
     Optional<LightningPayment> checkPaymentStatusOnNode(String paymentHash);
 
+    Optional<String> findOnChainTxIdByLabel(String label);
+
     OnChainPaymentDTOs.SendOnChainResponseDTO sendOnChain(OnChainPaymentDTOs.SendOnChainRequestDTO request, String userId, String idempotencyKey);
 
     OnChainPaymentDTOs.EstimateFeeResponseDTO estimateOnChainFee(OnChainPaymentDTOs.EstimateFeeRequestDTO request, String userId);

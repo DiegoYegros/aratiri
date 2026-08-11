@@ -1,6 +1,7 @@
 package com.aratiri.payments.application.invoice;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.InvoiceSubscriptionState;
 import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.invoices.application.InvoiceSettledPublication;
@@ -25,14 +26,14 @@ public class InvoiceProcessorService {
     private static final Logger logger = LoggerFactory.getLogger(InvoiceProcessorService.class);
 
     private final InvoiceSettlementPort invoiceSettlementPort;
-    private final OutboxWriter outboxWriter;
+    private final EventPublisher eventPublisher;
     private final InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
 
     public InvoiceProcessorService(InvoiceSettlementPort invoiceSettlementPort,
-                                   OutboxWriter outboxWriter,
+                                   EventPublisher eventPublisher,
                                    InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository) {
         this.invoiceSettlementPort = invoiceSettlementPort;
-        this.outboxWriter = outboxWriter;
+        this.eventPublisher = eventPublisher;
         this.invoiceSubscriptionStateRepository = invoiceSubscriptionStateRepository;
     }
 
@@ -48,7 +49,7 @@ public class InvoiceProcessorService {
         if (result.stateChanged()) {
             result.settledPublication().ifPresent(publication -> {
                 saveInvoiceSettledEvent(publication);
-                logger.info("Saved INVOICE_SETTLED event to outbox for invoiceId: {}", publication.invoiceId());
+                logger.info("Published INVOICE_SETTLED event to Kafka for invoiceId: {}", publication.invoiceId());
             });
         }
 
@@ -65,9 +66,9 @@ public class InvoiceProcessorService {
 
     private void saveInvoiceSettledEvent(InvoiceSettledPublication publication) {
         try {
-            outboxWriter.publishInvoiceSettled(publication.invoiceId(), publication.event());
+            eventPublisher.publish(KafkaTopicNames.INVOICE_SETTLED, publication.invoiceId(), publication.event());
         } catch (Exception e) {
-            throw new ApplicationException("Failed to create outbox event for settled invoice.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
+            throw new ApplicationException("Failed to publish event for settled invoice.", HttpStatus.INTERNAL_SERVER_ERROR.value(), e);
         }
     }
 

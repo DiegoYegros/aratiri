@@ -1,6 +1,7 @@
 package com.aratiri.requests.application;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.invoices.application.InvoiceSettledPublication;
 import com.aratiri.invoices.application.InvoiceStateUpdate;
 import com.aratiri.invoices.application.InvoiceStateUpdateResult;
@@ -12,7 +13,8 @@ import com.aratiri.requests.application.port.out.PaymentRequestPersistencePort;
 import com.aratiri.requests.domain.PaymentRequest;
 import com.aratiri.requests.domain.PaymentRequestStatus;
 import com.aratiri.webhooks.application.InvoiceCreatedWebhookFacts;
-import com.aratiri.webhooks.application.WebhookEventService;
+import com.aratiri.webhooks.application.dto.WebhookPayloadData;
+import com.aratiri.webhooks.application.port.out.WebhookEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -32,24 +34,24 @@ public class PaymentRequestProvisioningFinalizer {
 
     private final PaymentRequestPersistencePort persistencePort;
     private final LightningInvoicePersistencePort lightningInvoicePersistencePort;
-    private final WebhookEventService webhookEventService;
+    private final WebhookEventPublisher webhookEventPublisher;
     private final InvoiceSettlementPort invoiceSettlementPort;
-    private final OutboxWriter outboxWriter;
+    private final EventPublisher eventPublisher;
     private final Clock clock;
 
     public PaymentRequestProvisioningFinalizer(
             PaymentRequestPersistencePort persistencePort,
             LightningInvoicePersistencePort lightningInvoicePersistencePort,
-            WebhookEventService webhookEventService,
+            WebhookEventPublisher webhookEventPublisher,
             InvoiceSettlementPort invoiceSettlementPort,
-            OutboxWriter outboxWriter,
+            EventPublisher eventPublisher,
             Clock clock
     ) {
         this.persistencePort = persistencePort;
         this.lightningInvoicePersistencePort = lightningInvoicePersistencePort;
-        this.webhookEventService = webhookEventService;
+        this.webhookEventPublisher = webhookEventPublisher;
         this.invoiceSettlementPort = invoiceSettlementPort;
-        this.outboxWriter = outboxWriter;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -63,7 +65,7 @@ public class PaymentRequestProvisioningFinalizer {
             String provisionLockedBy
     ) {
         if (nodeState == LightningInvoice.InvoiceState.SETTLED) {
-            // SETTLED recovery: upsert-first so local invoice exists before settlement/outbox.
+            // SETTLED recovery: upsert-first so local invoice exists before settlement/publish.
             LightningInvoice local = upsertLocalInvoice(request, bolt11, expirySeconds);
             InvoiceStateUpdateResult result = invoiceSettlementPort.recordInvoiceStateUpdate(new InvoiceStateUpdate(
                     bolt11,
@@ -74,8 +76,8 @@ public class PaymentRequestProvisioningFinalizer {
             result.settledPublication().ifPresentOrElse(
                     this::publishSettled,
                     // Local invoice already SETTLED (or settlement returned no publication):
-                    // ensure deterministic invoice-settled outbox before/with request PAID.
-                    () -> ensureSettledOutboxAndPaid(request, local)
+                    // ensure deterministic invoice-settled publish before/with request PAID.
+                    () -> ensureSettledPublishAndPaid(request, local)
             );
             logger.info(
                     "Provisioning recovered SETTLED LND invoice for paymentHash={}",
@@ -124,7 +126,7 @@ public class PaymentRequestProvisioningFinalizer {
         );
     }
 
-    private void ensureSettledOutboxAndPaid(PaymentRequest request, LightningInvoice local) {
+    private void ensureSettledPublishAndPaid(PaymentRequest request, LightningInvoice local) {
         LightningInvoice invoice = lightningInvoicePersistencePort.findByPaymentHash(request.paymentHash())
                 .orElse(local);
         if (invoice.invoiceState() != LightningInvoice.InvoiceState.SETTLED) {
@@ -139,12 +141,12 @@ public class PaymentRequestProvisioningFinalizer {
                 LocalDateTime.now(clock),
                 invoice.memo()
         );
-        outboxWriter.publishInvoiceSettled(invoice.id(), event);
+        eventPublisher.publish(KafkaTopicNames.INVOICE_SETTLED, invoice.id(), event);
         persistencePort.markPaidByPaymentHash(request.paymentHash(), clock.instant());
     }
 
     private void publishSettled(InvoiceSettledPublication publication) {
-        outboxWriter.publishInvoiceSettled(publication.invoiceId(), publication.event());
+        eventPublisher.publish(KafkaTopicNames.INVOICE_SETTLED, publication.invoiceId(), publication.event());
     }
 
     private LightningInvoice upsertLocalInvoice(PaymentRequest request, String bolt11, long expirySeconds) {
@@ -189,7 +191,25 @@ public class PaymentRequestProvisioningFinalizer {
                 null
         );
         LightningInvoice saved = lightningInvoicePersistencePort.save(created);
-        webhookEventService.createInvoiceCreatedEvent(InvoiceCreatedWebhookFacts.from(saved));
+        InvoiceCreatedWebhookFacts facts = InvoiceCreatedWebhookFacts.from(saved);
+        webhookEventPublisher.publishWebhookEvent(
+                "invoice.created:" + facts.paymentHash(),
+                "invoice.created",
+                "INVOICE",
+                facts.invoiceId(),
+                facts.userId(),
+                facts.externalReference(),
+                WebhookPayloadData.builder()
+                        .invoiceId(facts.invoiceId())
+                        .userId(facts.userId())
+                        .externalReference(facts.externalReference())
+                        .metadata(facts.metadata())
+                        .amountSat(facts.amountSat())
+                        .paymentHash(facts.paymentHash())
+                        .paymentRequest(facts.paymentRequest())
+                        .memo(facts.memo())
+                        .build()
+        );
         return saved;
     }
 }

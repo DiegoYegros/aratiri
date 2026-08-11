@@ -1,6 +1,7 @@
 package com.aratiri.transactions.application;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
@@ -10,7 +11,7 @@ import com.aratiri.infrastructure.persistence.ledger.AccountLedgerService;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.errors.ApplicationException;
 import com.aratiri.transactions.application.dto.*;
-import com.aratiri.webhooks.application.WebhookEventService;
+import com.aratiri.webhooks.application.port.out.WebhookEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,13 +39,13 @@ class TransactionsAdapterTest {
     private InvoiceSettlementPort invoiceSettlementPort;
 
     @Mock
-    private OutboxWriter outboxWriter;
+    private EventPublisher eventPublisher;
 
     @Mock
     private AccountLedgerService accountLedgerService;
 
     @Mock
-    private WebhookEventService webhookEventService;
+    private WebhookEventPublisher webhookEventPublisher;
 
     private TransactionsAdapter transactionsAdapter;
     private TransactionSettlementService transactionSettlementService;
@@ -58,8 +59,8 @@ class TransactionsAdapterTest {
                 transactionsRepository,
                 transactionEventRepository,
                 accountLedgerService,
-                outboxWriter,
-                webhookEventService,
+                eventPublisher,
+                webhookEventPublisher,
                 invoiceSettlementPort
         );
         transactionsAdapter = new TransactionsAdapter(
@@ -127,7 +128,7 @@ class TransactionsAdapterTest {
         TransactionDTOResponse response = transactionsAdapter.confirmTransaction(TRANSACTION_ID, USER_ID);
 
         assertEquals(TransactionStatus.COMPLETED, response.getStatus());
-        verify(outboxWriter).publishPaymentSent(eq(TRANSACTION_ID), any());
+        verify(eventPublisher).publish(eq(KafkaTopicNames.PAYMENT_SENT), eq(TRANSACTION_ID), any());
         verify(accountLedgerService).appendLightningDebitSettlement(pendingTx);
     }
 

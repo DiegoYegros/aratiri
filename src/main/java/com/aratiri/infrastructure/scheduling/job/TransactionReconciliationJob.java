@@ -2,10 +2,12 @@ package com.aratiri.infrastructure.scheduling.job;
 
 import com.aratiri.admin.application.port.out.NodeSettingsPort;
 import com.aratiri.admin.domain.NodeSettings;
+import com.aratiri.infrastructure.messaging.consumer.PaymentExecutionService;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.payments.application.port.in.PaymentsPort;
 import com.aratiri.payments.domain.LightningPayment;
+import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.transactions.application.port.in.TransactionsPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +17,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,8 +50,10 @@ public class TransactionReconciliationJob {
         NodeSettings settings = nodeSettingsPort.loadSettings();
         long minAgeMs = Math.max(0L, settings.transactionReconciliationMinAgeMs());
         Instant reconciliationThreshold = Instant.now().minusMillis(minAgeMs);
-        List<TransactionEntity> pendingTransactions = transactionsRepository.findPendingTransactionsOlderThan(
-                reconciliationThreshold, PageRequest.of(0, batchSize));
+        PageRequest page = PageRequest.of(0, batchSize);
+        List<TransactionEntity> pendingTransactions = new ArrayList<>();
+        pendingTransactions.addAll(transactionsRepository.findPendingTransactionsOlderThan(reconciliationThreshold, page));
+        pendingTransactions.addAll(transactionsRepository.findPendingOnChainTransactionsOlderThan(reconciliationThreshold, page));
         if (pendingTransactions.isEmpty()) {
             logger.debug("No pending transactions to reconcile.");
             return;
@@ -69,6 +74,33 @@ public class TransactionReconciliationJob {
     }
 
     private void reconcileTransaction(TransactionEntity transaction) {
+        if (transaction.getType() == TransactionType.ONCHAIN_DEBIT) {
+            reconcileOnChainDebit(transaction);
+            return;
+        }
+        reconcileLightningDebit(transaction);
+    }
+
+    /**
+     * Repair path for on-chain withdrawals (which have no referenceId): a lost
+     * onchain.payment.initiated event, or a crash that left an EXECUTING claim, is resolved by
+     * querying the wallet for the broadcast label. Found → confirm; not found → fail.
+     */
+    private void reconcileOnChainDebit(TransactionEntity transaction) {
+        String label = PaymentExecutionService.onChainLabel(transaction.getId());
+        logger.info("Reconciling on-chain transaction ID: {}, label: {}", transaction.getId(), label);
+        Optional<String> txid = paymentsPort.findOnChainTxIdByLabel(label);
+        if (txid.isPresent()) {
+            logger.info("Transaction {} broadcast found on node ({}). Confirming in db.", transaction.getId(), txid.get());
+            transactionsService.confirmTransaction(transaction.getId(), transaction.getUserId());
+        } else {
+            String failureReason = String.format("No on-chain transaction found on node for label: %s", label);
+            logger.warn("Transaction {} has no broadcast on node. Failing in db.", transaction.getId());
+            transactionsService.failTransaction(transaction.getId(), failureReason);
+        }
+    }
+
+    private void reconcileLightningDebit(TransactionEntity transaction) {
         String paymentHash = transaction.getReferenceId();
         if (paymentHash == null || paymentHash.isBlank()) {
             logger.debug("Skipping reconciliation for transaction {} because it has no payment hash.", transaction.getId());

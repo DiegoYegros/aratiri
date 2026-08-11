@@ -202,9 +202,18 @@ public class TransactionsAdapter implements TransactionsPort {
                 .referenceId(transaction.getReferenceId())
                 .externalReference(transaction.getExternalReference())
                 .metadata(transaction.getMetadata())
-                .status(TransactionStatus.valueOf(transaction.getCurrentStatus()))
+                .status(parseStatus(transaction.getCurrentStatus()))
                 .currency(transaction.getCurrency())
                 .build();
+    }
+
+    private TransactionStatus parseStatus(String currentStatus) {
+        try {
+            return TransactionStatus.valueOf(currentStatus);
+        } catch (IllegalArgumentException _) {
+            // EXECUTING is a worker-internal claim state; the user-visible status stays PENDING.
+            return TransactionStatus.PENDING;
+        }
     }
 
     @Transactional

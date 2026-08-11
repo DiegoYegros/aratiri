@@ -1,6 +1,7 @@
 package com.aratiri.payments.application;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.payments.application.command.LightningInvoicePaymentCommandService;
 import com.aratiri.payments.application.command.OnChainPaymentCommandService;
 import com.aratiri.payments.application.dto.OnChainPaymentDTOs;
@@ -23,7 +24,8 @@ import com.aratiri.transactions.application.dto.TransactionCurrency;
 import com.aratiri.transactions.application.dto.TransactionStatus;
 import com.aratiri.transactions.application.dto.TransactionType;
 import com.aratiri.transactions.application.event.InternalTransferInitiatedEvent;
-import com.aratiri.webhooks.application.WebhookEventService;
+import com.aratiri.webhooks.application.dto.WebhookPayloadData;
+import com.aratiri.webhooks.application.port.out.WebhookEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,7 +55,7 @@ class PaymentsAdapterTest {
   private LightningNodePort lightningNodePort;
 
   @Mock
-  private OutboxWriter outboxWriter;
+  private EventPublisher eventPublisher;
 
   @Mock
   private LightningInvoicePort lightningInvoicePort;
@@ -65,7 +67,7 @@ class PaymentsAdapterTest {
   private OnChainPaymentCommandService onChainPaymentCommand;
 
   @Mock
-  private WebhookEventService webhookEventService;
+  private WebhookEventPublisher webhookEventPublisher;
 
   private PaymentsAdapter paymentsAdapter;
 
@@ -79,11 +81,11 @@ class PaymentsAdapterTest {
         transactionsPort,
         invoicesPort,
         lightningNodePort,
-        outboxWriter,
+        eventPublisher,
         lightningInvoicePort,
         lightningInvoicePaymentCommand,
         onChainPaymentCommand,
-        webhookEventService,
+        webhookEventPublisher,
         new PaymentFeePolicy(0, null, 0, null),
         new ExistingPaymentPolicy()
     );
@@ -92,7 +94,7 @@ class PaymentsAdapterTest {
   // ── payLightningInvoice – external payment (existing) ──
 
   @Test
-  void payLightningInvoice_externalPaymentDelegatesOutboxDetailsToWriter() {
+  void payLightningInvoice_externalPaymentPublishesInitiatedEvent() {
     PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
     request.setInvoice("lnbc1external");
     request.setExternalReference("external-ref");
@@ -117,25 +119,34 @@ class PaymentsAdapterTest {
 
     assertEquals("tx-123", response.getTransactionId());
     ArgumentCaptor<PaymentInitiatedEvent> eventCaptor = ArgumentCaptor.forClass(PaymentInitiatedEvent.class);
-    verify(outboxWriter).publishPaymentInitiated(eq("tx-123"), eventCaptor.capture());
+    verify(eventPublisher).publish(eq(KafkaTopicNames.PAYMENT_INITIATED), eq("tx-123"), eventCaptor.capture());
     PaymentInitiatedEvent event = eventCaptor.getValue();
     assertEquals(USER_ID, event.getUserId());
     assertEquals("tx-123", event.getTransactionId());
     assertEquals(request, event.getPayRequest());
     verify(lightningNodePort, times(1)).findPayment(PAYMENT_HASH);
-    verify(webhookEventService).createPaymentAcceptedEvent(argThat(facts ->
-        facts.transactionId().equals("tx-123")
-            && facts.userId().equals(USER_ID)
-            && facts.type() == TransactionType.LIGHTNING_DEBIT
-            && facts.amountSat() == 2_000L
-            && facts.referenceId().equals(PAYMENT_HASH)
-    ));
+    ArgumentCaptor<WebhookPayloadData> acceptedCaptor = ArgumentCaptor.forClass(WebhookPayloadData.class);
+    verify(webhookEventPublisher).publishWebhookEvent(
+        eq("payment.accepted:tx-123"),
+        eq("payment.accepted"),
+        eq("TRANSACTION"),
+        eq("tx-123"),
+        eq(USER_ID),
+        eq("external-ref"),
+        acceptedCaptor.capture()
+    );
+    WebhookPayloadData accepted = acceptedCaptor.getValue();
+    assertEquals("tx-123", accepted.getTransactionId());
+    assertEquals(USER_ID, accepted.getUserId());
+    assertEquals(2_000L, accepted.getAmountSat());
+    assertEquals("PENDING", accepted.getStatus());
+    assertEquals(PAYMENT_HASH, accepted.getReferenceId());
   }
 
   // ── sendOnChain (existing) ──
 
   @Test
-  void sendOnChain_delegatesOutboxDetailsToWriter() {
+  void sendOnChain_publishesInitiatedEvent() {
     OnChainPaymentDTOs.SendOnChainRequestDTO request = new OnChainPaymentDTOs.SendOnChainRequestDTO();
     request.setAddress("bitcoin:bc1qrecipient");
     request.setSatsAmount(3_000L);
@@ -162,24 +173,33 @@ class PaymentsAdapterTest {
 
     assertEquals("tx-onchain", response.getTransactionId());
     ArgumentCaptor<OnChainPaymentInitiatedEvent> eventCaptor = ArgumentCaptor.forClass(OnChainPaymentInitiatedEvent.class);
-    verify(outboxWriter).publishOnChainPaymentInitiated(eq("tx-onchain"), eventCaptor.capture());
+    verify(eventPublisher).publish(eq(KafkaTopicNames.ONCHAIN_PAYMENT_INITIATED), eq("tx-onchain"), eventCaptor.capture());
     OnChainPaymentInitiatedEvent event = eventCaptor.getValue();
     assertEquals(USER_ID, event.getUserId());
     assertEquals("tx-onchain", event.getTransactionId());
     assertEquals("bc1qrecipient", event.getPaymentRequest().getAddress());
     assertEquals(3_000L, event.getPaymentRequest().getSatsAmount());
-    verify(webhookEventService).createPaymentAcceptedEvent(argThat(facts ->
-        facts.transactionId().equals("tx-onchain")
-            && facts.userId().equals(USER_ID)
-            && facts.type() == TransactionType.ONCHAIN_DEBIT
-            && facts.amountSat() == 3_250L
-    ));
+    ArgumentCaptor<WebhookPayloadData> acceptedCaptor = ArgumentCaptor.forClass(WebhookPayloadData.class);
+    verify(webhookEventPublisher).publishWebhookEvent(
+        eq("payment.accepted:tx-onchain"),
+        eq("payment.accepted"),
+        eq("TRANSACTION"),
+        eq("tx-onchain"),
+        eq(USER_ID),
+        eq("external-ref"),
+        acceptedCaptor.capture()
+    );
+    WebhookPayloadData accepted = acceptedCaptor.getValue();
+    assertEquals("tx-onchain", accepted.getTransactionId());
+    assertEquals(USER_ID, accepted.getUserId());
+    assertEquals(3_250L, accepted.getAmountSat());
+    assertEquals("PENDING", accepted.getStatus());
   }
 
   // ── payLightningInvoice – internal transfer (existing) ──
 
   @Test
-  void payLightningInvoice_internalTransferDelegatesOutboxDetailsToWriter() {
+  void payLightningInvoice_internalTransferPublishesInitiatedEvent() {
     PayInvoiceRequestDTO request = new PayInvoiceRequestDTO();
     request.setInvoice("lnbc1internal");
     request.setExternalReference("internal-ref");
@@ -202,7 +222,7 @@ class PaymentsAdapterTest {
 
     assertEquals("tx-internal", response.getTransactionId());
     ArgumentCaptor<InternalTransferInitiatedEvent> eventCaptor = ArgumentCaptor.forClass(InternalTransferInitiatedEvent.class);
-    verify(outboxWriter).publishInternalTransferInitiated(eq("tx-internal"), eventCaptor.capture());
+    verify(eventPublisher).publish(eq(KafkaTopicNames.INTERNAL_TRANSFER_INITIATED), eq("tx-internal"), eventCaptor.capture());
     InternalTransferInitiatedEvent event = eventCaptor.getValue();
     assertEquals("tx-internal", event.getTransactionId());
     assertEquals("sender-123", event.getSenderId());
@@ -238,7 +258,7 @@ class PaymentsAdapterTest {
     assertEquals("tx-direct", response.getTransactionId());
     assertEquals(TransactionStatus.PENDING, response.getStatus());
     verifyNoInteractions(lightningInvoicePaymentCommand);
-    verify(outboxWriter).publishPaymentInitiated(eq("tx-direct"), any());
+    verify(eventPublisher).publish(eq(KafkaTopicNames.PAYMENT_INITIATED), eq("tx-direct"), any());
   }
 
   // ── payLightningInvoice – node payment already succeeded → CONFLICT ──
@@ -310,7 +330,7 @@ class PaymentsAdapterTest {
     PaymentResponseDTO response = paymentsAdapter.payLightningInvoice(request, USER_ID, "idem-key");
 
     assertEquals("tx-after-failed", response.getTransactionId());
-    verify(outboxWriter).publishPaymentInitiated(eq("tx-after-failed"), any());
+    verify(eventPublisher).publish(eq(KafkaTopicNames.PAYMENT_INITIATED), eq("tx-after-failed"), any());
   }
 
   // ── payLightningInvoice – internal invoice already settled → BAD_REQUEST ──
@@ -503,7 +523,7 @@ class PaymentsAdapterTest {
     OnChainPaymentDTOs.SendOnChainResponseDTO response = paymentsAdapter.sendOnChain(request, USER_ID, "idem-key");
 
     assertEquals("tx-plain", response.getTransactionId());
-    verify(outboxWriter).publishOnChainPaymentInitiated(eq("tx-plain"), any());
+    verify(eventPublisher).publish(eq(KafkaTopicNames.ONCHAIN_PAYMENT_INITIATED), eq("tx-plain"), any());
   }
 
   // ── estimateOnChainFee ──

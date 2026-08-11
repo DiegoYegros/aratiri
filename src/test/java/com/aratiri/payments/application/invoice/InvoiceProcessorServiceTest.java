@@ -1,6 +1,7 @@
 package com.aratiri.payments.application.invoice;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.InvoiceSubscriptionState;
 import com.aratiri.infrastructure.persistence.jpa.repository.InvoiceSubscriptionStateRepository;
 import com.aratiri.invoices.application.InvoiceSettledPublication;
@@ -30,7 +31,7 @@ class InvoiceProcessorServiceTest {
     private InvoiceSettlementPort invoiceSettlementPort;
 
     @Mock
-    private OutboxWriter outboxWriter;
+    private EventPublisher eventPublisher;
 
     @Mock
     private InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
@@ -41,13 +42,13 @@ class InvoiceProcessorServiceTest {
     void setUp() {
         invoiceProcessorService = new InvoiceProcessorService(
                 invoiceSettlementPort,
-                outboxWriter,
+                eventPublisher,
                 invoiceSubscriptionStateRepository
         );
     }
 
     @Test
-    void processInvoiceUpdate_settledInvoiceDelegatesOutboxDetailsToWriter() {
+    void processInvoiceUpdate_settledInvoicePublishesInvoiceSettledEvent() {
         LightningInvoiceUpdate invoice = new LightningInvoiceUpdate(
                 "lnbc1settled",
                 "payment-hash",
@@ -84,7 +85,7 @@ class InvoiceProcessorServiceTest {
         assertEquals(2_500L, updateCaptor.getValue().amountPaidSat());
 
         ArgumentCaptor<InvoiceSettledEvent> eventCaptor = ArgumentCaptor.forClass(InvoiceSettledEvent.class);
-        verify(outboxWriter).publishInvoiceSettled(eq("invoice-123"), eventCaptor.capture());
+        verify(eventPublisher).publish(eq(KafkaTopicNames.INVOICE_SETTLED), eq("invoice-123"), eventCaptor.capture());
         InvoiceSettledEvent event = eventCaptor.getValue();
         assertEquals("user-123", event.getUserId());
         assertEquals(2_500L, event.getAmount());
@@ -111,7 +112,7 @@ class InvoiceProcessorServiceTest {
 
         invoiceProcessorService.processInvoiceUpdate(invoice);
 
-        verify(outboxWriter, never()).publishInvoiceSettled(anyString(), any());
+        verify(eventPublisher, never()).publish(anyString(), anyString(), any());
         verify(invoiceSubscriptionStateRepository).save(argThat(state ->
                 state.getAddIndex() == 5L && state.getSettleIndex() == 0L
         ));

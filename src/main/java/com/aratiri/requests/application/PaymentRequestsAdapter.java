@@ -2,18 +2,20 @@ package com.aratiri.requests.application;
 
 import com.aratiri.errors.ApplicationException;
 import com.aratiri.infrastructure.configuration.AratiriProperties;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.requests.application.dto.CreatePaymentRequestDTO;
 import com.aratiri.requests.application.dto.OwnerPaymentRequestDTO;
 import com.aratiri.requests.application.dto.PaymentRequestPageResponse;
 import com.aratiri.requests.application.dto.PublicPaymentRequestDTO;
+import com.aratiri.requests.application.event.PaymentRequestCancelRequestedEvent;
+import com.aratiri.requests.application.event.PaymentRequestProvisionRequestedEvent;
 import com.aratiri.requests.application.port.in.PaymentRequestsPort;
 import com.aratiri.requests.application.port.out.PaymentRequestPersistencePort;
 import com.aratiri.requests.domain.PaymentRequest;
 import com.aratiri.requests.domain.PaymentRequestStatus;
 import com.aratiri.requests.domain.exception.PaymentRequestConflictException;
 import com.aratiri.requests.domain.exception.PaymentRequestNotFoundException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,27 +32,26 @@ import java.util.Optional;
 @Service
 public class PaymentRequestsAdapter implements PaymentRequestsPort {
 
-    private static final Logger logger = LoggerFactory.getLogger(PaymentRequestsAdapter.class);
     private static final String PAID_CANCEL_CONFLICT_MESSAGE =
             "Payment request is already paid and cannot be cancelled";
     private static final String PAYMENT_REQUEST_NOT_FOUND_MESSAGE = "Payment request not found";
 
     private final PaymentRequestPersistencePort persistencePort;
     private final PaymentRequestIntentService intentService;
-    private final PaymentRequestSagaService sagaService;
+    private final EventPublisher eventPublisher;
     private final AratiriProperties properties;
     private final Clock clock;
 
     public PaymentRequestsAdapter(
             PaymentRequestPersistencePort persistencePort,
             PaymentRequestIntentService intentService,
-            PaymentRequestSagaService sagaService,
+            EventPublisher eventPublisher,
             AratiriProperties properties,
             Clock clock
     ) {
         this.persistencePort = persistencePort;
         this.intentService = intentService;
-        this.sagaService = sagaService;
+        this.eventPublisher = eventPublisher;
         this.properties = properties;
         this.clock = clock;
     }
@@ -66,14 +67,13 @@ public class PaymentRequestsAdapter implements PaymentRequestsPort {
         PaymentRequest saved = committed.request();
 
         if (saved.storedStatus() == PaymentRequestStatus.PROVISIONING) {
-            try {
-                sagaService.tryProvision(saved.id());
-            } catch (Exception e) {
-                // Worker retries from committed intent.
-                logger.debug("Immediate provision deferred to saga worker for requestId={}: {}",
-                        saved.id(), e.toString());
-            }
-            saved = persistencePort.findById(saved.id()).orElse(saved);
+            // Provisioning is fully async: the saga worker (Kafka consumer + lease-safe job
+            // backstop) owns LND interaction off the HTTP thread.
+            eventPublisher.publish(
+                    KafkaTopicNames.PAYMENT_REQUEST_PROVISION_REQUESTED,
+                    saved.id(),
+                    new PaymentRequestProvisionRequestedEvent(saved.id())
+            );
         }
 
         return new CreatePaymentRequestResult(toOwnerDto(saved, clock.instant()), committed.newlyCreated());
@@ -170,13 +170,11 @@ public class PaymentRequestsAdapter implements PaymentRequestsPort {
     }
 
     private OwnerPaymentRequestDTO completeCancelPending(String userId, String publicId, PaymentRequest after) {
-        try {
-            sagaService.tryCancel(after.id());
-        } catch (Exception e) {
-            // Worker retries independently.
-            logger.debug("Immediate cancel deferred to saga worker for requestId={}: {}",
-                    after.id(), e.toString());
-        }
+        eventPublisher.publish(
+                KafkaTopicNames.PAYMENT_REQUEST_CANCEL_REQUESTED,
+                after.id(),
+                new PaymentRequestCancelRequestedEvent(after.id())
+        );
         PaymentRequest refreshed = persistencePort.findByPublicIdAndUserId(publicId, userId).orElse(after);
         if (refreshed.effectiveStatus(clock.instant()) == PaymentRequestStatus.PAID) {
             throw new PaymentRequestConflictException(PAID_CANCEL_CONFLICT_MESSAGE);

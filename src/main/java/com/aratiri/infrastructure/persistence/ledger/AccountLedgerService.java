@@ -7,8 +7,8 @@ import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountEntryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
 import com.aratiri.errors.ApplicationException;
-import com.aratiri.webhooks.application.AccountBalanceChangedWebhookFacts;
-import com.aratiri.webhooks.application.WebhookEventService;
+import com.aratiri.webhooks.application.dto.WebhookPayloadData;
+import com.aratiri.webhooks.application.port.out.WebhookEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,12 +17,12 @@ public class AccountLedgerService {
 
     private final AccountRepository accountRepository;
     private final AccountEntryRepository accountEntryRepository;
-    private final WebhookEventService webhookEventService;
+    private final WebhookEventPublisher webhookEventPublisher;
 
-    public AccountLedgerService(AccountRepository accountRepository, AccountEntryRepository accountEntryRepository, WebhookEventService webhookEventService) {
+    public AccountLedgerService(AccountRepository accountRepository, AccountEntryRepository accountEntryRepository, WebhookEventPublisher webhookEventPublisher) {
         this.accountRepository = accountRepository;
         this.accountEntryRepository = accountEntryRepository;
-        this.webhookEventService = webhookEventService;
+        this.webhookEventPublisher = webhookEventPublisher;
     }
 
     @Transactional
@@ -146,16 +146,24 @@ public class AccountLedgerService {
         entry.setEntryType(entryType);
         entry.setDescription(description);
         accountEntryRepository.save(entry);
-        webhookEventService.createAccountBalanceChangedEvent(new AccountBalanceChangedWebhookFacts(
-                transaction.getId(),
+        webhookEventPublisher.publishWebhookEvent(
+                "account.balance_changed:" + entry.getId(),
+                "account.balance_changed",
+                "ACCOUNT_ENTRY",
+                entry.getId(),
                 transaction.getUserId(),
                 transaction.getExternalReference(),
-                transaction.getMetadata(),
-                Math.abs(deltaSats),
-                transaction.getReferenceId(),
-                entry.getId(),
-                entry.getBalanceAfter()
-        ));
+                WebhookPayloadData.builder()
+                        .transactionId(transaction.getId())
+                        .userId(transaction.getUserId())
+                        .externalReference(transaction.getExternalReference())
+                        .metadata(transaction.getMetadata())
+                        .amountSat(Math.abs(deltaSats))
+                        .status("COMPLETED")
+                        .referenceId(transaction.getReferenceId())
+                        .balanceAfterSat(entry.getBalanceAfter())
+                        .build()
+        );
         return newBalance;
     }
 

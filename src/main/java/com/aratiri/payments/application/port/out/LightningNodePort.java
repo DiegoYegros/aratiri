@@ -13,7 +13,9 @@ public interface LightningNodePort {
 
     Optional<LightningPayment> findPayment(String paymentHash);
 
-    String sendOnChain(OnChainPaymentDTOs.SendOnChainRequestDTO request);
+    String sendOnChain(OnChainPaymentDTOs.SendOnChainRequestDTO request, String label);
+
+    Optional<String> findOnChainTxIdByLabel(String label);
 
     OnChainFeeEstimate estimateOnChainFee(OnChainPaymentDTOs.EstimateFeeRequestDTO request);
 }

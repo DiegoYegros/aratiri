@@ -1,6 +1,7 @@
 package com.aratiri.infrastructure.messaging.listener;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.InvoiceSubscriptionState;
 import com.aratiri.infrastructure.persistence.jpa.entity.UserEntity;
@@ -37,7 +38,7 @@ class OnChainTransactionListenerTest {
     private TransactionsPort transactionsService;
 
     @Mock
-    private OutboxWriter outboxWriter;
+    private EventPublisher eventPublisher;
 
     @Mock
     private InvoiceSubscriptionStateRepository invoiceSubscriptionStateRepository;
@@ -50,13 +51,13 @@ class OnChainTransactionListenerTest {
                 lightningAsyncStub,
                 accountRepository,
                 transactionsService,
-                outboxWriter,
+                eventPublisher,
                 invoiceSubscriptionStateRepository
         );
     }
 
     @Test
-    void processTransaction_confirmedOwnedOutputDelegatesOutboxDetailsToWriter() {
+    void processTransaction_confirmedOwnedOutputPublishesReceivedEvent() {
         UserEntity user = new UserEntity();
         user.setId("user-123");
         AccountEntity account = new AccountEntity();
@@ -82,7 +83,7 @@ class OnChainTransactionListenerTest {
         ReflectionTestUtils.invokeMethod(listener, "processTransaction", transaction);
 
         ArgumentCaptor<OnChainTransactionReceivedEvent> eventCaptor = ArgumentCaptor.forClass(OnChainTransactionReceivedEvent.class);
-        verify(outboxWriter).publishOnChainTransactionReceived(eq("tx-hash:2"), eventCaptor.capture());
+        verify(eventPublisher).publish(eq(KafkaTopicNames.ONCHAIN_TRANSACTION_RECEIVED), eq("tx-hash:2"), eventCaptor.capture());
         OnChainTransactionReceivedEvent event = eventCaptor.getValue();
         assertEquals("user-123", event.getUserId());
         assertEquals(3_000L, event.getAmount());

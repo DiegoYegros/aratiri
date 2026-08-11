@@ -6,23 +6,33 @@ import com.aratiri.auth.application.dto.VerificationRequestDTO;
 import com.aratiri.auth.application.port.out.EmailNotificationPort;
 import com.aratiri.accounts.application.port.out.CurrencyConversionPort;
 import com.aratiri.accounts.application.port.out.LightningAddressPort;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookDeliveryEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookDeliveryStatus;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointEntity;
+import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEndpointSubscriptionEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookDeliveryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEndpointRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.WebhookEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
+import com.aratiri.transactions.application.InvoiceCreditSettlement;
+import com.aratiri.transactions.application.TransactionSettlementModule;
+import com.aratiri.transactions.application.TransactionSettlementResult;
 import com.aratiri.webhooks.application.dto.CreateWebhookEndpointRequestDTO;
+import com.aratiri.webhooks.application.dto.WebhookPayload;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,6 +65,12 @@ class WebhookIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private WebhookDeliveryRepository webhookDeliveryRepository;
+
+    @Autowired
+    private TransactionSettlementModule transactionSettlementModule;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void setup() {
@@ -195,6 +211,59 @@ class WebhookIntegrationTest extends AbstractIntegrationTest {
                     .build();
             webhookEventRepository.save(duplicate);
         });
+    }
+
+    @Test
+    @DisplayName("Business settlement publishes webhook.event.created and the consumer rebuilds event + delivery rows")
+    void business_flow_creates_webhook_event_via_kafka() {
+        WebhookEndpointEntity endpoint = webhookEndpointRepository.save(WebhookEndpointEntity.builder()
+                .name("Kafka Roundtrip")
+                .url("https://example.com/kafka-roundtrip")
+                .signingSecret("secret")
+                .enabled(true)
+                .build());
+        WebhookEndpointSubscriptionEntity sub = WebhookEndpointSubscriptionEntity.builder()
+                .endpoint(endpoint)
+                .eventType("invoice.settled")
+                .build();
+        endpoint.getSubscriptions().add(sub);
+        webhookEndpointRepository.save(endpoint);
+
+        String userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM aratiri.users WHERE email = ?", String.class, "admin-webhook-test@example.com");
+        assertNotNull(userId);
+        TransactionSettlementResult result = transactionSettlementModule.settleInvoiceCredit(
+                new InvoiceCreditSettlement(userId, 2500L, "kafka-roundtrip-hash", "roundtrip memo", "ext-ref-1", null)
+        );
+
+        List<ConsumerRecord<String, String>> records =
+                pollKafkaRecords(KafkaTopicNames.WEBHOOK_EVENT_CREATED, Duration.ofSeconds(15));
+        assertTrue(records.stream().anyMatch(consumerRecord ->
+                        "invoice.settled:kafka-roundtrip-hash".equals(consumerRecord.key())),
+                "webhook.event.created record must carry the event key");
+
+        WebhookEventEntity event = awaitWebhookEvent(
+                webhookEventRepository, "invoice.settled:kafka-roundtrip-hash", Duration.ofSeconds(15));
+        assertEquals("invoice.settled", event.getEventType());
+        assertEquals("INVOICE", event.getAggregateType());
+        assertEquals("kafka-roundtrip-hash", event.getAggregateId());
+        assertEquals("ext-ref-1", event.getExternalReference());
+        assertTrue(event.getPayload().contains("\"payment_hash\":\"kafka-roundtrip-hash\""),
+                "consumer must rebuild the exact payload");
+        assertTrue(event.getPayload().contains("\"transaction_id\":\"" + result.transactionId() + "\""));
+        assertTrue(event.getPayload().contains("\"amount_sat\":2500"));
+
+        // Correlation: the delivered payload.id must be the webhook_events row id.
+        WebhookPayload deliveredPayload = new JsonMapper().readValue(event.getPayload(), WebhookPayload.class);
+        assertEquals(event.getId().toString(), deliveredPayload.getId(),
+                "payload.id must match webhook_events.id for audit/resend correlation");
+
+        List<WebhookDeliveryEntity> deliveries = webhookDeliveryRepository.findByEndpointId(
+                endpoint.getId(), org.springframework.data.domain.PageRequest.of(0, 10));
+        assertEquals(1, deliveries.size());
+        assertEquals("invoice.settled", deliveries.get(0).getEventType());
+        assertEquals(WebhookDeliveryStatus.PENDING, deliveries.get(0).getStatus());
+        assertEquals(event.getPayload(), deliveries.get(0).getPayload());
     }
 
     private RegistrationRequestDTO createRegistrationRequest(String name, String email, String password, String alias) {

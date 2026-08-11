@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -219,9 +220,65 @@ class LightningNodeClientAdapterTest {
         when(lightningStub.sendCoins(any(SendCoinsRequest.class)))
                 .thenReturn(SendCoinsResponse.newBuilder().setTxid("txid123").build());
 
-        String txid = adapter.sendOnChain(request);
+        String txid = adapter.sendOnChain(request, "aratiri-onchain-tx-1");
 
         assertEquals("txid123", txid);
+        verify(lightningStub).sendCoins(argThat(sendCoinsRequest ->
+                "aratiri-onchain-tx-1".equals(sendCoinsRequest.getLabel())));
+    }
+
+    @Test
+    void sendOnChain_withoutLabel_omitsLabel() {
+        OnChainPaymentDTOs.SendOnChainRequestDTO request = new OnChainPaymentDTOs.SendOnChainRequestDTO();
+        request.setAddress("bc1q...");
+        request.setSatsAmount(10000L);
+
+        when(lightningStub.sendCoins(any(SendCoinsRequest.class)))
+                .thenReturn(SendCoinsResponse.newBuilder().setTxid("txid123").build());
+
+        adapter.sendOnChain(request, null);
+
+        verify(lightningStub).sendCoins(argThat(sendCoinsRequest ->
+                sendCoinsRequest.getLabel().isEmpty()));
+    }
+
+    @Test
+    void findOnChainTxIdByLabel_returnsMatchingTransactionHash() {
+        Transaction labeled = Transaction.newBuilder()
+                .setTxHash("found-txid")
+                .setLabel("aratiri-onchain-tx-1")
+                .build();
+        Transaction other = Transaction.newBuilder()
+                .setTxHash("other-txid")
+                .setLabel("aratiri-onchain-tx-2")
+                .build();
+        when(lightningStub.getTransactions(any(GetTransactionsRequest.class)))
+                .thenReturn(TransactionDetails.newBuilder().addTransactions(other).addTransactions(labeled).build());
+
+        Optional<String> txid = adapter.findOnChainTxIdByLabel("aratiri-onchain-tx-1");
+
+        assertEquals(Optional.of("found-txid"), txid);
+    }
+
+    @Test
+    void findOnChainTxIdByLabel_noMatch_returnsEmpty() {
+        Transaction other = Transaction.newBuilder()
+                .setTxHash("other-txid")
+                .setLabel("aratiri-onchain-tx-2")
+                .build();
+        when(lightningStub.getTransactions(any(GetTransactionsRequest.class)))
+                .thenReturn(TransactionDetails.newBuilder().addTransactions(other).build());
+
+        assertTrue(adapter.findOnChainTxIdByLabel("aratiri-onchain-tx-1").isEmpty());
+    }
+
+    @Test
+    void findOnChainTxIdByLabel_transportError_throws() {
+        when(lightningStub.getTransactions(any(GetTransactionsRequest.class)))
+                .thenThrow(new StatusRuntimeException(Status.UNAVAILABLE));
+
+        assertThrows(LightningNodeTransportException.class,
+                () -> adapter.findOnChainTxIdByLabel("aratiri-onchain-tx-1"));
     }
 
     @Test

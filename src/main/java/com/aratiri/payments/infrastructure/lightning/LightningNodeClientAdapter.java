@@ -87,10 +87,13 @@ public class LightningNodeClientAdapter implements LightningNodePort {
     }
 
     @Override
-    public String sendOnChain(OnChainPaymentDTOs.SendOnChainRequestDTO request) {
+    public String sendOnChain(OnChainPaymentDTOs.SendOnChainRequestDTO request, String label) {
         SendCoinsRequest.Builder grpcRequestBuilder = SendCoinsRequest.newBuilder()
                 .setAddr(request.getAddress())
                 .setAmount(request.getSatsAmount());
+        if (label != null && !label.isBlank()) {
+            grpcRequestBuilder.setLabel(label);
+        }
         if (request.getSatPerVbyte() != null) {
             grpcRequestBuilder.setSatPerVbyte(request.getSatPerVbyte());
         } else if (request.getTargetConf() != null) {
@@ -100,6 +103,26 @@ public class LightningNodeClientAdapter implements LightningNodePort {
                 .withDeadlineAfter(GrpcDeadlines.ONCHAIN_SEND.toMillis(), TimeUnit.MILLISECONDS)
                 .sendCoins(grpcRequestBuilder.build());
         return response.getTxid();
+    }
+
+    @Override
+    public Optional<String> findOnChainTxIdByLabel(String label) {
+        GetTransactionsRequest request = GetTransactionsRequest.newBuilder()
+                .setStartHeight(0)
+                .setEndHeight(-1)
+                .setMaxTransactions(200)
+                .build();
+        try {
+            TransactionDetails details = lightningStub
+                    .withDeadlineAfter(GrpcDeadlines.ONCHAIN_SEND.toMillis(), TimeUnit.MILLISECONDS)
+                    .getTransactions(request);
+            return details.getTransactionsList().stream()
+                    .filter(transaction -> label.equals(transaction.getLabel()))
+                    .map(Transaction::getTxHash)
+                    .findFirst();
+        } catch (StatusRuntimeException e) {
+            throw toTransportException("get transactions", e);
+        }
     }
 
     @Override

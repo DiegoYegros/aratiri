@@ -92,10 +92,6 @@ aratiri:
   frontend:
     base:
       url: ${ARATIRI_FRONTEND_BASE_URL:http://localhost:3000}
-  outbox:
-    batch-size: ${ARATIRI_OUTBOX_BATCH_SIZE:200}
-    fixed-delay-ms: ${ARATIRI_OUTBOX_FIXED_DELAY_MS:1000}
-    lease-seconds: ${ARATIRI_OUTBOX_LEASE_SECONDS:30}
   reconciliation:
     batch-size: ${ARATIRI_RECONCILIATION_BATCH_SIZE:100}
   invoices:
@@ -136,6 +132,16 @@ aratiri:
   webhooks:
     delivery:
       fixed-delay-ms: ${ARATIRI_WEBHOOKS_DELIVERY_FIXED_DELAY_MS:5000}
+  kafka:
+    groups:
+      lightning-payment-execution: ${ARATIRI_KAFKA_GROUP_LIGHTNING_PAYMENT_EXECUTION:lightning-payment-execution-group}
+      onchain-send-execution: ${ARATIRI_KAFKA_GROUP_ONCHAIN_SEND_EXECUTION:onchain-send-execution-group}
+      webhook-event: ${ARATIRI_KAFKA_GROUP_WEBHOOK_EVENT:webhook-event-group}
+      payment-request-provision: ${ARATIRI_KAFKA_GROUP_PAYMENT_REQUEST_PROVISION:payment-request-provision-group}
+      payment-request-cancel: ${ARATIRI_KAFKA_GROUP_PAYMENT_REQUEST_CANCEL:payment-request-cancel-group}
+      email: ${ARATIRI_KAFKA_GROUP_EMAIL:email-group}
+  price-cache:
+    warm-fixed-delay-ms: ${ARATIRI_PRICE_CACHE_WARM_FIXED_DELAY_MS:10000}
   outbound:
     destination:
       # Shared SSRF policy for webhooks + LNURL + NIP-05. Unsafe / lab-only; keep false in production.

@@ -2,8 +2,6 @@ package com.aratiri.admin;
 
 import com.aratiri.admin.application.dto.*;
 import com.aratiri.admin.application.port.in.AdminPort;
-import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
-import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
 import com.aratiri.errors.ApplicationException;
 import lnrpc.CloseStatusUpdate;
 import org.junit.jupiter.api.BeforeEach;
@@ -244,15 +242,4 @@ class AdminAPITest {
         assertThrows(ApplicationException.class, () -> adminAPI.updateAutoManagePeers(payload));
     }
 
-    @Test
-    void listNodeOperations_withAllFilters() {
-        when(adminPort.listNodeOperations(NodeOperationStatus.PENDING, NodeOperationType.LIGHTNING_PAYMENT, "tx-1", 50))
-                .thenReturn(List.of());
-
-        ResponseEntity<List<NodeOperationResponseDTO>> response = adminAPI.listNodeOperations(
-                NodeOperationStatus.PENDING, NodeOperationType.LIGHTNING_PAYMENT, "tx-1", 50);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(0, response.getBody().size());
-    }
 }

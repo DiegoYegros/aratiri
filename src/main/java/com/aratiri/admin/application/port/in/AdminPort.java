@@ -1,8 +1,6 @@
 package com.aratiri.admin.application.port.in;
 
 import com.aratiri.admin.application.dto.*;
-import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationStatus;
-import com.aratiri.infrastructure.persistence.jpa.entity.NodeOperationType;
 import lnrpc.CloseStatusUpdate;
 
 import java.time.Instant;
@@ -37,6 +35,4 @@ public interface AdminPort {
     NodeSettingsDTO updateNodeSettings(UpdateNodeSettingsRequestDTO request);
 
     NodeSettingsDTO updateAutoManagePeers(boolean enabled);
-
-    List<NodeOperationResponseDTO> listNodeOperations(NodeOperationStatus status, NodeOperationType type, String transactionId, int limit);
 }

@@ -1,7 +1,5 @@
 package com.aratiri;
 
-import com.aratiri.infrastructure.configuration.NodeOperationProperties;
-import com.aratiri.infrastructure.configuration.OutboxProperties;
 import com.aratiri.infrastructure.configuration.PaymentRequestSagaProperties;
 import com.aratiri.infrastructure.http.destination.OutboundDestinationProperties;
 import org.springframework.boot.SpringApplication;
@@ -18,8 +16,6 @@ import org.springframework.resilience.annotation.EnableResilientMethods;
 @EnableResilientMethods
 @EnableKafka
 @EnableConfigurationProperties({
-        NodeOperationProperties.class,
-        OutboxProperties.class,
         PaymentRequestSagaProperties.class,
         OutboundDestinationProperties.class
 })

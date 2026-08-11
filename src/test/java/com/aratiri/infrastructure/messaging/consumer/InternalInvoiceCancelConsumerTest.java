@@ -3,6 +3,8 @@ package com.aratiri.infrastructure.messaging.consumer;
 import com.aratiri.transactions.application.event.InternalInvoiceCancelEvent;
 import invoicesrpc.CancelInvoiceMsg;
 import invoicesrpc.InvoicesGrpc;
+import invoicesrpc.LookupInvoiceMsg;
+import lnrpc.Invoice;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,10 +36,56 @@ class InternalInvoiceCancelConsumerTest {
     }
 
     @Test
-    void handleInternalInvoiceCancel_cancelsInvoice() throws Exception {
+    void handleInternalInvoiceCancel_cancelsOpenInvoice() throws Exception {
         InternalInvoiceCancelEvent event = new InternalInvoiceCancelEvent("deadbeef");
         String message = jsonMapper.writeValueAsString(event);
 
+        when(invoicesBlockingStub.lookupInvoiceV2(any(LookupInvoiceMsg.class)))
+                .thenReturn(openInvoice());
+        when(invoicesBlockingStub.cancelInvoice(any(CancelInvoiceMsg.class)))
+                .thenReturn(invoicesrpc.CancelInvoiceResp.getDefaultInstance());
+
+        consumer.handleInternalInvoiceCancel(message, acknowledgment);
+
+        verify(acknowledgment).acknowledge();
+        verify(invoicesBlockingStub).cancelInvoice(any(CancelInvoiceMsg.class));
+    }
+
+    @Test
+    void handleInternalInvoiceCancel_skipsAlreadySettledInvoice() throws Exception {
+        InternalInvoiceCancelEvent event = new InternalInvoiceCancelEvent("deadbeef");
+        String message = jsonMapper.writeValueAsString(event);
+
+        when(invoicesBlockingStub.lookupInvoiceV2(any(LookupInvoiceMsg.class)))
+                .thenReturn(Invoice.newBuilder().setState(Invoice.InvoiceState.SETTLED).build());
+
+        consumer.handleInternalInvoiceCancel(message, acknowledgment);
+
+        verify(acknowledgment).acknowledge();
+        verify(invoicesBlockingStub, never()).cancelInvoice(any(CancelInvoiceMsg.class));
+    }
+
+    @Test
+    void handleInternalInvoiceCancel_skipsAlreadyCanceledInvoice() throws Exception {
+        InternalInvoiceCancelEvent event = new InternalInvoiceCancelEvent("deadbeef");
+        String message = jsonMapper.writeValueAsString(event);
+
+        when(invoicesBlockingStub.lookupInvoiceV2(any(LookupInvoiceMsg.class)))
+                .thenReturn(Invoice.newBuilder().setState(Invoice.InvoiceState.CANCELED).build());
+
+        consumer.handleInternalInvoiceCancel(message, acknowledgment);
+
+        verify(acknowledgment).acknowledge();
+        verify(invoicesBlockingStub, never()).cancelInvoice(any(CancelInvoiceMsg.class));
+    }
+
+    @Test
+    void handleInternalInvoiceCancel_proceedsWithCancelWhenLookupFails() throws Exception {
+        InternalInvoiceCancelEvent event = new InternalInvoiceCancelEvent("deadbeef");
+        String message = jsonMapper.writeValueAsString(event);
+
+        when(invoicesBlockingStub.lookupInvoiceV2(any(LookupInvoiceMsg.class)))
+                .thenThrow(new RuntimeException("lookup error"));
         when(invoicesBlockingStub.cancelInvoice(any(CancelInvoiceMsg.class)))
                 .thenReturn(invoicesrpc.CancelInvoiceResp.getDefaultInstance());
 
@@ -60,6 +108,8 @@ class InternalInvoiceCancelConsumerTest {
         InternalInvoiceCancelEvent event = new InternalInvoiceCancelEvent("deadbeef");
         String message = jsonMapper.writeValueAsString(event);
 
+        when(invoicesBlockingStub.lookupInvoiceV2(any(LookupInvoiceMsg.class)))
+                .thenReturn(openInvoice());
         when(invoicesBlockingStub.cancelInvoice(any(CancelInvoiceMsg.class)))
                 .thenThrow(new RuntimeException("gRPC error"));
 
@@ -67,5 +117,9 @@ class InternalInvoiceCancelConsumerTest {
                 () -> consumer.handleInternalInvoiceCancel(message, acknowledgment));
 
         verify(acknowledgment, never()).acknowledge();
+    }
+
+    private static Invoice openInvoice() {
+        return Invoice.newBuilder().setState(Invoice.InvoiceState.OPEN).build();
     }
 }

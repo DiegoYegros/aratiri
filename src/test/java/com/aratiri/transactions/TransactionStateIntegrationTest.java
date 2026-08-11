@@ -7,12 +7,10 @@ import com.aratiri.auth.application.dto.VerificationRequestDTO;
 import com.aratiri.auth.application.port.out.EmailNotificationPort;
 import com.aratiri.accounts.application.port.out.CurrencyConversionPort;
 import com.aratiri.accounts.application.port.out.LightningAddressPort;
-import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.LightningInvoiceEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.LightningInvoiceRepository;
-import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
@@ -27,7 +25,10 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -63,9 +64,6 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private LightningInvoiceRepository lightningInvoiceRepository;
-
-    @Autowired
-    private OutboxEventRepository outboxEventRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -317,7 +315,7 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Internal transfer settlement updates both ledgers, invoice state, transaction history, and outbox")
+    @DisplayName("Internal transfer settlement updates both ledgers, invoice state, transaction history, and publishes events")
     void processInternalTransfer_settlesCompleteWorkflow() {
         String paymentHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         long amountSat = 2_500L;
@@ -387,18 +385,18 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
         assertEquals(2, transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(senderDebit.getId()).size());
         assertEquals(2, transactionEventRepository.findByTransaction_IdOrderByCreatedAtAsc(receiverCredit.getId()).size());
 
-        List<OutboxEventEntity> outboxEvents = outboxEventRepository.findAll();
-        assertTrue(outboxEvents.stream().anyMatch(event ->
-                event.getEventType().equals(KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode())
-                        && event.getAggregateId().equals(senderDebit.getId())
-                        && event.getPayload().contains(paymentHash)
-        ));
-        assertTrue(outboxEvents.stream().anyMatch(event ->
-                event.getEventType().equals(KafkaTopics.INTERNAL_INVOICE_CANCEL.getCode())
-                        && event.getAggregateId().equals(paymentHash)
-                        && event.getPayload().contains(paymentHash)
-        ));
-        assertEquals(0, countOutboxEvents(outboxEvents, KafkaTopics.PAYMENT_SENT.getCode(), senderDebit.getId()));
+        List<ConsumerRecord<String, String>> completedRecords = pollKafkaRecords(
+                KafkaTopicNames.INTERNAL_TRANSFER_COMPLETED, Duration.ofSeconds(15));
+        List<ConsumerRecord<String, String>> cancelRecords = pollKafkaRecords(
+                KafkaTopicNames.INTERNAL_INVOICE_CANCEL, Duration.ofSeconds(15));
+        List<ConsumerRecord<String, String>> sentRecords = pollKafkaRecords(
+                KafkaTopicNames.PAYMENT_SENT, Duration.ofSeconds(5));
+        assertEquals(1, countByKey(completedRecords, senderDebit.getId()),
+                "one internal.transfer.completed record keyed by the sender transaction");
+        assertEquals(1, countByKey(cancelRecords, paymentHash),
+                "one internal.invoice.cancel record keyed by the payment hash");
+        assertEquals(0, countByKey(sentRecords, senderDebit.getId()),
+                "internal transfers must not emit payment.sent");
 
         assertRetriedInternalTransferDoesNotDuplicateSettlement(senderDebit, receiverCredit, paymentHash, amountSat, firstSettledAt);
     }
@@ -432,17 +430,24 @@ class TransactionStateIntegrationTest extends AbstractIntegrationTest {
         LightningInvoiceEntity retriedInvoice = lightningInvoiceRepository.findByPaymentHash(paymentHash).orElseThrow();
         assertEquals(firstSettledAt, retriedInvoice.getSettledAt());
 
-        List<OutboxEventEntity> retriedOutboxEvents = outboxEventRepository.findAll();
-        assertEquals(1, countOutboxEvents(retriedOutboxEvents, KafkaTopics.INTERNAL_TRANSFER_COMPLETED.getCode(), senderDebit.getId()));
-        assertEquals(1, countOutboxEvents(retriedOutboxEvents, KafkaTopics.INTERNAL_INVOICE_CANCEL.getCode(), paymentHash));
-        assertEquals(0, countOutboxEvents(retriedOutboxEvents, KafkaTopics.PAYMENT_SENT.getCode(), senderDebit.getId()));
+        // Direct publishing has no outbox dedup: the retried settlement re-publishes the completed
+        // and cancel events, so consumers must stay idempotent on their side.
+        List<ConsumerRecord<String, String>> retriedCompleted = pollKafkaRecords(
+                KafkaTopicNames.INTERNAL_TRANSFER_COMPLETED, Duration.ofSeconds(15));
+        List<ConsumerRecord<String, String>> retriedCancels = pollKafkaRecords(
+                KafkaTopicNames.INTERNAL_INVOICE_CANCEL, Duration.ofSeconds(15));
+        List<ConsumerRecord<String, String>> retriedSent = pollKafkaRecords(
+                KafkaTopicNames.PAYMENT_SENT, Duration.ofSeconds(5));
+        assertEquals(2, countByKey(retriedCompleted, senderDebit.getId()),
+                "retried internal transfer re-publishes internal.transfer.completed");
+        assertEquals(2, countByKey(retriedCancels, paymentHash),
+                "retried internal transfer re-publishes internal.invoice.cancel");
+        assertEquals(0, countByKey(retriedSent, senderDebit.getId()),
+                "internal transfers must never emit payment.sent");
     }
 
-    private long countOutboxEvents(List<OutboxEventEntity> events, String eventType, String aggregateId) {
-        return events.stream()
-                .filter(event -> event.getEventType().equals(eventType))
-                .filter(event -> event.getAggregateId().equals(aggregateId))
-                .count();
+    private static long countByKey(List<ConsumerRecord<String, String>> records, String key) {
+        return records.stream().filter(consumerRecord -> key.equals(consumerRecord.key())).count();
     }
 
     private long countLedgerEntries(String senderTransactionId, String receiverTransactionId) {

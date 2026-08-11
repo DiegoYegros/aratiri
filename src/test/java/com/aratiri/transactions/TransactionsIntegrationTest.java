@@ -6,16 +6,14 @@ import com.aratiri.auth.application.dto.VerificationRequestDTO;
 import com.aratiri.auth.application.port.out.EmailNotificationPort;
 import com.aratiri.accounts.application.port.out.CurrencyConversionPort;
 import com.aratiri.accounts.application.port.out.LightningAddressPort;
-import com.aratiri.infrastructure.messaging.KafkaTopics;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryType;
 import com.aratiri.infrastructure.persistence.jpa.entity.AccountEntryEntity;
-import com.aratiri.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.entity.TransactionEventType;
 import com.aratiri.infrastructure.persistence.jpa.entity.WebhookEventEntity;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountEntryRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.AccountRepository;
-import com.aratiri.infrastructure.persistence.jpa.repository.OutboxEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionEventRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.TransactionsRepository;
 import com.aratiri.infrastructure.persistence.jpa.repository.VerificationDataRepository;
@@ -42,6 +40,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -78,9 +77,6 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private TransactionsRepository transactionsRepository;
-
-    @Autowired
-    private OutboxEventRepository outboxEventRepository;
 
     @Autowired
     private WebhookEventRepository webhookEventRepository;
@@ -332,6 +328,7 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
         assertEquals(1, transactionsRepository.findAll().stream()
                 .filter(transaction -> "duplicate-invoice-payment-hash".equals(transaction.getReferenceId()))
                 .count());
+        awaitWebhookEvent(webhookEventRepository, "invoice.settled:duplicate-invoice-payment-hash", Duration.ofSeconds(15));
         assertEquals(1, webhookEventRepository.findAll().stream()
                 .filter(event -> "invoice.settled:duplicate-invoice-payment-hash".equals(event.getEventKey()))
                 .count());
@@ -359,6 +356,7 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
         assertEquals(1, transactionsRepository.findAll().stream()
                 .filter(transaction -> "duplicate-onchain-tx-hash:0".equals(transaction.getReferenceId()))
                 .count());
+        awaitWebhookEvent(webhookEventRepository, "onchain.deposit.confirmed:duplicate-onchain-tx-hash:0", Duration.ofSeconds(15));
         assertEquals(1, webhookEventRepository.findAll().stream()
                 .filter(event -> "onchain.deposit.confirmed:duplicate-onchain-tx-hash:0".equals(event.getEventKey()))
                 .count());
@@ -414,15 +412,13 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
         assertEquals(AccountEntryType.LIGHTNING_DEBIT, debitEntry.getEntryType());
         assertEquals(-1025L, debitEntry.getDeltaSats());
 
-        List<OutboxEventEntity> outboxEvents = outboxEventRepository.findAll();
-        assertTrue(outboxEvents.stream().anyMatch(event ->
-                event.getEventType().equals(KafkaTopics.PAYMENT_SENT.getCode())
-                        && event.getAggregateId().equals(created.getId())
-                        && event.getPayload().contains("external-payment-hash")
-        ));
+        assertTrue(pollKafkaRecords(KafkaTopicNames.PAYMENT_SENT, Duration.ofSeconds(15)).stream()
+                .anyMatch(consumerRecord -> created.getId().equals(consumerRecord.key())
+                        && consumerRecord.value().contains("external-payment-hash")),
+                "payment.sent record must carry the transaction key and payment hash");
 
-        WebhookEventEntity webhookEvent = webhookEventRepository.findByEventKey("payment.succeeded:" + created.getId())
-                .orElseThrow();
+        WebhookEventEntity webhookEvent = awaitWebhookEvent(
+                webhookEventRepository, "payment.succeeded:" + created.getId(), Duration.ofSeconds(15));
         assertEquals("payment.succeeded", webhookEvent.getEventType());
         assertTrue(webhookEvent.getPayload().contains("\"amount_sat\":1025"));
         assertTrue(webhookEvent.getPayload().contains("\"balance_after_sat\":3975"));
@@ -469,12 +465,11 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
         assertEquals(AccountEntryType.ONCHAIN_DEBIT, debitEntry.getEntryType());
         assertEquals(-1500L, debitEntry.getDeltaSats());
 
-        assertTrue(outboxEventRepository.findAll().stream().anyMatch(event ->
-                event.getEventType().equals(KafkaTopics.PAYMENT_SENT.getCode())
-                        && event.getAggregateId().equals(created.getId())
-                        && event.getPayload().contains("onchain-debit-ref")
-        ));
-        assertTrue(webhookEventRepository.findByEventKey("payment.succeeded:" + created.getId()).isPresent());
+        assertTrue(pollKafkaRecords(KafkaTopicNames.PAYMENT_SENT, Duration.ofSeconds(15)).stream()
+                .anyMatch(consumerRecord -> created.getId().equals(consumerRecord.key())
+                        && consumerRecord.value().contains("onchain-debit-ref")),
+                "payment.sent record must carry the transaction key and reference id");
+        awaitWebhookEvent(webhookEventRepository, "payment.succeeded:" + created.getId(), Duration.ofSeconds(15));
     }
 
     @Test
@@ -628,8 +623,8 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
     }
 
     private void assertInvoiceSettledWebhook(String transactionId, InvoiceCreditSettlement settlement) {
-        WebhookEventEntity event = webhookEventRepository.findByEventKey("invoice.settled:" + settlement.paymentHash())
-                .orElseThrow();
+        WebhookEventEntity event = awaitWebhookEvent(
+                webhookEventRepository, "invoice.settled:" + settlement.paymentHash(), Duration.ofSeconds(15));
         assertEquals("invoice.settled", event.getEventType());
         assertEquals("INVOICE", event.getAggregateType());
         assertEquals(settlement.paymentHash(), event.getAggregateId());
@@ -643,8 +638,8 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
     }
 
     private void assertOnChainDepositConfirmedWebhook(String transactionId, String referenceId, long amountSat, long balanceAfterSat) {
-        WebhookEventEntity event = webhookEventRepository.findByEventKey("onchain.deposit.confirmed:" + referenceId)
-                .orElseThrow();
+        WebhookEventEntity event = awaitWebhookEvent(
+                webhookEventRepository, "onchain.deposit.confirmed:" + referenceId, Duration.ofSeconds(15));
         assertEquals("onchain.deposit.confirmed", event.getEventType());
         assertEquals("TRANSACTION", event.getAggregateType());
         assertEquals(transactionId, event.getAggregateId());
@@ -661,8 +656,8 @@ class TransactionsIntegrationTest extends AbstractIntegrationTest {
             String externalReference,
             String metadata
     ) {
-        WebhookEventEntity event = webhookEventRepository.findByEventKey("account.balance_changed:" + entry.getId())
-                .orElseThrow();
+        WebhookEventEntity event = awaitWebhookEvent(
+                webhookEventRepository, "account.balance_changed:" + entry.getId(), Duration.ofSeconds(15));
         assertEquals("account.balance_changed", event.getEventType());
         assertEquals("ACCOUNT_ENTRY", event.getAggregateType());
         assertEquals(entry.getId(), event.getAggregateId());

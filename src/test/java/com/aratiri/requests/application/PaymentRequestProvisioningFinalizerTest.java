@@ -1,6 +1,6 @@
 package com.aratiri.requests.application;
 
-import com.aratiri.infrastructure.messaging.outbox.OutboxWriter;
+import com.aratiri.infrastructure.messaging.EventPublisher;
 import com.aratiri.invoices.application.InvoiceStateUpdateResult;
 import com.aratiri.invoices.application.port.in.InvoiceSettlementPort;
 import com.aratiri.invoices.application.port.out.LightningInvoicePersistencePort;
@@ -8,7 +8,7 @@ import com.aratiri.invoices.domain.LightningInvoice;
 import com.aratiri.requests.application.port.out.PaymentRequestPersistencePort;
 import com.aratiri.requests.domain.PaymentRequest;
 import com.aratiri.requests.domain.PaymentRequestStatus;
-import com.aratiri.webhooks.application.WebhookEventService;
+import com.aratiri.webhooks.application.port.out.WebhookEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,11 +36,11 @@ class PaymentRequestProvisioningFinalizerTest {
     @Mock
     private LightningInvoicePersistencePort lightningInvoicePersistencePort;
     @Mock
-    private WebhookEventService webhookEventService;
+    private WebhookEventPublisher webhookEventPublisher;
     @Mock
     private InvoiceSettlementPort invoiceSettlementPort;
     @Mock
-    private OutboxWriter outboxWriter;
+    private EventPublisher eventPublisher;
 
     private PaymentRequestProvisioningFinalizer finalizer;
 
@@ -49,9 +49,9 @@ class PaymentRequestProvisioningFinalizerTest {
         finalizer = new PaymentRequestProvisioningFinalizer(
                 persistencePort,
                 lightningInvoicePersistencePort,
-                webhookEventService,
+                webhookEventPublisher,
                 invoiceSettlementPort,
-                outboxWriter,
+                eventPublisher,
                 CLOCK
         );
     }
@@ -74,7 +74,7 @@ class PaymentRequestProvisioningFinalizerTest {
 
         verify(lightningInvoicePersistencePort, never()).findByPaymentHash(anyString());
         verify(lightningInvoicePersistencePort, never()).save(any());
-        verify(webhookEventService, never()).createInvoiceCreatedEvent(any());
+        verify(webhookEventPublisher, never()).publishWebhookEvent(anyString(), anyString(), anyString(), anyString(), anyString(), any(), any());
         verify(persistencePort, never()).finalizeProvisioningOpen(anyString(), anyString(), anyString(), anyString());
         verify(invoiceSettlementPort, never()).recordInvoiceStateUpdate(any());
     }
@@ -97,7 +97,7 @@ class PaymentRequestProvisioningFinalizerTest {
                 request, "lnbc1", LightningInvoice.InvoiceState.OPEN, 0L, 900L, CLAIM);
 
         verify(lightningInvoicePersistencePort).save(any());
-        verify(webhookEventService).createInvoiceCreatedEvent(any());
+        verify(webhookEventPublisher).publishWebhookEvent(anyString(), eq("invoice.created"), anyString(), anyString(), anyString(), any(), any());
         verify(persistencePort).finalizeProvisioningOpen(request.id(), "lnbc1", "inv-1", CLAIM);
     }
 

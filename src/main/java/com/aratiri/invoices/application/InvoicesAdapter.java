@@ -15,7 +15,8 @@ import com.aratiri.invoices.domain.LightningNodeInvoice;
 import com.aratiri.invoices.infrastructure.InvoiceUtils;
 import com.aratiri.errors.ApplicationException;
 import com.aratiri.webhooks.application.InvoiceCreatedWebhookFacts;
-import com.aratiri.webhooks.application.WebhookEventService;
+import com.aratiri.webhooks.application.dto.WebhookPayloadData;
+import com.aratiri.webhooks.application.port.out.WebhookEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -33,18 +34,18 @@ public class InvoicesAdapter implements InvoicesPort {
     private final LightningNodePort lightningNodePort;
     private final LightningInvoicePersistencePort lightningInvoicePersistencePort;
     private final AccountLookupPort accountLookupPort;
-    private final WebhookEventService webhookEventService;
+    private final WebhookEventPublisher webhookEventPublisher;
 
     public InvoicesAdapter(
             LightningNodePort lightningNodePort,
             LightningInvoicePersistencePort lightningInvoicePersistencePort,
             AccountLookupPort accountLookupPort,
-            WebhookEventService webhookEventService
+            WebhookEventPublisher webhookEventPublisher
     ) {
         this.lightningNodePort = lightningNodePort;
         this.lightningInvoicePersistencePort = lightningInvoicePersistencePort;
         this.accountLookupPort = accountLookupPort;
-        this.webhookEventService = webhookEventService;
+        this.webhookEventPublisher = webhookEventPublisher;
     }
 
     @Override
@@ -138,7 +139,25 @@ public class InvoicesAdapter implements InvoicesPort {
                     metadata
             );
             LightningInvoice savedInvoice = lightningInvoicePersistencePort.save(invoice);
-            webhookEventService.createInvoiceCreatedEvent(InvoiceCreatedWebhookFacts.from(savedInvoice));
+            InvoiceCreatedWebhookFacts facts = InvoiceCreatedWebhookFacts.from(savedInvoice);
+            webhookEventPublisher.publishWebhookEvent(
+                    "invoice.created:" + facts.paymentHash(),
+                    "invoice.created",
+                    "INVOICE",
+                    facts.invoiceId(),
+                    facts.userId(),
+                    facts.externalReference(),
+                    WebhookPayloadData.builder()
+                            .invoiceId(facts.invoiceId())
+                            .userId(facts.userId())
+                            .externalReference(facts.externalReference())
+                            .metadata(facts.metadata())
+                            .amountSat(facts.amountSat())
+                            .paymentHash(facts.paymentHash())
+                            .paymentRequest(facts.paymentRequest())
+                            .memo(facts.memo())
+                            .build()
+            );
             return new CreatedLightningInvoice(
                     savedInvoice.id(),
                     savedInvoice.paymentHash(),

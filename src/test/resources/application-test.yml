@@ -77,11 +77,6 @@ aratiri:
   frontend:
     base:
       url: http://localhost:3000
-  outbox:
-    # Keep the scheduled outbox worker idle in tests; jobs are invoked explicitly.
-    fixed-delay-ms: 3600000
-    batch-size: 200
-    lease-seconds: 30
   cors:
     allowed:
       origins: http://localhost:3000
@@ -103,6 +98,16 @@ aratiri:
   accounts:
     fiat:
       currencies: usd,pyg,ars,eur
+  kafka:
+    groups:
+      lightning-payment-execution: test-lightning-payment-execution-group
+      onchain-send-execution: test-onchain-send-execution-group
+      webhook-event: test-webhook-event-group
+      payment-request-provision: test-payment-request-provision-group
+      payment-request-cancel: test-payment-request-cancel-group
+      email: test-email-group
+  price-cache:
+    warm-fixed-delay-ms: 600000
   security:
     default-principal-claim: email
     auth-rate-limit:

@@ -1,6 +1,10 @@
 package com.aratiri.requests.application;
 
 import com.aratiri.infrastructure.configuration.AratiriProperties;
+import com.aratiri.infrastructure.messaging.EventPublisher;
+import com.aratiri.infrastructure.messaging.KafkaTopicNames;
+import com.aratiri.requests.application.event.PaymentRequestCancelRequestedEvent;
+import com.aratiri.requests.application.event.PaymentRequestProvisionRequestedEvent;
 import com.aratiri.requests.application.dto.CreatePaymentRequestDTO;
 import com.aratiri.requests.application.dto.OwnerPaymentRequestDTO;
 import com.aratiri.requests.application.dto.PublicPaymentRequestDTO;
@@ -12,6 +16,7 @@ import com.aratiri.requests.domain.exception.PaymentRequestNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -36,7 +41,7 @@ class PaymentRequestsAdapterTest {
     @Mock
     private PaymentRequestIntentService intentService;
     @Mock
-    private PaymentRequestSagaService sagaService;
+    private EventPublisher eventPublisher;
     @Mock
     private AratiriProperties properties;
 
@@ -45,26 +50,27 @@ class PaymentRequestsAdapterTest {
     @BeforeEach
     void setUp() {
         lenient().when(properties.getFrontendBaseUrl()).thenReturn("https://app.example/");
-        adapter = new PaymentRequestsAdapter(persistencePort, intentService, sagaService, properties, CLOCK);
+        adapter = new PaymentRequestsAdapter(persistencePort, intentService, eventPublisher, properties, CLOCK);
     }
 
     @Test
-    void create_commitsIntentThenBestEffortProvision() {
+    void create_commitsIntentThenPublishesProvisionRequestedAsync() {
         CreatePaymentRequestDTO dto = createDto(2500L, "Coffee", 600L);
         PaymentRequest provisioning = request("id-1", "pub-1", PaymentRequestStatus.PROVISIONING, null, null);
-        PaymentRequest open = request("id-1", "pub-1", PaymentRequestStatus.OPEN, "lnbc2500", "inv-1");
 
         when(intentService.commitIntent(eq("user-1"), eq("key-1"), eq(dto), anyString(), eq("Coffee")))
                 .thenReturn(new PaymentRequestIntentService.IntentCommitResult(provisioning, true));
-        doAnswer(invocation -> null).when(sagaService).tryProvision("id-1");
-        when(persistencePort.findById("id-1")).thenReturn(Optional.of(open));
 
         CreatePaymentRequestResult result = adapter.create("user-1", "key-1", dto);
 
         assertTrue(result.newlyCreated());
-        assertEquals("OPEN", result.body().getStatus());
-        assertEquals("lnbc2500", result.body().getPaymentRequest());
-        verify(sagaService).tryProvision("id-1");
+        assertEquals("PROVISIONING", result.body().getStatus());
+        assertNull(result.body().getPaymentRequest());
+        ArgumentCaptor<PaymentRequestProvisionRequestedEvent> captor =
+                ArgumentCaptor.forClass(PaymentRequestProvisionRequestedEvent.class);
+        verify(eventPublisher).publish(eq(KafkaTopicNames.PAYMENT_REQUEST_PROVISION_REQUESTED), eq("id-1"), captor.capture());
+        assertEquals("id-1", captor.getValue().requestId());
+        verifyNoInteractions(persistencePort);
     }
 
     @Test
@@ -78,7 +84,7 @@ class PaymentRequestsAdapterTest {
 
         assertFalse(result.newlyCreated());
         assertEquals("pub-1", result.body().getPublicId());
-        verify(sagaService, never()).tryProvision(anyString());
+        verify(eventPublisher, never()).publish(anyString(), anyString(), any());
     }
 
     @Test
@@ -97,21 +103,23 @@ class PaymentRequestsAdapterTest {
     }
 
     @Test
-    void cancel_marksCancelPendingAndInvokesSaga() {
+    void cancel_marksCancelPendingAndPublishesCancelRequestedAsync() {
         PaymentRequest open = request("id-1", "pub-1", PaymentRequestStatus.OPEN, "lnbc1", "inv-1");
         PaymentRequest pending = request("id-1", "pub-1", PaymentRequestStatus.CANCEL_PENDING, "lnbc1", "inv-1");
-        PaymentRequest cancelled = open.withCancelled(NOW);
 
         when(persistencePort.findByPublicIdAndUserId("pub-1", "user-1"))
-                .thenReturn(Optional.of(open), Optional.of(pending), Optional.of(cancelled));
+                .thenReturn(Optional.of(open), Optional.of(pending));
         when(persistencePort.markCancelPendingIfPayable("pub-1", "user-1", NOW)).thenReturn(1);
 
         OwnerPaymentRequestDTO response = adapter.cancel("user-1", "pub-1");
 
-        assertEquals("CANCELLED", response.getStatus());
+        assertEquals("CANCEL_PENDING", response.getStatus());
         assertNull(response.getPaymentRequest());
         verify(persistencePort).markCancelPendingIfPayable("pub-1", "user-1", NOW);
-        verify(sagaService).tryCancel("id-1");
+        ArgumentCaptor<PaymentRequestCancelRequestedEvent> captor =
+                ArgumentCaptor.forClass(PaymentRequestCancelRequestedEvent.class);
+        verify(eventPublisher).publish(eq(KafkaTopicNames.PAYMENT_REQUEST_CANCEL_REQUESTED), eq("id-1"), captor.capture());
+        assertEquals("id-1", captor.getValue().requestId());
     }
 
     @Test
@@ -124,7 +132,7 @@ class PaymentRequestsAdapterTest {
 
         assertEquals("CANCELLED", response.getStatus());
         verify(persistencePort, never()).markCancelPendingIfPayable(anyString(), anyString(), any());
-        verify(sagaService, never()).tryCancel(anyString());
+        verify(eventPublisher, never()).publish(anyString(), anyString(), any());
     }
 
     @Test
@@ -133,7 +141,7 @@ class PaymentRequestsAdapterTest {
         when(persistencePort.findByPublicIdAndUserId("pub-1", "user-1")).thenReturn(Optional.of(paid));
 
         assertThrows(PaymentRequestConflictException.class, () -> adapter.cancel("user-1", "pub-1"));
-        verify(sagaService, never()).tryCancel(anyString());
+        verify(eventPublisher, never()).publish(anyString(), anyString(), any());
     }
 
     @Test
