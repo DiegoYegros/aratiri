@@ -48,6 +48,7 @@ src/main/java/com/aratiri/
 ├── invoices/                      # LND invoice creation, decode, webhook emission
 ├── lnurl/                         # public LNURL-pay metadata/callback + authenticated pay
 ├── payments/                      # Lightning/on-chain/LNURL payments with idempotency keys
+├── requests/                      # shareable single-use payment links, provision/cancel saga
 ├── transactions/                  # append-only tx read model, lifecycle events, settlement
 ├── webhooks/                      # event construction, endpoint subscription, delivery retry
 ├── bitcoin/                       # satoshi/BTC amounts and Bech32 (LNURL/Nostr) codec
@@ -55,9 +56,8 @@ src/main/java/com/aratiri/
 ├── infrastructure/                # cross-cutting adapters (see Architecture)
 │   ├── persistence/jpa/entity/    # JPA entities (@Getter/@Setter, never @Data)
 │   ├── persistence/jpa/repository/# Spring Data repositories
-│   ├── messaging/                 # Kafka consumers, producers, outbox job
-│   ├── nodeoperations/            # LND payment/side-effect workers
-│   ├── scheduling/                # @Scheduled jobs (retry, reconcile, reconnect)
+│   ├── messaging/                 # Kafka consumers (execution consumers + event publisher), listeners
+│   ├── scheduling/                # @Scheduled jobs (reconcile, reconnect, webhooks, sagas, price-cache warmer)
 │   ├── web/                       # global exception handler, ErrorResponse, request context
 │   ├── grpc/                      # gRPC interceptors for LND calls
 │   ├── filter/                    # servlet filters (JWT, CORS, etc.)
@@ -74,14 +74,15 @@ Aratiri is a modular monolith with ports-and-adapters (hexagonal) architecture (
 
 | Module | Responsibility | Communicates via |
 |--------|---------------|------------------|
-| `auth` | Identity, JWT issuance/validation, SSO, token exchange | HTTP → PostgreSQL, Google OAuth (HTTP), trusted issuer JWKs |
+| `auth` | Identity, JWT issuance/validation, SSO, token exchange; publishes `email.requested` for register/reset | HTTP → PostgreSQL, Google OAuth (HTTP), trusted issuer JWKs, Kafka (`email.requested`) |
 | `accounts` | User accounts, deposit addresses, fiat balance views | HTTP (controllers) → `accounts.application.port.in` |
 | `invoices` | Create LND invoices, persist local records, emit webhooks | HTTP → `invoices.application.port.in` → `LightningNodeClientAdapter` (gRPC) |
-| `payments` | Idempotent pay commands, outbox events | HTTP → `payments.application.port.in` → PostgreSQL + outbox → Kafka |
+| `payments` | Idempotent pay commands, payment intent events | HTTP → `payments.application.port.in` → PostgreSQL, then direct Kafka publish after commit |
+| `requests` | Shareable single-use payment links; provision/cancel saga intent | HTTP → `requests.application.port.in` → PostgreSQL + Kafka (`payment-request.provision.requested`, `payment-request.cancel.requested`) |
 | `transactions` | Read model, settlement processors, ledger entries | Kafka consumers → `transactions.application.port.in` |
 | `decoder` | Unified BOLT11/LNURL/on-chain/alias/NIP-05 resolution | HTTP, external HTTP (NIP-05, LNURL), Nostr relay (WebSocket) |
 | `lnurl` | LNURL-pay callback and execution | HTTP (public + authenticated) |
-| `webhooks` | Event → signed delivery with retry | Kafka events → `webhooks.application` → HTTP outbound |
+| `webhooks` | Event → signed delivery with retry | `webhook.event.created` Kafka events → `webhooks.application` → HTTP outbound |
 | `admin` | LND node ops, channels, peers, wallet, settings, stats | HTTP → `admin.application.port.in` → `LightningNodeClientAdapter` (gRPC) |
 | `bitcoin` | Satoshi/BTC amount helpers and Bech32 codec | Used by accounts, decoder, lnurl protocol paths |
 | `errors` | Transport-neutral `ApplicationException` | Thrown by application/adapters; mapped in `infrastructure.web` |
@@ -90,14 +91,12 @@ Aratiri is a modular monolith with ports-and-adapters (hexagonal) architecture (
 **Request-to-settlement flow** (see README for diagrams):
 
 1. **HTTP controllers** (thin `*API` classes) validate auth and call `application.port.in` interfaces
-2. **Application services** write intent + outbox events to PostgreSQL in one transaction, then return 202
-3. **OutboxEventJob** (scheduled) publishes unprocessed outbox rows to Kafka
-4. **Kafka consumers** (in `infrastructure/messaging/`) convert events to work items (node operations, settlements, webhooks)
-5. **NodeOperationJob** (scheduled) claims and executes LND gRPC side effects with retries and leases
-6. **LND listeners** (`LightningListener`, `OnChainTransactionListener`) stream invoice/chain events back into application services
-7. **Webhook jobs** send signed HMAC-SHA256 callbacks independently of core payment flow
+2. **Application services** write intent to PostgreSQL in one transaction and publish domain events directly to Kafka via `EventPublisher` (afterCommit callback when a transaction is active), then return 202
+3. **Execution consumers** (`LightningPaymentExecutionConsumer`, `OnChainSendExecutionConsumer` in `infrastructure/messaging/consumer/`) run LND payment side effects with `@RetryableTopic` backoff; other Kafka consumers handle settlements, webhook event creation (`WebhookEventConsumer`), payment-request saga provisioning/cancellation (`PaymentRequestProvisionConsumer`, `PaymentRequestCancelConsumer`), and email (`EmailConsumer`)
+4. **LND listeners** (`LightningListener`, `OnChainTransactionListener`) stream invoice/chain events back into application services
+5. **Webhook jobs** send signed HMAC-SHA256 callbacks independently of core payment flow; `PaymentRequestSagaJob` is the lease-safe backstop for the payment-request saga (lost-event repair, terminal-state authority)
 
-**Three retry boundaries** (ADRs 0003, 0005): outbox→Kafka, node operations, webhook deliveries — each independent with own backoff/retry logic. `TransactionReconciliationJob` provides a repair path.
+**Reliability**: events are published after commit; a failed Kafka send is logged (event lost) and repaired by consumer-side idempotency plus `TransactionReconciliationJob`. Execution consumers are idempotent via the transaction row; exhausted retries dead-letter and emit `node_operation.unknown_outcome` webhooks. Webhook event creation and email are at-most-once (exhausted records dead-letter and are logged; `webhook_events` dedupes redelivery on `event_key`). Webhook delivery keeps its own retry logic. `BtcPriceCacheWarmer` warm-refreshes the price caches on a fixed delay (10s default) so request threads rarely pay external latency.
 
 **PostgreSQL** is the source of truth. `account_entries` is append-only (ADR 0002). Mutations go through repository adapters implementing `application.port.out` interfaces.
 
@@ -134,7 +133,7 @@ Aratiri is a modular monolith with ports-and-adapters (hexagonal) architecture (
 - Never use `@Data` on JPA entities; use `@Getter`/`@Setter`.
 - All database schema changes must have a corresponding Flyway migration under `src/main/resources/db/migration/`.
 - Generated protobuf classes (`lnrpc`, `routerrpc`, `invoicesrpc`) must never be committed — they are generated by `protobuf` Gradle plugin.
-- Do not call LND gRPC directly from HTTP request threads; use the outbox → Kafka → node_operations worker path.
+- Do not call LND gRPC directly from HTTP request threads; use the Kafka execution-consumer path (`PaymentExecutionService`).
 - New domain events must have a deterministic `event_key` for idempotent consumption.
 - Payment commands must be idempotent by user + `Idempotency-Key`.
 - Branch from `master`, target PRs to `master`.

@@ -153,27 +153,28 @@ Payment APIs require an `Idempotency-Key` header for:
 - `POST /v1/payments/onchain`
 - `POST /v1/lnurl/pay`
 
-## Node Operations
+## Payment Execution Consumers
 
-`node_operations` is the durable worker table for LND side effects.
+LND payment side effects run directly in Kafka consumers (`LightningPaymentExecutionConsumer` on `payment.initiated`, `OnChainSendExecutionConsumer` on `onchain.payment.initiated`) with `@RetryableTopic` backoff (5 attempts, 1s × 2.0). Exhausted messages dead-letter and emit a `node_operation.unknown_outcome` webhook.
 
 | Property / Variable | Default | Purpose |
 | --- | --- | --- |
-| `aratiri.node-operations.fixed-delay-ms` | `1000` | Worker schedule and retry delay. |
-| `aratiri.node-operations.batch-size` | `10` | Operations claimed per batch. |
-| `aratiri.node-operations.lease-seconds` | `300` | Worker lease duration. |
-| `aratiri.node-operations.lightning-max-attempts` | `5` | Max Lightning attempts before failed or unknown outcome handling. |
-| `aratiri.node-operations.onchain-max-attempts` | `5` | Max on-chain attempts before unknown outcome handling. |
+| `aratiri.kafka.groups.lightning-payment-execution` | `lightning-payment-execution-group` | Consumer group for lightning payment execution. |
+| `aratiri.kafka.groups.onchain-send-execution` | `onchain-send-execution-group` | Consumer group for on-chain send execution. |
+| `aratiri.kafka.groups.webhook-event` | `webhook-event-group` | Consumer group for `webhook.event.created` (webhook event + delivery creation). |
+| `aratiri.kafka.groups.payment-request-provision` | `payment-request-provision-group` | Consumer group for `payment-request.provision.requested` (payment-request saga provisioning). |
+| `aratiri.kafka.groups.payment-request-cancel` | `payment-request-cancel-group` | Consumer group for `payment-request.cancel.requested` (payment-request saga cancellation). |
+| `aratiri.kafka.groups.email` | `email-group` | Consumer group for `email.requested` (SMTP delivery of verification/password-reset emails). |
 
-These are Spring properties. Set them as environment variables with relaxed binding if needed, for example `ARATIRI_NODE_OPERATIONS_BATCH_SIZE`.
+These are Spring properties. Set them as environment variables with relaxed binding if needed, for example `ARATIRI_KAFKA_GROUP_LIGHTNING_PAYMENT_EXECUTION`.
 
 ## Payment Request Sagas
 
-Shareable payment requests commit durable `PROVISIONING` intent (cryptographically random preimage + SHA-256 payment hash) before any LND `AddInvoice`. A leased worker looks up by payment hash, then adds the invoice only if absent, and finalizes `OPEN`. Cancellation first transitions payable `OPEN`/`PROVISIONING` to `CANCEL_PENDING` (hiding BOLT11), then a leased worker performs lookup/cancel and finalizes `CANCELLED`. `PAID` wins over every other stored status when LND proves settlement. `EXPIRED` is derived only from `OPEN`. Terminal provisioning exhaustion becomes inspectable `FAILED` (same-key replay never silently mints a replacement).
+Shareable payment requests commit durable `PROVISIONING` intent (cryptographically random preimage + SHA-256 payment hash) and publish `payment-request.provision.requested` before any LND `AddInvoice`. `PaymentRequestProvisionConsumer` (group `aratiri.kafka.groups.payment-request-provision`) looks up by payment hash, then adds the invoice only if absent, and finalizes `OPEN`. Cancellation first transitions payable `OPEN`/`PROVISIONING` to `CANCEL_PENDING` (hiding BOLT11) and publishes `payment-request.cancel.requested`; `PaymentRequestCancelConsumer` (group `aratiri.kafka.groups.payment-request-cancel`) performs lookup/cancel and finalizes `CANCELLED`. `PaymentRequestSagaJob` remains as the lease-safe backstop for lost events and as terminal-state authority (`FAILED` after `provision-max-attempts`; cancellation exhaustion keeps the row `CANCEL_PENDING`). LND is never called from payment-request HTTP threads. `PAID` wins over every other stored status when LND proves settlement. `EXPIRED` is derived only from `OPEN`. Terminal provisioning exhaustion becomes inspectable `FAILED` (same-key replay never silently mints a replacement).
 
 | Property / Variable | Default | Purpose |
 | --- | --- | --- |
-| `aratiri.payment-requests.saga.fixed-delay-ms` | `1000` | Saga worker schedule. |
+| `aratiri.payment-requests.saga.fixed-delay-ms` | `1000` | Saga backstop job schedule. |
 | `aratiri.payment-requests.saga.batch-size` | `10` | Rows claimed per batch. |
 | `aratiri.payment-requests.saga.lease-seconds` | `300` | Worker lease duration. |
 | `aratiri.payment-requests.saga.provision-max-attempts` | `10` | Attempts before `FAILED`. |
@@ -188,7 +189,9 @@ Observability:
 
 HTTP contract notes:
 
-- Create: `201` when synchronously `OPEN`, `202` + `Location` while `PROVISIONING`, same-key replay `202` while pending / `200` once `OPEN`/terminal, payload conflict `409`.
+- Create: `202` + `Location` for every newly created request (provisioning runs asynchronously — the
+  former synchronous `201` fast path is removed). Same-key replay: `202` while pending / `200` once
+  `OPEN`/terminal, payload conflict `409`.
 - Cancel: `202` for `CANCEL_PENDING` (including replay), `200` once `CANCELLED`, `409` for `PAID`/`EXPIRED`/`FAILED`.
 - BOLT11 appears only while effective status is `OPEN`. Preimage, lease fields, and diagnostics are never exposed on owner/public DTOs.
 
@@ -241,6 +244,7 @@ The signature is `v1=` plus the HMAC-SHA256 hex digest of `timestamp.eventId.pay
 | `ARATIRI_CURRENCY_CONVERSION_FALLBACK_API_URL` | jsDelivr currency API URL | Fallback current BTC price provider template. |
 | `ARATIRI_CURRENCY_CONVERSION_CACHE_CURRENT_TTL_SECONDS` | `10` | Current price cache TTL. |
 | `ARATIRI_CURRENCY_CONVERSION_CACHE_HISTORY_TTL_SECONDS` | `300` | Historical price cache TTL. |
+| `ARATIRI_PRICE_CACHE_WARM_FIXED_DELAY_MS` | `10000` | `@Scheduled` fixed delay of the `BtcPriceCacheWarmer` warm-refresh job (ms). Keeps `btcPriceCurrent`/`btcPriceHistory` warm so request threads rarely pay external currency-API latency; warm failures leave the cache empty and the request path fills on demand. |
 
 ## Nostr And Decoder
 

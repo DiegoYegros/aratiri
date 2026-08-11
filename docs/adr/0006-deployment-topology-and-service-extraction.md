@@ -4,7 +4,7 @@
 
 ## Context
 
-The approved project ficha proposes a microservice architecture. The current implementation is not a set of microservices: it is one Spring Boot deployable, built as one `bootJar`, with bounded-context packages sharing one process and one PostgreSQL schema. Kafka, the outbox, and ports-and-adapters provide asynchronous and modular boundaries, but they do not make independently deployable services.
+The approved project ficha proposes a microservice architecture. The current implementation is not a set of microservices: it is one Spring Boot deployable, built as one `bootJar`, with bounded-context packages sharing one process and one PostgreSQL schema. Kafka event publishing (direct post-commit publish) and ports-and-adapters provide asynchronous and modular boundaries, but they do not make independently deployable services.
 
 Rewriting the application into distributed services now would add deployment, observability, network-failure, data-consistency, and test-environment work without evidence that those costs are necessary for the PFGR scope. The existing module boundaries are useful extraction seams and let the report describe the implementation accurately.
 
@@ -19,7 +19,7 @@ If the tutor requires microservices, extract incrementally from the following ma
 | `auth` | Identity service | Users, verification, password reset, refresh tokens, and token issuance; expose identity contracts to other services. |
 | `accounts` | Accounts and ledger service | Accounts and balance queries; extracted together with the ledger portion of `transactions` to keep balance invariants local. |
 | `transactions` | Accounts and ledger service / transaction read service | Account entries stay with accounts; transaction projections may become a separate event-fed read service only if independently useful. |
-| `payments` | Payment orchestration service | Idempotent payment commands and payment outbox events; communicate with ledger and node gateway through APIs or events. |
+| `payments` | Payment orchestration service | Idempotent payment commands and payment intent events (published directly to Kafka after commit); communicate with ledger and node gateway through APIs or events. |
 | `invoices` | Invoice service | Invoice lifecycle and invoice records; publish settlement events and call the node gateway through a stable contract. |
 | `decoder`, `lnurl` | Payment-protocol edge service | BOLT11, LNURL, alias, NIP-05, and on-chain decoding and LNURL callbacks; mostly stateless protocol-facing behavior. |
 | `admin` | LND gateway service | Node administration plus the LND-facing parts of `infrastructure`; exclusively own LND credentials and gRPC access. |
@@ -32,7 +32,7 @@ Each extracted service must own its persistence rather than directly sharing Ara
 ## Consequences
 
 - The implementation remains operationally simple: one deployment, one transaction boundary for ledger-critical changes, and one integration-test environment.
-- Package boundaries, ports, Kafka events, and the outbox preserve a credible path to later extraction.
+- Package boundaries, ports, and Kafka events preserve a credible path to later extraction.
 - The deployable cannot scale or fail independently by bounded context, and shared-process coupling remains possible; architecture checks and code review must protect module boundaries.
 - The implementation differs from the ficha's proposed topology, so this decision must remain pending until the tutor accepts it or requests a smaller demonstrative extraction.
 - A tutor requirement for physical microservices supersedes this proposal. The extraction map then supplies the migration order and scope.

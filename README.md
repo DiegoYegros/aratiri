@@ -13,20 +13,16 @@ This README focuses on how the application works. Operational setup lives in:
 
 ## System Shape
 
-Aratiri is a modular monolith. The HTTP controllers are thin adapters over application ports. Domain/application services write durable intent into PostgreSQL first, then use a transactional outbox and Kafka to drive side effects. LND calls are not made directly from most API request paths; they are retried by durable workers through `node_operations`.
+Aratiri is a modular monolith. The HTTP controllers are thin adapters over application ports. Domain/application services write durable intent into PostgreSQL first, then publish domain events directly to Kafka after the DB commit to drive side effects. LND payment calls are not made from HTTP request threads; dedicated Kafka consumers execute them with retry-topic backoff and dead-lettering.
 
 ```mermaid
 flowchart TB
     clients["API clients / admin UI / wallets"] --> http["Spring MVC APIs"]
     http --> app["Application services"]
     app --> db[("PostgreSQL")]
-    app --> outbox["Outbox rows"]
-    outbox --> outboxJob["OutboxEventJob"]
-    outboxJob --> kafka[("Kafka")]
+    app -->|"direct publish after commit"| kafka[("Kafka")]
     kafka --> consumers["Kafka consumers"]
-    consumers --> operations["node_operations"]
-    operations --> nodeJob["NodeOperationJob"]
-    nodeJob --> lnd["LND gRPC"]
+    consumers --> lnd["LND gRPC"]
     lnd --> listeners["LND invoice and chain streams"]
     listeners --> app
     app --> webhooks["Webhook events and deliveries"]
@@ -37,10 +33,19 @@ flowchart TB
 The key design point is separation of concerns:
 
 - HTTP requests validate identity and record intent.
-- PostgreSQL stores user state, append-only accounting facts, outbox events, payment idempotency keys, node operation state, and webhook delivery state.
-- Kafka carries committed domain events to consumers.
-- `node_operations` owns long-running or ambiguous LND side effects.
-- Scheduled jobs retry publish, node execution, reconciliation, webhook delivery, stream reconnects, and optional peer management.
+- PostgreSQL stores user state, append-only accounting facts, payment idempotency keys, and webhook delivery state.
+- Kafka carries committed domain events to consumers; a send failure after commit is logged and repaired by consumer-side idempotency and `TransactionReconciliationJob`.
+- Execution consumers run LND payments with retry-topic backoff; exhausted retries land in the dead-letter topic, which emits a `node_operation.unknown_outcome` webhook.
+- Scheduled jobs handle reconciliation, webhook delivery, stream reconnects, price-cache warm-refresh, and optional peer management.
+
+Domain events (`invoice.settled`, `internal.transfer.initiated`, `internal.transfer.completed`,
+`internal.invoice.cancel`, `payment.sent`, `payment.initiated`, `onchain.payment.initiated`,
+`onchain.transaction.received`, `webhook.event.created`, `payment-request.provision.requested`,
+`payment-request.cancel.requested`, `email.requested`) are published after commit with
+deterministic keys, and consumers are idempotent under redelivery. Webhook event creation, the
+payment-request saga, and email delivery are all Kafka-driven: business code records durable intent
+in PostgreSQL, then consumers run the side effects (webhook row + delivery creation, LND
+`AddInvoice`/cancel, SMTP) off the request threads.
 
 ## Runtime Modules
 
@@ -51,13 +56,13 @@ The source tree is organized by bounded area under `src/main/java/com/aratiri`.
 | `auth` | Local auth, Google SSO, trusted issuer token exchange, refresh tokens, password reset, user provisioning, WebSocket notification identity. |
 | `accounts` | One account per user, LNURL alias, node-owned on-chain deposit address, QR payloads, fiat-denominated balance views. |
 | `invoices` | Creates LND invoices, persists local invoice records, decodes payment requests, emits invoice-created webhooks. |
-| `requests` | Shareable single-use fixed-satoshi Lightning payment links backed by local invoices and the existing settlement path. |
+| `requests` | Shareable single-use fixed-satoshi Lightning payment links backed by local invoices and the existing settlement path; create/cancel are asynchronous (`202`) and provisioned/cancelled by a Kafka-driven saga with a scheduled-job backstop. |
 | `payments` | Idempotent Lightning, LNURL, and on-chain payment commands. Creates pending debit transactions and emits payment intent events. |
 | `transactions` | Transaction read model, append-only lifecycle events, settlement processors, account ledger updates, payment succeeded/failed events. |
 | `lnurl` | Public LNURL-pay metadata/callback endpoints and authenticated LNURL-pay execution. |
 | `decoder` | Resolves LNURL, Lightning invoices, on-chain addresses, internal aliases, Lightning addresses, npub, and NIP-05 identifiers. |
-| `webhooks` | Builds idempotent webhook events, subscribes endpoints to event types, signs and retries deliveries. |
-| `admin` | LND node administration, channel and peer operations, wallet/node stats, node settings, node operation visibility. |
+| `webhooks` | Consumes `webhook.event.created` to build idempotent webhook events, subscribes endpoints to event types, signs and retries deliveries. |
+| `admin` | LND node administration, channel and peer operations, wallet/node stats, node settings. |
 | `infrastructure` | JPA entities/repositories, Kafka, gRPC stubs, scheduling, filters, security, CORS, cache, WebSocket, and shared runtime configuration. |
 
 Most modules follow a ports-and-adapters style: API classes call `application.port.in` interfaces, application services call `application.port.out` interfaces, and infrastructure adapters implement those ports with JPA repositories, LND gRPC clients, Kafka, HTTP clients, or external APIs.
@@ -71,25 +76,21 @@ Aratiri's money model is intentionally append-oriented.
 - `transaction_events` records lifecycle facts such as `PENDING`, `COMPLETED`, `FAILED`, and `FEE_ADDED`.
 - `account_entries` is the append-only ledger. Each balance-affecting settlement appends a delta and resulting `balance_after`.
 - `lightning_invoices` links LND invoices to Aratiri users, metadata, external references, payment hashes, and settlement state.
-- `outbox_events` stores committed domain events before Kafka publication.
 - `payment_commands` stores HTTP idempotency state by user and idempotency key.
-- `node_operations` stores durable LND side-effect work with leases, attempts, external IDs, and unknown-outcome state.
 - `webhook_events` and `webhook_deliveries` store integrator callbacks and retry state.
 
-This means retries should be safe at each layer: duplicate domain events are keyed, ledger entries are idempotent per account/transaction, routing fee events are unique per transaction, payment commands replay accepted responses, and node operations are claimed with leases.
+This means retries should be safe at each layer: domain events are published once per commit but consumers are idempotent under redelivery (the transaction row is the execution anchor), ledger entries are idempotent per account/transaction, routing fee events are unique per transaction, and payment commands replay accepted responses.
 
 ## Payment Lifecycle
 
 ### External Lightning Payment
 
 1. A client calls `POST /v1/payments/invoice` with an `Idempotency-Key`.
-2. `PaymentsAdapter` decodes the BOLT11 invoice, rejects already-paid or in-flight payment hashes, creates a pending `LIGHTNING_DEBIT` transaction, and writes a `payment.initiated` outbox event.
-3. `OutboxEventJob` publishes the event to Kafka.
-4. `PaymentConsumer` turns the Kafka message into a `LIGHTNING_PAYMENT` row in `node_operations`.
-5. `NodeOperationJob` claims the operation, checks LND for existing payment state, then calls `Router.SendPaymentV2` through `LightningNodeClientAdapter`.
-6. On success, the worker records routing fee if present, confirms the transaction, appends a debit ledger entry, marks the operation succeeded, and emits payment/webhook/notification events.
-7. On terminal failure, it fails the transaction and marks the node operation failed.
-8. On ambiguous transport failure or nonterminal LND state, it retries until the configured attempt limit. If Aratiri cannot prove the final LND outcome, it records `UNKNOWN_OUTCOME` and emits `node_operation.unknown_outcome`.
+2. `PaymentsAdapter` decodes the BOLT11 invoice, rejects already-paid or in-flight payment hashes, creates a pending `LIGHTNING_DEBIT` transaction, and publishes a `payment.initiated` event right after the commit.
+3. `LightningPaymentExecutionConsumer` checks LND for existing payment state (never sending twice), then calls `Router.SendPaymentV2` through `LightningNodeClientAdapter`.
+4. On success, the consumer records the routing fee if present, confirms the transaction, and appends a debit ledger entry, which emits payment/webhook/notification events.
+5. On a terminal LND failure, it fails the transaction.
+6. On an ambiguous transport failure or nonterminal LND state, it throws and the retry-topic machinery backs off and redelivers. After max attempts the message is dead-lettered and a `node_operation.unknown_outcome` webhook is emitted.
 
 ```mermaid
 sequenceDiagram
@@ -97,17 +98,15 @@ sequenceDiagram
     participant API as PaymentsAPI
     participant DB as PostgreSQL
     participant Kafka
-    participant Worker as NodeOperationJob
+    participant Consumer as ExecutionConsumer
     participant LND
 
     Client->>API: POST /v1/payments/invoice
-    API->>DB: payment_commands + pending transaction + outbox
+    API->>DB: payment_commands + pending transaction
     DB-->>Client: 202 transactionId
-    DB->>Kafka: OutboxEventJob publishes payment.initiated
-    Kafka->>DB: PaymentConsumer enqueues node_operation
-    Worker->>DB: claim LIGHTNING_PAYMENT
-    Worker->>LND: inspect / send payment
-    Worker->>DB: complete or fail transaction + operation
+    API->>Kafka: publish payment.initiated after commit
+    Consumer->>LND: inspect payment state / send payment
+    Consumer->>DB: confirm or fail transaction
 ```
 
 ### Internal Lightning Transfer
@@ -123,7 +122,22 @@ If the payment hash belongs to an invoice generated by Aratiri, the payment is t
 
 ### On-Chain Withdrawal
 
-`POST /v1/payments/onchain` follows the same idempotency and outbox pattern. The API estimates network and platform fees, creates a pending `ONCHAIN_DEBIT`, and emits `onchain.payment.initiated`. The node worker calls LND `SendCoins`, records the txid as `external_id`, confirms the transaction, and debits the ledger.
+`POST /v1/payments/onchain` follows the same idempotency and direct-publish pattern. The API estimates network and platform fees, creates a pending `ONCHAIN_DEBIT`, and emits `onchain.payment.initiated`. `OnChainSendExecutionConsumer` broadcasts via LND `SendCoins` with a transaction label, then confirms the transaction and debits the ledger. On redelivery the consumer first looks the label up in the wallet and confirms without re-broadcasting.
+
+### Payment Requests (shareable links)
+
+Payment-request create/cancel are asynchronous by contract: every newly created request returns
+`202` + `Location` and commits durable `PROVISIONING` intent (the synchronous `201` fast path was
+removed). The saga is driven by Kafka:
+
+1. Create commits the preimage/payment-hash and publishes `payment-request.provision.requested`.
+2. `PaymentRequestProvisionConsumer` looks up by payment hash, calls LND `AddInvoice` only if absent, and finalizes `OPEN`.
+3. Cancel durably transitions payable requests to `CANCEL_PENDING` (hiding BOLT11) and publishes `payment-request.cancel.requested`.
+4. `PaymentRequestCancelConsumer` performs the LND lookup/cancel and finalizes `CANCELLED`.
+5. `PaymentRequestSagaJob` remains as the lease-safe backstop: if the event was lost at publish, the consumer never ran, or a claim was crashed, the job reclaims `PROVISIONING`/`CANCEL_PENDING` rows on the same fenced lease rules and remains the terminal-state authority (`FAILED` after max attempts).
+
+LND is never called from payment-request HTTP threads. `PAID` wins over every other stored status
+when LND proves settlement; `EXPIRED` is derived only from `OPEN`.
 
 ### Incoming Funds
 
@@ -149,9 +163,10 @@ Incoming Lightning and on-chain credits come from LND streams.
 | `/v1/lnurl/pay` | Authenticated LNURL-pay execution. |
 | `/v1/decoder` | Unified decoding/resolution endpoint. |
 | `/v1/general-data` | Supported fiat currencies and cached BTC price data. |
-| `/v1/admin` | Admin-only LND node, channel, peer, wallet, settings, stats, and node operation endpoints. |
+| `/v1/admin` | Admin-only LND node, channel, peer, wallet, settings, and stats endpoints. |
 | `/v1/admin/webhooks` | Admin webhook endpoint management. |
 | `/v1/admin/webhook-deliveries` | Webhook delivery inspection and manual retry. |
+| `/v1/admin/payment-request-sagas` | Payment-request saga queue status, failed/exhausted-cancellation inspection, and manual retry. |
 | `POST /v1/notifications/ws-ticket` | Authenticated mint of a short-lived single-use WebSocket ticket. |
 | `/v1/notifications/subscribe` | WebSocket notification stream; present ticket via `Sec-WebSocket-Protocol: aratiri.notifications.v1, <ticket>` (no query auth). |
 
@@ -160,7 +175,7 @@ The H2 console is only permitted in `dev`, `development`, or `test` profiles unl
 
 ## Webhook Model
 
-Webhook events are created from application facts, not directly from Kafka offsets. Each event has a deterministic `event_key` when possible, so duplicate processing does not create duplicate callbacks. Admin users create endpoints, select event types, rotate signing secrets, send test events, and inspect deliveries.
+Webhook events are created by `WebhookEventConsumer` from `webhook.event.created` messages that business code publishes after its transaction commits (webhook row creation no longer runs in the business transaction). Each event has a deterministic `event_key`, and the `webhook_events` unique index makes duplicate processing idempotent — redelivery does not create duplicate callbacks. The `webhook_events`/`webhook_deliveries` tables remain the delivery and audit store; the admin `webhook.test` endpoint creates its event synchronously. Admin users create endpoints, select event types, rotate signing secrets, send test events, and inspect deliveries.
 
 Supported event families include:
 
@@ -178,11 +193,16 @@ Deliveries are signed with `X-Aratiri-Signature` using HMAC-SHA256 over `timesta
 
 ## Reliability Boundaries
 
-Aratiri has three separate retry boundaries:
+Aratiri publishes domain events directly to Kafka after the DB commit and relies on idempotent consumers for redelivery safety:
 
-1. **Outbox publication** retries database-to-Kafka publication until `processed_at` is written.
-2. **Node operations** retry LND side effects with leases and status inspection, then surface unknown outcomes instead of pretending success or failure.
-3. **Webhook delivery** retries outbound HTTP callbacks independently of the core payment flow.
+1. **Execution consumers** retry LND side effects through the Kafka retry-topic machinery (backoff, max attempts) and surface exhausted attempts as `node_operation.unknown_outcome` webhook events instead of pretending success or failure.
+2. **Webhook delivery** retries outbound HTTP callbacks independently of the core payment flow.
+
+Webhook event creation, payment-request saga provisioning/cancellation, and email send are also
+consumer-driven: each has `@RetryableTopic` backoff, and each is at-most-once at the boundary
+(dead-lettered records are logged). Webhook events dedupe on the unique `event_key`,
+`PaymentRequestSagaJob` backstops lost saga events, and register/reset codes stay in the DB so
+a lost email can be re-requested.
 
 `TransactionReconciliationJob` also scans older pending Lightning transactions and compares them with LND payment state. This provides a repair path if a payment result was missed by the normal worker path.
 
@@ -193,7 +213,7 @@ The app is stateless at the HTTP layer and uses Spring Security as an OAuth2 res
 Authentication flows include:
 
 - local email/password login with refresh tokens,
-- registration and password reset verification codes delivered by email,
+- registration and password reset verification codes delivered by email (`email.requested` → `EmailConsumer`; the unconfigured-SMTP `503` is preserved, and register/reset responses no longer wait on SMTP),
 - Google SSO provisioning,
 - trusted issuer token exchange for integrators,
 - role hierarchy `SUPERADMIN > ADMIN > VIEWER > USER`.
