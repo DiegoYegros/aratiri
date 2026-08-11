@@ -43,8 +43,6 @@ public interface WebhookDeliveryRepository extends JpaRepository<WebhookDelivery
                       @Param("lockedUntil") Instant lockedUntil,
                       @Param("now") Instant now);
 
-    List<WebhookDeliveryEntity> findByEndpointIdOrderByCreatedAtDesc(UUID endpointId, Pageable pageable);
-
     List<WebhookDeliveryEntity> findByEndpointIdAndStatusOrderByCreatedAtDesc(UUID endpointId, WebhookDeliveryStatus status, Pageable pageable);
 
     @Query("SELECT d FROM WebhookDeliveryEntity d JOIN WebhookEventEntity e ON d.eventId = e.id WHERE d.endpointId = :endpointId AND e.eventType = :eventType ORDER BY d.createdAt DESC")

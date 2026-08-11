@@ -36,13 +36,6 @@ class JwtUtilTest {
     }
 
     @Test
-    void generateTokenFromUsername_delegatesToGenerateToken() {
-        String token = jwtUtil.generateTokenFromUsername("user@test.com");
-
-        assertNotNull(token);
-    }
-
-    @Test
     void extractUsername_returnsCorrectUsername() {
         String token = jwtUtil.generateToken("user@test.com");
 

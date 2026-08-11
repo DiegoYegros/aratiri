@@ -18,8 +18,6 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
 
     Optional<RefreshTokenEntity> findByUser(UserEntity user);
 
-    void deleteByUser(UserEntity user);
-
     /**
      * Atomically replace the presented refresh token string. Returns 0 when the
      * presented token is already gone (reuse or concurrent rotate lost the race).

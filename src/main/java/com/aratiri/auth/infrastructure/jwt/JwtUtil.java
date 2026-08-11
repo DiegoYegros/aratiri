@@ -27,10 +27,6 @@ public class JwtUtil {
         return generateTokenWithExpiration(username, aratiriProperties.getJwtExpiration());
     }
 
-    public String generateTokenFromUsername(String username) {
-        return generateToken(username);
-    }
-
     private String generateTokenWithExpiration(String username, long expirationInSeconds) {
         Instant now = Instant.now();
         return Jwts.builder()

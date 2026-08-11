@@ -8,13 +8,13 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.annotation.EnableKafkaRetryTopic;
-import org.springframework.resilience.annotation.EnableResilientMethods;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableCaching
 @EnableKafkaRetryTopic
-@EnableResilientMethods
 @EnableKafka
+@EnableScheduling
 @EnableConfigurationProperties({
         PaymentRequestSagaProperties.class,
         OutboundDestinationProperties.class

@@ -118,7 +118,6 @@ dependencies {
     implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'io.micrometer:micrometer-tracing-bridge-brave'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
-    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-flyway'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     implementation "com.google.api-client:google-api-client:${googleApiClientVersion}"
@@ -128,7 +127,6 @@ dependencies {
     implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
     implementation "io.grpc:grpc-protobuf:${grpcVersion}"
     implementation "io.grpc:grpc-stub:${grpcVersion}"
-    implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
     implementation "io.jsonwebtoken:jjwt-api:${jsonWebTokenVersion}"
     runtimeOnly "io.jsonwebtoken:jjwt-impl:${jsonWebTokenVersion}"
     runtimeOnly 'org.postgresql:postgresql'

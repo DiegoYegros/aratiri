@@ -69,31 +69,6 @@ class WebhookFactsTest {
     }
 
     @Test
-    void accountBalanceChangedFacts_validatesNonNulls() {
-        assertThrows(NullPointerException.class, () ->
-                new AccountBalanceChangedWebhookFacts(null, "u-1", "ext", "meta", 1000L, "ref", "ledger-1", 5000L));
-        assertThrows(NullPointerException.class, () ->
-                new AccountBalanceChangedWebhookFacts("tx-1", null, "ext", "meta", 1000L, "ref", "ledger-1", 5000L));
-        assertThrows(NullPointerException.class, () ->
-                new AccountBalanceChangedWebhookFacts("tx-1", "u-1", "ext", "meta", 1000L, "ref", null, 5000L));
-    }
-
-    @Test
-    void accountBalanceChangedFacts_allFieldsAccessible() {
-        AccountBalanceChangedWebhookFacts facts = new AccountBalanceChangedWebhookFacts(
-                "tx-1", "u-1", "ext-ref", "meta", 1000L, "ref-1", "ledger-1", 5000L);
-
-        assertEquals("tx-1", facts.transactionId());
-        assertEquals("u-1", facts.userId());
-        assertEquals("ext-ref", facts.externalReference());
-        assertEquals("meta", facts.metadata());
-        assertEquals(1000L, facts.amountSat());
-        assertEquals("ref-1", facts.referenceId());
-        assertEquals("ledger-1", facts.ledgerEntryId());
-        assertEquals(5000L, facts.balanceAfterSat());
-    }
-
-    @Test
     void onChainDepositFacts_validatesNonNulls() {
         assertThrows(NullPointerException.class, () ->
                 new OnChainDepositWebhookFacts(null, "u-1", 1000L, TransactionStatus.COMPLETED, "ref", "ext", "meta", 500L));

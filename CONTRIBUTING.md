@@ -43,14 +43,13 @@ Aratiri follows a ports-and-adapters architecture. Each bounded context lives un
 | `application/port/in` | Incoming use case interfaces |
 | `application/port/out` | Outgoing infrastructure interfaces |
 | `application/service` | Use case implementations |
-| `api` | HTTP controller adapters |
+| `{Context}API.java` at the context root | HTTP controller adapters |
 | `domain` | Domain objects and enums |
 
 Infrastructure is under `src/main/java/com/aratiri/infrastructure/`:
 - `persistence/jpa/entity` — JPA entities (use `@Getter`/`@Setter`, never `@Data`)
 - `persistence/jpa/repository` — Spring Data repositories
-- `messaging` — Kafka consumers, producers, and outbox
-- `nodeoperations` — LND side-effect workers
+- `messaging` — Kafka consumers, execution consumers, and event publishers
 - `scheduling` — Scheduled jobs
 - `web` — Global exception handler and request context
 - `grpc` — gRPC interceptors

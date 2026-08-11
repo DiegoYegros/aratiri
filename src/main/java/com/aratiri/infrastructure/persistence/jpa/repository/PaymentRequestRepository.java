@@ -174,8 +174,6 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequestEn
             @Param("lockedBy") String lockedBy
     );
 
-    long countByStatus(String status);
-
     @Query("SELECT COUNT(r) FROM PaymentRequestEntity r WHERE r.status = 'PROVISIONING' "
             + "AND r.provisionNextAttemptAt <= :now "
             + "AND (r.provisionLockedUntil IS NULL OR r.provisionLockedUntil < :now)")
