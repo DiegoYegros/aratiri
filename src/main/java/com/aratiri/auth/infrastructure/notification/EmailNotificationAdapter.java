@@ -1,9 +1,7 @@
 package com.aratiri.auth.infrastructure.notification;
 
 import com.aratiri.auth.application.port.out.EmailNotificationPort;
-import com.aratiri.errors.ApplicationException;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
@@ -46,15 +44,6 @@ public class EmailNotificationAdapter implements EmailNotificationPort {
     }
 
     private void requireMailConfigured() {
-        if (isBlank(username) || isBlank(password)) {
-            throw new ApplicationException(
-                    "Email delivery is not configured",
-                    HttpStatus.SERVICE_UNAVAILABLE.value()
-            );
-        }
-    }
-
-    private static boolean isBlank(String value) {
-        return value == null || value.isBlank();
+        MailConfigurationSupport.requireConfigured(username, password);
     }
 }

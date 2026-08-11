@@ -4,7 +4,7 @@ import com.aratiri.accounts.application.port.in.AccountsPort;
 import com.aratiri.auth.application.port.in.RegistrationCommand;
 import com.aratiri.auth.application.port.in.VerificationCommand;
 import com.aratiri.auth.application.port.out.AccessTokenPort;
-import com.aratiri.auth.application.port.out.EmailNotificationPort;
+import com.aratiri.auth.application.port.out.EmailRequestPublisher;
 import com.aratiri.auth.application.port.out.LoadUserPort;
 import com.aratiri.auth.application.port.out.PasswordEncoderPort;
 import com.aratiri.auth.application.port.out.RefreshTokenPort;
@@ -16,7 +16,9 @@ import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.RefreshToken;
 import com.aratiri.auth.domain.RegistrationDraft;
 import com.aratiri.auth.domain.Role;
+import com.aratiri.auth.infrastructure.notification.EmailRequestPublisherAdapter;
 import com.aratiri.errors.ApplicationException;
+import com.aratiri.infrastructure.messaging.EventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +38,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,7 +48,10 @@ class RegistrationAdapterTest {
     private RegistrationDraftPort registrationDraftPort;
 
     @Mock
-    private EmailNotificationPort emailNotificationPort;
+    private EmailRequestPublisher emailRequestPublisher;
+
+    @Mock
+    private EventPublisher eventPublisher;
 
     @Mock
     private PasswordEncoderPort passwordEncoderPort;
@@ -72,7 +78,7 @@ class RegistrationAdapterTest {
     @BeforeEach
     void setUp() {
         adapter = new RegistrationAdapter(
-                registrationDraftPort, emailNotificationPort, passwordEncoderPort,
+                registrationDraftPort, emailRequestPublisher, passwordEncoderPort,
                 userCommandPort, accountsPort, accessTokenPort, refreshTokenPort,
                 loadUserPort, clock);
     }
@@ -86,7 +92,40 @@ class RegistrationAdapterTest {
         adapter.initiateRegistration(command);
 
         verify(registrationDraftPort).save(any(RegistrationDraft.class));
-        verify(emailNotificationPort).sendVerificationEmail(eq("test@test.com"), anyString());
+        verify(emailRequestPublisher).publishVerificationEmail(eq("test@test.com"), anyString());
+    }
+
+    @Test
+    void initiateRegistration_publishesThroughPortOnly_notDirectAdapter() {
+        RegistrationCommand command = new RegistrationCommand("Test User", "test@test.com", "password", null);
+        when(loadUserPort.findByEmail("test@test.com")).thenReturn(Optional.empty());
+        when(passwordEncoderPort.encode("password")).thenReturn("encoded");
+
+        adapter.initiateRegistration(command);
+
+        verify(emailRequestPublisher).publishVerificationEmail(anyString(), anyString());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void initiateRegistration_unconfiguredMail_throws503LikeSynchronousSender() {
+        RegistrationCommand command = new RegistrationCommand("Test User", "test@test.com", "password", null);
+        when(loadUserPort.findByEmail("test@test.com")).thenReturn(Optional.empty());
+        when(passwordEncoderPort.encode("password")).thenReturn("encoded");
+        EmailRequestPublisher unconfiguredPublisher = new EmailRequestPublisherAdapter(eventPublisher, "", "secret");
+
+        RegistrationAdapter unconfiguredAdapter = new RegistrationAdapter(
+                registrationDraftPort, unconfiguredPublisher, passwordEncoderPort,
+                userCommandPort, accountsPort, accessTokenPort, refreshTokenPort,
+                loadUserPort, clock);
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> unconfiguredAdapter.initiateRegistration(command));
+
+        assertEquals("Email delivery is not configured", ex.getMessage());
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE.value(), ex.getStatus());
+        verify(registrationDraftPort).save(any(RegistrationDraft.class));
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test

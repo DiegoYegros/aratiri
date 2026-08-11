@@ -2,7 +2,7 @@ package com.aratiri.auth.application;
 
 import com.aratiri.auth.application.port.in.PasswordResetCompletionCommand;
 import com.aratiri.auth.application.port.in.PasswordResetRequestCommand;
-import com.aratiri.auth.application.port.out.EmailNotificationPort;
+import com.aratiri.auth.application.port.out.EmailRequestPublisher;
 import com.aratiri.auth.application.port.out.LoadUserPort;
 import com.aratiri.auth.application.port.out.PasswordEncoderPort;
 import com.aratiri.auth.application.port.out.PasswordResetTokenPort;
@@ -11,7 +11,9 @@ import com.aratiri.auth.domain.AuthProvider;
 import com.aratiri.auth.domain.AuthUser;
 import com.aratiri.auth.domain.PasswordResetToken;
 import com.aratiri.auth.domain.Role;
+import com.aratiri.auth.infrastructure.notification.EmailRequestPublisherAdapter;
 import com.aratiri.errors.ApplicationException;
+import com.aratiri.infrastructure.messaging.EventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +33,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,7 +46,10 @@ class PasswordResetAdapterTest {
     private PasswordResetTokenPort passwordResetTokenPort;
 
     @Mock
-    private EmailNotificationPort emailNotificationPort;
+    private EmailRequestPublisher emailRequestPublisher;
+
+    @Mock
+    private EventPublisher eventPublisher;
 
     @Mock
     private UserCommandPort userCommandPort;
@@ -58,7 +64,7 @@ class PasswordResetAdapterTest {
     @BeforeEach
     void setUp() {
         adapter = new PasswordResetAdapter(
-                loadUserPort, passwordResetTokenPort, emailNotificationPort,
+                loadUserPort, passwordResetTokenPort, emailRequestPublisher,
                 userCommandPort, passwordEncoderPort, clock);
     }
 
@@ -70,7 +76,27 @@ class PasswordResetAdapterTest {
         adapter.initiatePasswordReset(new PasswordResetRequestCommand("test@test.com"));
 
         verify(passwordResetTokenPort).save(any(PasswordResetToken.class));
-        verify(emailNotificationPort).sendPasswordResetEmail(eq("test@test.com"), anyString());
+        verify(emailRequestPublisher).publishPasswordResetEmail(eq("test@test.com"), anyString());
+    }
+
+    @Test
+    void initiatePasswordReset_unconfiguredMail_throws503LikeSynchronousSender() {
+        AuthUser user = new AuthUser("user-1", "Test", "test@test.com", AuthProvider.LOCAL, Role.USER);
+        when(loadUserPort.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        EmailRequestPublisher unconfiguredPublisher = new EmailRequestPublisherAdapter(eventPublisher, "smtp-user", "");
+
+        PasswordResetAdapter unconfiguredAdapter = new PasswordResetAdapter(
+                loadUserPort, passwordResetTokenPort, unconfiguredPublisher,
+                userCommandPort, passwordEncoderPort, clock);
+
+        PasswordResetRequestCommand command = new PasswordResetRequestCommand("test@test.com");
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> unconfiguredAdapter.initiatePasswordReset(command));
+
+        assertEquals("Email delivery is not configured", ex.getMessage());
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE.value(), ex.getStatus());
+        verify(passwordResetTokenPort).save(any(PasswordResetToken.class));
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -81,7 +107,7 @@ class PasswordResetAdapterTest {
         assertDoesNotThrow(() -> adapter.initiatePasswordReset(new PasswordResetRequestCommand("test@test.com")));
 
         verify(passwordResetTokenPort, never()).save(any());
-        verify(emailNotificationPort, never()).sendPasswordResetEmail(anyString(), anyString());
+        verify(emailRequestPublisher, never()).publishPasswordResetEmail(anyString(), anyString());
     }
 
     @Test
@@ -92,7 +118,7 @@ class PasswordResetAdapterTest {
         assertDoesNotThrow(() -> adapter.initiatePasswordReset(new PasswordResetRequestCommand("test@test.com")));
 
         verify(passwordResetTokenPort, never()).save(any());
-        verify(emailNotificationPort, never()).sendPasswordResetEmail(anyString(), anyString());
+        verify(emailRequestPublisher, never()).publishPasswordResetEmail(anyString(), anyString());
     }
 
     @Test
@@ -102,7 +128,7 @@ class PasswordResetAdapterTest {
         assertDoesNotThrow(() -> adapter.initiatePasswordReset(new PasswordResetRequestCommand("unknown@test.com")));
 
         verify(passwordResetTokenPort, never()).save(any());
-        verify(emailNotificationPort, never()).sendPasswordResetEmail(anyString(), anyString());
+        verify(emailRequestPublisher, never()).publishPasswordResetEmail(anyString(), anyString());
     }
 
     @Test

@@ -20,7 +20,7 @@ public class PasswordResetAdapter implements PasswordResetPort {
 
     private final LoadUserPort loadUserPort;
     private final PasswordResetTokenPort passwordResetTokenPort;
-    private final EmailNotificationPort emailNotificationPort;
+    private final EmailRequestPublisher emailRequestPublisher;
     private final UserCommandPort userCommandPort;
     private final PasswordEncoderPort passwordEncoderPort;
     private final Clock clock;
@@ -29,14 +29,14 @@ public class PasswordResetAdapter implements PasswordResetPort {
     public PasswordResetAdapter(
             LoadUserPort loadUserPort,
             PasswordResetTokenPort passwordResetTokenPort,
-            EmailNotificationPort emailNotificationPort,
+            EmailRequestPublisher emailRequestPublisher,
             UserCommandPort userCommandPort,
             PasswordEncoderPort passwordEncoderPort,
             Clock clock
     ) {
         this.loadUserPort = loadUserPort;
         this.passwordResetTokenPort = passwordResetTokenPort;
-        this.emailNotificationPort = emailNotificationPort;
+        this.emailRequestPublisher = emailRequestPublisher;
         this.userCommandPort = userCommandPort;
         this.passwordEncoderPort = passwordEncoderPort;
         this.clock = clock;
@@ -62,7 +62,7 @@ public class PasswordResetAdapter implements PasswordResetPort {
                 LocalDateTime.now(clock).plusMinutes(15)
         );
         passwordResetTokenPort.save(token);
-        emailNotificationPort.sendPasswordResetEmail(user.email(), code);
+        emailRequestPublisher.publishPasswordResetEmail(user.email(), code);
     }
 
     @Override

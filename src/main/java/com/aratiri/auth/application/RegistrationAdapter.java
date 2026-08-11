@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 public class RegistrationAdapter implements RegistrationPort {
 
     private final RegistrationDraftPort registrationDraftPort;
-    private final EmailNotificationPort emailNotificationPort;
+    private final EmailRequestPublisher emailRequestPublisher;
     private final PasswordEncoderPort passwordEncoderPort;
     private final UserCommandPort userCommandPort;
     private final AccountsPort accountsPort;
@@ -33,7 +33,7 @@ public class RegistrationAdapter implements RegistrationPort {
 
     public RegistrationAdapter(
             RegistrationDraftPort registrationDraftPort,
-            EmailNotificationPort emailNotificationPort,
+            EmailRequestPublisher emailRequestPublisher,
             PasswordEncoderPort passwordEncoderPort,
             UserCommandPort userCommandPort,
             AccountsPort accountsPort,
@@ -43,7 +43,7 @@ public class RegistrationAdapter implements RegistrationPort {
             Clock clock
     ) {
         this.registrationDraftPort = registrationDraftPort;
-        this.emailNotificationPort = emailNotificationPort;
+        this.emailRequestPublisher = emailRequestPublisher;
         this.passwordEncoderPort = passwordEncoderPort;
         this.userCommandPort = userCommandPort;
         this.accountsPort = accountsPort;
@@ -71,7 +71,7 @@ public class RegistrationAdapter implements RegistrationPort {
                 LocalDateTime.now(clock).plusMinutes(15)
         );
         registrationDraftPort.save(draft);
-        emailNotificationPort.sendVerificationEmail(command.email(), code);
+        emailRequestPublisher.publishVerificationEmail(command.email(), code);
     }
 
     @Override
