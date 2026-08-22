@@ -24,7 +24,7 @@ import java.util.Locale;
 @Component
 public class OutboundDestinationPolicy {
 
-  /** mask, network — checked as {@code (address & mask) == network}. */
+  /** mask and network, checked as {@code (address & mask) == network}. */
   private static final int[][] PROHIBITED_IPV4_RANGES = {
       {0xFF000000, 0x00000000}, // 0.0.0.0/8
       {0xFF000000, 0x0A000000}, // 10.0.0.0/8
@@ -451,15 +451,15 @@ public class OutboundDestinationPolicy {
     if (isIpv4CompatiblePrefix(raw)) {
       return isEmbeddedIpv4Prohibited(raw, 12);
     }
-    // Well-known NAT64 64:ff9b::/96 and local-use NAT64 64:ff9b:1::/48 — reject 64:ff9b::/32.
+    // Well-known NAT64 64:ff9b::/96 and local-use NAT64 64:ff9b:1::/48; reject 64:ff9b::/32.
     if (isNat64Prefix(raw)) {
       return true;
     }
-    // 6to4 2002::/16 — reject transition prefix wholesale.
+    // 6to4 2002::/16. Reject the transition prefix wholesale.
     if (isSixToFourPrefix(raw)) {
       return true;
     }
-    // Teredo 2001:0000::/32 — reject transition prefix wholesale.
+    // Teredo 2001:0000::/32. Reject the transition prefix wholesale.
     if (isTeredoPrefix(raw)) {
       return true;
     }

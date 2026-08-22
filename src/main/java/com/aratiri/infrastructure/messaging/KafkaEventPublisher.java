@@ -15,7 +15,7 @@ import tools.jackson.databind.json.JsonMapper;
  * Publishes domain events directly to Kafka. When called inside an active Spring transaction the
  * send is deferred to an {@code afterCommit} callback so no event is published for rolled-back
  * work; outside a transaction the send is immediate. Kafka send failures after commit are logged
- * and the event is lost — consumer-side idempotency and {@code TransactionReconciliationJob} are
+ * and the event is lost; consumer-side idempotency and {@code TransactionReconciliationJob} are
  * the repair paths.
  */
 @Service

@@ -11,15 +11,15 @@ Hetzner, 2 GB RAM, user `daya`, reachable over Tailscale at 100.124.162.6).
 2. On the server, `aratiri-deploy.timer` (3 min) runs `ops/deploy/deploy.sh`:
    it compares the deployed image digests with GHCR `latest`, and only on
    change runs `docker compose pull && docker compose up -d` under a flock.
-3. Postgres, Kafka and LND are pinned images with named volumes — the poller
+3. Postgres, Kafka and LND are pinned images with named volumes, so the poller
    never recreates them unless their image changes.
 
 ## Server layout
 
-- `/home/daya/aratiri-deploy/docker-compose.yml` — production compose
+- `/home/daya/aratiri-deploy/docker-compose.yml`: production compose
   (kept in sync with `ops/docker-compose.prod.yml` in this repo).
-- `/home/daya/aratiri-deploy/.env` — runtime secrets (never committed).
-- `ops/deploy/` — poller script + systemd units (installed at
+- `/home/daya/aratiri-deploy/.env`: runtime secrets (never committed).
+- `ops/deploy/`: poller script + systemd units (installed at
   `~/.config/systemd/user` or system level as `aratiri-deploy.{service,timer}`).
 
 ## LND (Bitcoin mainnet)
@@ -34,10 +34,10 @@ Keep production on mainnet with a public peer URI:
 
 Backend secrets at `~/aratiri-deploy/secrets/` must match the live node:
 
-- `admin.macaroon` — **hex-encoded** (`xxd -p … | tr -d '\n'`), not raw
+- `admin.macaroon`: **hex-encoded** (`xxd -p … | tr -d '\n'`), not raw
   binary; must decode to the same bytes as
   `lnd-data/data/chain/bitcoin/mainnet/admin.macaroon`
-- `tls.cert` — byte-identical to `lnd-data/tls.cert`
+- `tls.cert`: byte-identical to `lnd-data/tls.cert`
 
 After rotating either file, `docker compose restart aratiri-app` so the
 read-only `/run/secrets` mount is re-read.
@@ -63,8 +63,8 @@ Browser clients still call `https://api.aratiri.net` (Cloudflare Tunnel → Cadd
 Backend host publish stays loopback-only (`127.0.0.1:2100`). Unauthenticated
 process probes are intentional for ops:
 
-- `GET /actuator/health` — liveness/readiness (status-only JSON; no details)
-- `GET /actuator/prometheus` — Prometheus scrape text
+- `GET /actuator/health`: liveness/readiness (status-only JSON; no details)
+- `GET /actuator/prometheus`: Prometheus scrape text
 
 `/actuator/metrics`, `/actuator/info`, and other actuator routes stay JWT-authenticated.
 Public scrape must be denied at the edge (Caddy), not relied on for JWT 401 alone.
@@ -118,9 +118,9 @@ Production must set non-empty `EMAIL_USERNAME` and `EMAIL_PASSWORD` in
 `~/aratiri-deploy/.env` (mapped into the backend container). Without both,
 `POST /v1/auth/register` and password-reset initiation fail closed with HTTP
 503 ("Email delivery is not configured") instead of pretending mail was sent.
-Do not invent or commit SMTP secrets — use real provider credentials only.
+Do not invent or commit SMTP secrets. Use real provider credentials only.
 
-## Resource limits (2 GB box — do not raise without checking RAM)
+## Resource limits (2 GB box, do not raise without checking RAM)
 
 - Kafka: `KAFKA_HEAP_OPTS=-Xms256m -Xmx256m`
 - Backend JVM: `JAVA_TOOL_OPTIONS=-Xmx384m`, Hikari pool 10
@@ -183,13 +183,13 @@ For a Tailscale-only Prometheus + Loki + Grafana pack (bind
 `100.124.162.6:9090` / `:3002` / `:3100`, scrape the loopback actuator above,
 ship `aratiri-backend` container logs), see
 [`ops/observability/`](observability/) and its README
-(`~/aratiri-observability` on the server). Loki replaces nothing — metrics stay
+(`~/aratiri-observability` on the server). Loki replaces nothing. Metrics stay
 on Prometheus, logs land in Loki. What listens where:
 
-- Prometheus — `100.124.162.6:9090` (scrape `127.0.0.1:2100/actuator/prometheus`)
-- Grafana — `100.124.162.6:3002`
-- Loki — `100.124.162.6:3100` (push + query API; TLS-less, Tailscale only)
-- Promtail — `127.0.0.1:9080` (loopback, no UI)
+- Prometheus: `100.124.162.6:9090` (scrape `127.0.0.1:2100/actuator/prometheus`)
+- Grafana: `100.124.162.6:3002`
+- Loki: `100.124.162.6:3100` (push + query API; TLS-less, Tailscale only)
+- Promtail: `127.0.0.1:9080` (loopback, no UI)
 
 Promtail needs `/var/run/docker.sock` (mounted read-only) for Docker service
 discovery; it ships only the `aratiri-backend` container. Do not expose those
@@ -203,7 +203,7 @@ Batch images: place `~/aratiri-deploy/.deploy.hold` (or set
 `ARATIRI_DEPLOY_HOLD=1` in the unit env). `deploy.sh` then logs
 `deploy hold active; skipping` and exits 0 without `compose pull`.
 
-GHCR push from the server currently fails with `permission_denied` scopes — requires a PAT/`write:packages` before clearing `.deploy.hold`.
+GHCR push from the server currently fails with `permission_denied` scopes and needs a PAT/`write:packages` before clearing `.deploy.hold`.
 
 When GHCR is current and continuous deploy should resume:
 
@@ -214,10 +214,10 @@ When GHCR is current and continuous deploy should resume:
      `ops/deploy/publish-images.sh <aratiri-ref> <frontend-ref> <admin-ref>`
      with a PAT that has `write:packages` (push fails closed on
      `permission_denied` / insufficient scope).
-2. **Server auth for pull** — put `GHCR_USERNAME` / `GHCR_TOKEN` in
+2. **Server auth for pull.** Put `GHCR_USERNAME` / `GHCR_TOKEN` in
    `~/aratiri-deploy/.env` if packages are still private (read is enough for
    the poller; write is only needed for `publish-images.sh`).
-3. **Clear the hold** — remove `~/aratiri-deploy/.deploy.hold` and unset
+3. **Clear the hold.** Remove `~/aratiri-deploy/.deploy.hold` and unset
    `ARATIRI_DEPLOY_HOLD` if set.
 4. **Enable the timer**:
    `sudo systemctl enable --now aratiri-deploy.timer`

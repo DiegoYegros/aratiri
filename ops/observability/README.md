@@ -13,11 +13,11 @@ http://127.0.0.1:2100/actuator/prometheus          # metrics (scrape target)
 Public internet must not reach these UIs. Prometheus, Grafana and Loki listen
 on the host Tailscale IP only (`100.124.162.6:9090` / `:3002` / `:3100`);
 Promtail listens on loopback (`127.0.0.1:9080`, no UI). Note the frontend /
-admin bind `127.0.0.1:3100` / `:3101` on the same host — no clash with Loki,
+admin bind `127.0.0.1:3100` / `:3101` on the same host, no clash with Loki,
 which binds the Tailscale address.
 
 Images are from Docker Hub (`prom/prometheus`, `grafana/grafana`,
-`grafana/loki`, `grafana/promtail`) — no GHCR dependency. This stack is
+`grafana/loki`, `grafana/promtail`), no GHCR dependency. This stack is
 separate from `~/aratiri-deploy`; only Promtail touches another compose stack:
 it reads `aratiri-backend`'s docker logs via the socket.
 
@@ -33,7 +33,7 @@ it reads `aratiri-backend`'s docker logs via the socket.
 
 Loki + Promtail stay under 550 Mi combined (256 + 128 = 384 Mi) as the budget
 calls for; the whole observability pack is ~1.1 GiB of the 2 GiB box. Keep the
-app stack modest too — see `ops/DEPLOYMENT.md` resource limits.
+app stack modest too, see `ops/DEPLOYMENT.md` resource limits.
 
 ## Layout on the server
 
@@ -41,7 +41,7 @@ app stack modest too — see `ops/DEPLOYMENT.md` resource limits.
 ~/aratiri-observability/
   docker-compose.yml
   prometheus.yml
-  .env.example          # template — copy to .env (never commit .env)
+  .env.example          # template, copy to .env (never commit .env)
   .env                   # real secrets (from .env.example)
   loki/
     loki.yaml
@@ -63,7 +63,7 @@ mkdir -p ~/aratiri-observability
 cp -a ops/observability/. ~/aratiri-observability/
 cd ~/aratiri-observability
 cp .env.example .env
-# edit .env — set a strong GRAFANA_ADMIN_PASSWORD
+# edit .env, set a strong GRAFANA_ADMIN_PASSWORD
 # confirm TAILSCALE_IP=100.124.162.6 matches `tailscale ip -4`
 
 docker compose --env-file .env config   # validate
@@ -104,7 +104,7 @@ re-derived by the `| json` parser at query time. Queries:
 # Any backend log (start here)
 {container="aratiri-backend"}
 
-# By traceId (echoed request id — see the X-Request-Id response header)
+# By traceId (echoed request id, see the X-Request-Id response header)
 {container="aratiri-backend"} | json | traceId="<requestId-from-response-header>"
 
 # By userId (principal in the MDC on authenticated requests)
@@ -118,7 +118,7 @@ re-derived by the `| json` parser at query time. Queries:
 {container="aratiri-backend"} | json | path=~"/v1/payments.*"
 ```
 
-Bursts by requestId are not in the label set — query them the same way
+Bursts by requestId are not in the label set. Query them the same way
 (`| json | requestId="…"`). Never promote traceId/userId to labels: high
 cardinality defeats Loki.
 
@@ -162,7 +162,7 @@ pulls in logs via the socket, then pushes to Tailscale Loki). Nothing binds
   Caddy's deny for `/actuator/prometheus`.
 - Do not change Spring Security allowlists for this pack.
 - Rotate `GRAFANA_ADMIN_PASSWORD` after first login if the example value was used.
-- `.env` is server-only — never commit real passwords / Tailscale secrets;
+- `.env` is server-only. Never commit real passwords / Tailscale secrets;
   keep `docker compose --env-file .env` everywhere.
 
 ## Stop / remove

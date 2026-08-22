@@ -38,7 +38,7 @@ The second command keeps running so that `http://localhost:8000/jwks.json` remai
 
 ## 3. Configure Aratiri
 
-Trusted issuers are **not** enabled by default (`trusted-issuers: []` in `application.yml`). You must opt in with an explicit issuer entry (YAML override, profile-specific config, or indexed env vars — see [configuration.md](configuration.md)).
+Trusted issuers are **not** enabled by default (`trusted-issuers: []` in `application.yml`). You must opt in with an explicit issuer entry (YAML override, profile-specific config, or indexed env vars, see [configuration.md](configuration.md)).
 
 Set up the configuration so the app trusts the new issuer and enables the token exchange endpoint. For example, put this in `application-local.yml` (or merge into your running config):
 

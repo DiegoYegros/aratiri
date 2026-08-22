@@ -47,14 +47,14 @@ Aratiri follows a ports-and-adapters architecture. Each bounded context lives un
 | `domain` | Domain objects and enums |
 
 Infrastructure is under `src/main/java/com/aratiri/infrastructure/`:
-- `persistence/jpa/entity` — JPA entities (use `@Getter`/`@Setter`, never `@Data`)
-- `persistence/jpa/repository` — Spring Data repositories
-- `messaging` — Kafka consumers, execution consumers, and event publishers
-- `scheduling` — Scheduled jobs
-- `web` — Global exception handler and request context
-- `grpc` — gRPC interceptors
+- `persistence/jpa/entity`: JPA entities (use `@Getter`/`@Setter`, never `@Data`)
+- `persistence/jpa/repository`: Spring Data repositories
+- `messaging`: Kafka consumers, execution consumers, and event publishers
+- `scheduling`: Scheduled jobs
+- `web`: Global exception handler and request context
+- `grpc`: gRPC interceptors
 
-JPA entities use Lombok `@Getter` and `@Setter` — not `@Data`. Fields like `id`, `createdAt`, and `updatedAt` should be immutable (no setter). Use `@Builder` for test construction.
+JPA entities use Lombok `@Getter` and `@Setter`, not `@Data`. Fields like `id`, `createdAt`, and `updatedAt` should be immutable (no setter). Use `@Builder` for test construction.
 
 ## Pull Request Process
 

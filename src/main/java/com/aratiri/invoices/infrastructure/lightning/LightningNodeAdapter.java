@@ -78,7 +78,7 @@ public class LightningNodeAdapter implements LightningNodePort {
         }
     }
 
-    // BOLT11 decode is deterministic per invoice string — safe to cache.
+    // BOLT11 decode is deterministic per invoice string, so it is safe to cache.
     @Override
     @Cacheable(cacheNames = "bolt11Decode", key = "#paymentRequest.toLowerCase()", sync = true)
     public DecodedLightningInvoice decodePaymentRequest(String paymentRequest) {

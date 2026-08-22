@@ -26,8 +26,8 @@ import java.util.Set;
 /**
  * Drives payment-request provisioning off the HTTP thread. The saga service's fenced claims make
  * redelivery idempotent; the {@code PaymentRequestSagaJob} lease-safe backstop preserves behavior
- * even when this consumer never runs. On exhaustion the record is dead-lettered and only logged —
- * the job remains the terminal-state authority (FAILED after 10 attempts).
+ * even when this consumer never runs. On exhaustion the record is dead-lettered and only logged.
+ * The job remains the terminal-state authority (FAILED after 10 attempts).
  */
 @Component
 @RequiredArgsConstructor

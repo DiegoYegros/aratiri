@@ -111,7 +111,7 @@ public class AratiriSecurityProperties {
      * <p>
      * Defaults to enabled. This is a per-JVM guardrail (not a distributed quota): counters
      * reset on restart, are not shared across instances, and use {@code HttpServletRequest#getRemoteAddr()}
-     * only — spoofable {@code X-Forwarded-For} is ignored unless a trusted reverse-proxy
+     * only; spoofable {@code X-Forwarded-For} is ignored unless a trusted reverse-proxy
      * rewrites the remote address. Disable only behind a gateway/WAF that already enforces
      * equivalent limits, or for tightly controlled local testing.
      * <p>

@@ -263,7 +263,7 @@ public class PaymentRequestSagaService {
                 settleOwnedFromNode(request, settled.get(), lockedBy);
                 return true;
             }
-            // Missing/ambiguous proof is retryable — never request-only PAID healing.
+            // Missing/ambiguous proof is retryable. Never request-only PAID healing.
             throw new IllegalStateException(
                     "Cancel observed ALREADY_SETTLED without recoverable node invoice for hash "
                             + request.paymentHash()

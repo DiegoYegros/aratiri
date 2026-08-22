@@ -69,7 +69,7 @@ If `LND_TLS_CERT_PATH` is blank and TLS is active, the app uses default transpor
 
 Trusted issuer/token exchange settings:
 
-Trusted issuers are **opt-in and fail-closed**. Default `aratiri.security.trusted-issuers` is an empty list — no localhost JWKS decoder and no auto-provision path is registered until you add an issuer explicitly.
+Trusted issuers are **opt-in and fail-closed**. The default `aratiri.security.trusted-issuers` is an empty list, so no localhost JWKS decoder and no auto-provision path is registered until you add an issuer explicitly.
 
 | Variable / property | Default | Purpose |
 | --- | --- | --- |
@@ -189,7 +189,7 @@ Observability:
 
 HTTP contract notes:
 
-- Create: `202` + `Location` for every newly created request (provisioning runs asynchronously — the
+- Create: `202` + `Location` for every newly created request (provisioning runs asynchronously; the
   former synchronous `201` fast path is removed). Same-key replay: `202` while pending / `200` once
   `OPEN`/terminal, payload conflict `409`.
 - Cancel: `202` for `CANCEL_PENDING` (including replay), `200` once `CANCELLED`, `409` for `PAID`/`EXPIRED`/`FAILED`.
@@ -203,7 +203,7 @@ Shared fail-closed SSRF policy for **webhooks**, **LNURL** (metadata, Lightning 
 | --- | --- | --- |
 | `aratiri.outbound.destination.allow-http` / `ARATIRI_OUTBOUND_DESTINATION_ALLOW_HTTP` | `false` | **Unsafe / lab-only.** When `true`, allows `http://` destinations. Production must keep `false` (HTTPS only). |
 | `aratiri.outbound.destination.allow-private-networks` / `ARATIRI_OUTBOUND_DESTINATION_ALLOW_PRIVATE_NETWORKS` | `false` | **Unsafe / lab-only.** When `true`, skips rejection of loopback, RFC1918, link-local, CGNAT, ULA, and other special ranges. Production must keep `false`. Opens **all** consumers of this policy (webhooks + LNURL + NIP-05). |
-| `aratiri.outbound.destination.allowed-hosts` | empty | Optional allowlist of exact hosts or `*.suffix` wildcard suffixes (not regex). **Empty (default) allows any public host** that passes scheme/structure/private checks — required for Lightning Address / LNURL / NIP-05 against the open Lightning ecosystem. Non-empty is mainly for locked-down webhook labs; a global allowlist would break decode/pay to arbitrary public LNURL hosts. Compared after host normalization (IDN/punycode, case, trailing dots, optional IPv6 brackets). Malformed entries are ignored per request (fail closed for matching), not at startup. Narrows which names may be chosen; does **not** pin DNS or prevent rebinding of an allowlisted/compromised name. |
+| `aratiri.outbound.destination.allowed-hosts` | empty | Optional allowlist of exact hosts or `*.suffix` wildcard suffixes (not regex). **Empty (default) allows any public host** that passes scheme/structure/private checks, required for Lightning Address / LNURL / NIP-05 against the open Lightning ecosystem. Non-empty is mainly for locked-down webhook labs; a global allowlist would break decode/pay to arbitrary public LNURL hosts. Compared after host normalization (IDN/punycode, case, trailing dots, optional IPv6 brackets). Malformed entries are ignored per request (fail closed for matching), not at startup. Narrows which names may be chosen; does **not** pin DNS or prevent rebinding of an allowlisted/compromised name. |
 
 > **Rename:** previously `aratiri.webhooks.destination.*` / `ARATIRI_WEBHOOKS_DESTINATION_*`.
 > Prefer `aratiri.outbound.destination.*` / `ARATIRI_OUTBOUND_DESTINATION_*`.

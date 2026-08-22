@@ -26,8 +26,8 @@ import java.util.Set;
 /**
  * Drives payment-request cancellation off the HTTP thread. The saga service's fenced claims make
  * redelivery idempotent; the {@code PaymentRequestSagaJob} lease-safe backstop preserves behavior
- * even when this consumer never runs. On exhaustion the record is dead-lettered and only logged —
- * nothing is marked terminal here; the job keeps the row CANCEL_PENDING for operator retry.
+ * even when this consumer never runs. On exhaustion the record is dead-lettered and only logged.
+ * Nothing is marked terminal here; the job keeps the row CANCEL_PENDING for operator retry.
  */
 @Component
 @RequiredArgsConstructor

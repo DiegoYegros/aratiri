@@ -60,7 +60,7 @@ public class NotificationConsumer {
         try {
             Notification notification = parse(message, topic);
             if (notification == null) {
-                log.warn("Unknown topic in NotificationConsumer: {} — acknowledging to avoid blocking the partition", topic);
+                log.warn("Unknown topic in NotificationConsumer: {}; acknowledging to avoid blocking the partition", topic);
                 ack.acknowledge();
                 return;
             }

@@ -118,7 +118,7 @@ public class NotificationSocketHandler extends TextWebSocketHandler implements S
       } else if (ticket == null) {
         ticket = token;
       } else {
-        // More than one opaque token — malformed.
+        // More than one opaque token, malformed.
         return Optional.empty();
       }
     }

@@ -1,4 +1,4 @@
-# ops/ — Production deployment tooling
+# ops/: Production deployment tooling
 
 Push-to-master deployment for the Aratiri stack. Heavy builds run on GitHub
 Actions, which pushes Docker images to GHCR. The server never builds; it
@@ -7,7 +7,7 @@ polls GHCR and redeploys on image change.
 ## How it works
 
 1. `.github/workflows/deploy.yml` in each repo (`aratiri`, `aratiri-frontend`,
-   `aratiri-admin-frontend`) — on push to `master`/`main`, run the existing
+   `aratiri-admin-frontend`). On push to `master`/`main`, run the existing
    build check, then build and push `ghcr.io/diegoyegros/{aratiri,aratiri-frontend,aratiri-admin}`
    tagged `latest` and `${{ github.sha }}`. Uses the built-in `GITHUB_TOKEN`,
    no extra secrets.
@@ -18,7 +18,7 @@ polls GHCR and redeploys on image change.
 ## Server layout (convert of the existing ~/aratiri-deploy)
 
 The live stack already exists at `~/aratiri-deploy` (postgres + kafka + lnd +
-backend + frontend + admin). It is NOT redesigned — only the three `build:`
+backend + frontend + admin). It is NOT redesigned. Only the three `build:`
 sections are replaced by GHCR image refs (see `docker-compose.prod.yml`,
 which is that converted file). Preserve the exposure exactly: app HTTP binds
 `127.0.0.1:{2100,3100,3101}`, LND p2p `:9735`, kafka/db have no host ports.
@@ -92,5 +92,5 @@ packages are public, anonymous pulls work and the login is a no-op.
 Next.js inlines `NEXT_PUBLIC_*` at build time. The frontend and admin images
 are built by CI with the `NEXT_PUBLIC_API_BASE_URL` build arg
 (`http://167.233.193.136:2100/v1`; the `/v1` suffix is required by the API
-client). The value in `ops/.env.example` is for reference only — changing it
+client). The value in `ops/.env.example` is for reference only. Changing it
 at runtime has no effect on the built image.

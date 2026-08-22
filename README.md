@@ -1,6 +1,6 @@
 # Aratiri
 
-Aratiri is a Spring Boot service that gives a custodial platform a Bitcoin Lightning and on-chain API surface without making Aratiri the custodian. The platform that embeds Aratiri still owns user balances and user relationships. Aratiri owns the operational bridge to LND, the user-facing payment APIs, the internal ledger projection, asynchronous payment execution, LNURL support, webhook delivery, and node administration.
+Aratiri is a Spring Boot service that gives a custodial platform a Bitcoin Lightning and on-chain API without making Aratiri the custodian. The platform that embeds Aratiri still owns user balances and user relationships. Aratiri owns the operational bridge to LND, the user-facing payment APIs, the internal ledger projection, asynchronous payment execution, LNURL support, webhook delivery, and node administration.
 
 This README focuses on how the application works. Operational setup lives in:
 
@@ -148,7 +148,7 @@ Incoming Lightning and on-chain credits come from LND streams.
 - `OnChainTransactionListener` subscribes to LND chain transactions from the stored block-height cursor. Confirmed outputs to account deposit addresses emit `onchain.transaction.received`.
 - `OnChainTransactionConsumer` settles `ONCHAIN_CREDIT` transactions by tx hash and output index.
 
-## API Surface
+## API
 
 | API | Main purpose |
 | --- | --- |
@@ -175,7 +175,7 @@ The H2 console is only permitted in `dev`, `development`, or `test` profiles unl
 
 ## Webhook Model
 
-Webhook events are created by `WebhookEventConsumer` from `webhook.event.created` messages that business code publishes after its transaction commits (webhook row creation no longer runs in the business transaction). Each event has a deterministic `event_key`, and the `webhook_events` unique index makes duplicate processing idempotent — redelivery does not create duplicate callbacks. The `webhook_events`/`webhook_deliveries` tables remain the delivery and audit store; the admin `webhook.test` endpoint creates its event synchronously. Admin users create endpoints, select event types, rotate signing secrets, send test events, and inspect deliveries.
+Webhook events are created by `WebhookEventConsumer` from `webhook.event.created` messages that business code publishes after its transaction commits (webhook row creation no longer runs in the business transaction). Each event has a deterministic `event_key`, and the `webhook_events` unique index makes duplicate processing idempotent. Redelivery does not create duplicate callbacks. The `webhook_events`/`webhook_deliveries` tables remain the delivery and audit store; the admin `webhook.test` endpoint creates its event synchronously. Admin users create endpoints, select event types, rotate signing secrets, send test events, and inspect deliveries.
 
 Supported event families include:
 
@@ -236,4 +236,4 @@ Generated LND protobuf classes are built from `src/main/proto` and packaged into
 
 ## License
 
-This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

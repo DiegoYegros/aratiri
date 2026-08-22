@@ -35,7 +35,7 @@ import java.util.Set;
  * never reaches MVC controllers or auth application services (covered by the integration spy
  * on {@code AuthPort}).
  * <p>
- * Client identity is {@link HttpServletRequest#getRemoteAddr()} only —
+ * Client identity is {@link HttpServletRequest#getRemoteAddr()} only.
  * {@code X-Forwarded-For} is intentionally ignored because this service does not sanitize
  * forwarded headers; deploy a trusted proxy that rewrites the remote address when client
  * IPs matter.

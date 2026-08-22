@@ -153,7 +153,7 @@ class PaymentRequestSagaFaultIntegrationTest extends AbstractIntegrationTest {
                 WHERE id = ?
                 """, pending.getId());
 
-        // Worker recovers by lookup — must not mint again.
+        // Worker recovers by lookup; must not mint again.
         sagaService.tryProvision(pending.getId());
 
         PaymentRequestEntity open = paymentRequestRepository.findById(committed.id()).orElseThrow();

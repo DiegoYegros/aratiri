@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>
  * Concurrency: updates go through {@code ConcurrentHashMap#compute}, so two threads
  * cannot both observe a free slot and both increment past the limit for the same key.
- * Eviction under {@code maximumKeys} pressure can free slots — this is intentional and
+ * Eviction under {@code maximumKeys} pressure can free slots. This is intentional and
  * documented as an operational bound, not a hard global quota.
  * <p>
  * Window length is validated once at construction ({@link AuthRateLimit#validatedWindowMillis()})

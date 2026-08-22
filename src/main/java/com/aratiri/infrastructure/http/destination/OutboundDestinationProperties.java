@@ -38,8 +38,8 @@ public class OutboundDestinationProperties {
    * trailing dots, optional single-layer IPv6 brackets). Malformed entries are ignored per
    * request (fail closed for matching) rather than failing process startup.
    *
-   * <p>Empty list (default) allows any host that passes scheme/structure/private-network checks —
-   * required for Lightning Address / LNURL / NIP-05 against the open Lightning ecosystem.
+   * <p>Empty list (default) allows any host that passes scheme/structure/private-network checks,
+   * which is required for Lightning Address / LNURL / NIP-05 against the open Lightning ecosystem.
    * A non-empty list is mainly for locked-down webhook labs; applying it globally would reject
    * arbitrary public LNURL/NIP-05 hosts.
    *

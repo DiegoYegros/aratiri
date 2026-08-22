@@ -52,7 +52,7 @@ public class SecurityConfig {
             "/v1/notifications/subscribe"
     };
 
-    // Narrow allowlist only — do not permit /actuator/** (metrics/info stay authenticated).
+    // Narrow allowlist only. Do not permit /actuator/** (metrics/info stay authenticated).
     private static final String[] ACTUATOR_PUBLIC_ENDPOINTS = {
             "/actuator/health",
             "/actuator/health/**",

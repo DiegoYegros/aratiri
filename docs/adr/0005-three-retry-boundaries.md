@@ -1,6 +1,6 @@
 # Three retry boundaries
 
-> **Status: Superseded — historical record.** Replaced by [ADR 0007](0007-direct-kafka-publication-and-execution.md):
+> **Status: Superseded, historical record.** Replaced by [ADR 0007](0007-direct-kafka-publication-and-execution.md):
 > the outbox publication and node-operation retry boundaries were removed (direct post-commit
 > publish + Kafka retry-topic execution consumers); webhook delivery keeps its own retry boundary.
 > Kept for history only; do not treat as current design.

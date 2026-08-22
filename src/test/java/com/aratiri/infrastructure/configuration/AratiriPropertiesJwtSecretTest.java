@@ -70,7 +70,7 @@ class AratiriPropertiesJwtSecretTest {
 
         assertDoesNotThrow(properties::validateJwtSecret);
 
-        // 15 × é = 30 UTF-8 bytes — must fail
+        // 15 × é = 30 UTF-8 bytes, must fail
         properties.setJwtSecret("é".repeat(15));
         IllegalStateException thrown = assertThrows(IllegalStateException.class, properties::validateJwtSecret);
         assertTrue(thrown.getMessage().contains("got 30"));

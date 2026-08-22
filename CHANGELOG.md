@@ -12,13 +12,13 @@ All notable changes to this project are documented in this file.
   unique `event_key`. `webhook_events`/`webhook_deliveries` tables are unchanged and remain the
   delivery/audit store. Webhook creation is now at-most-once: after 5 retries the event is
   dead-lettered and logged (documented loss). The admin `webhook.test` endpoint stays synchronous.
-  Known limitation: the row insert and the delivery fan-out are separate transactions — a consumer
+  Known limitation: the row insert and the delivery fan-out are separate transactions. A consumer
   crash between them leaves an event row without its deliveries, and redelivery dedupes at the row
   (documented in ADR 0008).
 - Payment-request saga is now Kafka-driven: create commits `PROVISIONING` and publishes
   `payment-request.provision.requested`; cancel durably transitions to `CANCEL_PENDING` and
   publishes `payment-request.cancel.requested`. `PaymentRequestProvisionConsumer` and
-  `PaymentRequestCancelConsumer` run the fenced saga claims off the HTTP thread — LND is no longer
+  `PaymentRequestCancelConsumer` run the fenced saga claims off the HTTP thread. LND is no longer
   called from payment-request HTTP threads. `PaymentRequestSagaJob` is retained as the lease-safe
   backstop (lost-event repair and terminal-state authority). Exhausted records dead-letter and are
   logged only.
@@ -37,7 +37,7 @@ All notable changes to this project are documented in this file.
   V5.0.5 partial unique index) is removed in migration `V6.0.0`. Application services now publish
   domain events directly to Kafka after the DB commit (`EventPublisher`/`KafkaEventPublisher`).
   Kafka publish failures after commit are logged and repaired by consumer-side idempotency and
-  `TransactionReconciliationJob` — the publish guarantee changed from at-least-once to
+  `TransactionReconciliationJob`. The publish guarantee changed from at-least-once to
   at-most-once.
 - Dropped the `node_operations` work table and `NodeOperationJob` in migration `V6.0.1`. LND
   payment side effects now run directly in Kafka execution consumers
@@ -65,7 +65,7 @@ All notable changes to this project are documented in this file.
   transactions: the wallet label lookup decides confirm (broadcast found) vs fail (not found).
   Note the race window: a live execution still holding the EXECUTING claim past
   `transaction_reconciliation_min_age_ms` can be failed by the job if the label is not yet
-  visible in LND — keep the min-age above the expected `SendCoins` duration and treat
+  visible in LND. Keep the min-age above the expected `SendCoins` duration and treat
   reconciliation as a repair path for stuck owners.
 - `NotificationConsumer` deduplicates user-visible WebSocket pushes with an in-memory 5-minute
   TTL cache to compensate for the removed outbox `publishOnce` guarantee. This is

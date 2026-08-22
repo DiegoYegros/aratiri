@@ -118,7 +118,7 @@ class LnurlAdapterTest {
         assertNotNull(result);
         assertTrue(result instanceof java.util.Map);
         assertEquals("lnbc1...", ((java.util.Map<?, ?>) result).get("pr"));
-        // The alias row must be fetched only once — inside generateInvoice, no existsByAlias pre-check.
+        // The alias row must be fetched only once, inside generateInvoice, with no existsByAlias pre-check.
         verify(accountsPort, never()).existsByAlias(anyString());
     }
 

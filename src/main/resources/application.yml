@@ -150,8 +150,8 @@ aratiri:
       allow-private-networks: ${ARATIRI_OUTBOUND_DESTINATION_ALLOW_PRIVATE_NETWORKS:${ARATIRI_WEBHOOKS_DESTINATION_ALLOW_PRIVATE_NETWORKS:false}}
       # Optional exact hosts or *.suffix wildcards (see docs/configuration.md). Default empty =
       # any public host OK (needed for Lightning Address / LNURL / NIP-05).
-      # If you previously set aratiri.webhooks.destination.allowed-hosts, migrate that list here —
-      # there is no automatic fallback (empty allowlist is intentional for open Lightning ecosystems).
+      # If you previously set aratiri.webhooks.destination.allowed-hosts, migrate that list here.
+      # There is no automatic fallback (empty allowlist is intentional for open Lightning ecosystems).
       allowed-hosts: []
   security:
     default-principal-claim: ${ARATIRI_SECURITY_DEFAULT_PRINCIPAL_CLAIM:email}

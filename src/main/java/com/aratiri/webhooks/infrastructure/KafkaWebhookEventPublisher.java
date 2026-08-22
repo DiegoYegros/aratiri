@@ -40,7 +40,7 @@ public class KafkaWebhookEventPublisher implements WebhookEventPublisher {
             WebhookPayloadData data
     ) {
         // Single id for both the envelope and the record so the consumer can reuse it as the
-        // webhook_events row id — the delivered payload.id stays correlated with the stored row.
+        // webhook_events row id. The delivered payload.id stays correlated with the stored row.
         UUID eventId = UUID.randomUUID();
         WebhookPayload payload = WebhookPayload.builder()
                 .id(eventId.toString())
